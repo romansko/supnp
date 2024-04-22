@@ -12,6 +12,16 @@ Version 1.16.0
 Version 1.14.19
 *******************************************************************************
 
+2024-04-22 Steve Lhomme <robux4(at)ycbcr.xyz>
+
+        - disable fseeko usage on 32-bit Android older than API 24
+
+        feesko is not supported on 32-bit Android older than API 24 [1].
+        Older SDKs would allow the call but the 64-bit off_t was not accurate.
+        With the NDK26 the call is hidden in that case and calling fseeko() results in a compilation error.
+
+        [1] https://android.googlesource.com/platform/bionic/+/main/docs/32-bit-abi.md
+
 2023-09-16 Marcelo Roberto Jimenez <mroberto(at)users.sourceforge.net>
 
         - Fixed memory allocation in `tv_device.c::TvDeviceSetContrast()`.

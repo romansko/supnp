@@ -102,7 +102,8 @@ The Portable SDK for UPnP&trade; Devices is distributed under the BSD (Berkeley 
 | -------------- | ---------- | ---------------------------------------- |
 | 1.18.0         | TBA ?      | [Portable UPnP SDK][Portable UPnP SDK]   |
 | 1.16.0         | aborted    | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.19        | TBA        | [Portable UPnP SDK][Portable UPnP SDK]   |
+| 1.14.20        | TBA        | [Portable UPnP SDK][Portable UPnP SDK]   |
+| 1.14.19        | 2024-04-22 | [Portable UPnP SDK][Portable UPnP SDK]   |
 | 1.14.18        | 2023-08-21 | [Portable UPnP SDK][Portable UPnP SDK]   |
 | 1.14.17        | 2023-04-30 | [Portable UPnP SDK][Portable UPnP SDK]   |
 | 1.14.16        | 2023-03-30 | [Portable UPnP SDK][Portable UPnP SDK]   |
@@ -442,7 +443,7 @@ See [ChangeLog file](https://github.com/pupnp/pupnp/blob/master/ChangeLog).
 
 Intel is not providing support for the SDK for UPnP Devices. Mailing lists and discussion boards can be found at <https://github.com/pupnp/pupnp/discussions>.
 
-If you find this SDK useful, please send an email to upnp@intel.com and let us know.
+If you find this SDK useful, please send an email to <upnp@intel.com> and let us know.
 
 \* Other brands, names, and trademarks are the property of their respective owners.
 
@@ -454,7 +455,7 @@ Here's how its supposed to work:
 
 - The scriptsupport allows you to add a callback when a node is freed on the C side, so appropriate action can be taken on the script side, see function ixmlSetBeforeFree().
 - Instead of recreating the tree structure, an intermediate object should be created only for the nodes actually accessed. The object should be containing a pointer to the node and a 'valid flag' which is initially set to TRUE (the valid flag, can simply be the pointer to the node being NULL or not). Before creating the intermediate object, the custom tag 'ctag' can be used to check whether one was already created.
-- the node object gets an extra 'void\* ctag' field, a custom tag to make a ross reference to the script side intermediate object. It can be set using ixmlNode_setCTag(), and read using ixmlNode_getCTag(). Whenever a new intermediate object is created, the ctag of the corresponding node should be set to point to this intermediate object.
+- the node object gets an extra 'void\* ctag' field, a custom tag to make a cross reference to the script side intermediate object. It can be set using ixmlNode_setCTag(), and read using ixmlNode_getCTag(). Whenever a new intermediate object is created, the ctag of the corresponding node should be set to point to this intermediate object.
 - The tree structure traversal is done on the C side (looking up parents, children and siblings)
 - Every intermediate object created should be kept in a list (preferably a key-value list, where the key is the pointer to the node and the value is the pointer to the intermediate object)
 - when the callback is called, the node should be looked up in the list, the flag set to false, the pointer to the C-side node be cleared and on the C-side the ctag should be cleared.
@@ -473,11 +474,11 @@ Script side steps:
 <!-- markdownlint-capture -->
 <!-- markdownlint-disable MD033 -->
 <div>
-    <img src="https://b.sf-syn.com/badge_img/166957/oss-users-love-us-black" style="width:125px"/>
-    <img src="https://b.sf-syn.com/badge_img/166957/oss-community-choice-black?achievement=oss-community-choice" style="width:125px"/>
-    <img src="https://b.sf-syn.com/badge_img/166957/oss-sf-favorite-black?achievement=oss-sf-favorite" style="width:125px"/>
-    <img src="https://b.sf-syn.com/badge_img/166957/oss-community-leader-black?achievement=oss-community-leader" style="width:125px"/>
-    <img src="https://b.sf-syn.com/badge_img/166957/oss-open-source-excellence-black?achievement=oss-open-source-excellence" style="width:125px"/>
+    <img src="https://b.sf-syn.com/badge_img/166957/oss-users-love-us-black" style="width:125px" alt="oss-users-love-us"/>
+    <img src="https://b.sf-syn.com/badge_img/166957/oss-community-choice-black?achievement=oss-community-choice" style="width:125px" alt="oss-community-choice"/>
+    <img src="https://b.sf-syn.com/badge_img/166957/oss-sf-favorite-black?achievement=oss-sf-favorite" style="width:125px" alt="oss-sf-favorite"/>
+    <img src="https://b.sf-syn.com/badge_img/166957/oss-community-leader-black?achievement=oss-community-leader" style="width:125px" alt="oss-community-leader"/>
+    <img src="https://b.sf-syn.com/badge_img/166957/oss-open-source-excellence-black?achievement=oss-open-source-excellence" style="width:125px" alt="oss-open-source-excellence"/>
 </div>
 <!-- markdownlint-restore -->
 
