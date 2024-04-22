@@ -73,7 +73,8 @@
 	#include <sys/types.h>
 	#include <sys/utsname.h>
 	#include <sys/wait.h>
-	#if defined(__ANDROID__) && (!defined(__USE_FILE_OFFSET64) || __ANDROID_API__ < 24)
+	#if defined(__ANDROID__) && \
+		(!defined(__USE_FILE_OFFSET64) || __ANDROID_API__ < 24)
 		#define fseeko fseek
 	#endif
 #endif /* _WIN32 */
