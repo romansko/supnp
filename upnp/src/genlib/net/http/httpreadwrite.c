@@ -1734,9 +1734,24 @@ int http_MakeMessage(membuffer *buf,
 				goto error_handler;
 		} else if (c == 'K') {
 			/* Add Chunky header */
-			if (membuffer_append(buf,
-				    "TRANSFER-ENCODING: chunked\r\n",
-				    strlen("Transfer-Encoding: chunked\r\n")))
+			if (membuffer_append_str(
+				    buf, "TRANSFER-ENCODING: chunked\r\n"))
+				goto error_handler;
+		} else if (c == 'A') {
+			/* Add Access-Control-Allow-Origin header only if
+			 * set by UpnpSetWebServerCorsString */
+			struct SendInstruction *RespInstr;
+			RespInstr = (struct SendInstruction *)va_arg(
+				argp, struct SendInstruction *);
+			assert(RespInstr);
+			if (RespInstr->CorsHeader &&
+				strcmp(RespInstr->CorsHeader, "") &&
+				http_MakeMessage(buf,
+					http_major_version,
+					http_minor_version,
+					"ssc",
+					"Access-Control-Allow-Origin: ",
+					RespInstr->CorsHeader) != 0)
 				goto error_handler;
 		} else if (c == 'G') {
 			/* Add Range header */
