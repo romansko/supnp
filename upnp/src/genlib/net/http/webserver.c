@@ -1367,6 +1367,15 @@ static int process_request(
 		/*          goto error_handler; */
 		/*      } */
 	}
+	{
+		UpnpListHead *eHeader =
+			UpnpFileInfo_get_ExtraHeadersList(finfo);
+		UpnpExtraHeaders *h = UpnpExtraHeaders_new();
+		UpnpExtraHeaders_set_resp(h, "Access-Control-Allow-Origin: *");
+		UpnpListInsert(eHeader,
+			UpnpListEnd(eHeader),
+			UpnpExtraHeaders_get_node(h));
+	}
 	RespInstr->ReadSendSize = UpnpFileInfo_get_FileLength(finfo);
 	/* Check other header field. */
 	code = CheckOtherHTTPHeaders(
