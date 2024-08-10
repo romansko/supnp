@@ -54,6 +54,12 @@ CA_ORGANIZATION_NAME = 'CA'
 UCA_COMMON_NAME       = 'UPnP Certification Authority'
 UCA_ORGANIZATION_NAME = 'UCA'
 
+# RA (Registration Authority) details
+RA_COUNTRY_NAME           = 'US'
+RA_STATE_OR_PROVINCE_NAME = 'California'
+RA_LOCALITY_NAME          = 'San Francisco'
+RA_ORGANIZATION_NAME      = 'RA'
+
 # SD (Service Device) details
 SD_COUNTRY_NAME           = 'US'
 SD_STATE_OR_PROVINCE_NAME = 'California'
@@ -108,6 +114,16 @@ class Entity:
     def __str__(self) -> str:
         return self.type
 
+
+class RA(Entity):
+    """ Registration Authority """
+    def __init__(self) -> None:
+        super().__init__('RA')
+        
+    def generate_subject(self) -> x509.Name:
+        details = Details(RA_COUNTRY_NAME, RA_STATE_OR_PROVINCE_NAME, RA_LOCALITY_NAME, RA_ORGANIZATION_NAME)
+        return details.subject()
+    
 
 class SD(Entity):
     """ Service Device """
@@ -438,8 +454,7 @@ if __name__ == "__main__":
     print("~~~ Device Enrollment simulation ~~~")
     parser = argparse.ArgumentParser()
     parser.add_argument("devicedesc_xml", help="UPnP XML Description Document filepath.")
-    device = Device(parser.parse_args().devicedesc_xml)
-    ra  = Entity('RA')   # For Private & Public keys
+    device = Device(parser.parse_args().devicedesc_xml)  
     ca  = CA()
     uca = UCA()
     uca.cert = CryptoHelper.issue_certificate(ca, uca)
@@ -447,6 +462,8 @@ if __name__ == "__main__":
     cp.cert = CryptoHelper.issue_certificate(uca, cp)
     sd  = SD()
     sd.cert = CryptoHelper.issue_certificate(uca, sd)
+    ra  = RA()
+    ra.cert = CryptoHelper.issue_certificate(uca, ra)
     print("[*] Generating documents..")
     device.generate_sad(uca, cp)
     device.generate_dsd(uca, sd)
@@ -457,5 +474,6 @@ if __name__ == "__main__":
     CryptoHelper.verify_certificate(uca, ca.public_key)
     CryptoHelper.verify_certificate(cp, uca.public_key)
     CryptoHelper.verify_certificate(sd, uca.public_key)
+    CryptoHelper.verify_certificate(ra, uca.public_key)
     print("[*] Done.")
 
