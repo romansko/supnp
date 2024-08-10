@@ -10,6 +10,7 @@
  *
  * \author Roman Koifman
  */
+#include "stdio.h"
 #include "UpnpGlobal.h" /* for UPNP_EXPORT_SPEC */
 #include "upnpconfig.h"
 
@@ -78,6 +79,59 @@ extern "C" {
 #define SUPNP_E_TEST_FAIL (-699)
 
 /* @} SUPnPErrorCodes */
+
+/**
+ * Internal error logging macro
+ */
+#define supnp_error(...) { \
+    fprintf(stderr, "[SUPnP Error] %s::%s(%d): ", __FILE__, __func__, __LINE__); \
+    fprintf(stderr, __VA_ARGS__); \
+ }
+
+
+/**
+ * Internal message logging macro
+ */
+#define supnp_log(...) { \
+    fprintf(stdout, "[SUPnP]: "); \
+    fprintf(stdout, __VA_ARGS__); \
+ }
+
+/**
+ * Internal verification macro
+ * @param test condition to check
+ * @param label label to jump to in case of failure
+ */
+#define supnp_verify(test, label, ...) { \
+    if (!(test)) { \
+        supnp_error(__VA_ARGS__); \
+        goto label; \
+    } \
+}
+
+
+/**
+ * Free a pointer if it is not NULL
+ * @param ptr
+ */
+#define freeif(ptr) { \
+    if (ptr != NULL) { \
+        free(ptr); \
+        ptr = NULL; \
+    } \
+}
+
+/**
+ * Free a ponter if it is not NULL with a given function
+ * @param ptr pointer to free
+ * @param func function to free pointer
+ */
+#define freeif2(ptr, free_func) { \
+    if (ptr != NULL) { \
+        free_func(ptr); \
+        ptr = NULL; \
+    } \
+}
 
 #ifdef __cplusplus
 }
