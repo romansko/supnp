@@ -410,8 +410,8 @@ class Device:
         service_list = {}
         for service in self.get_node(Device.SERVICE_NODE):
             try:
-                name = re.search(r'urn:upnp-org:serviceId:(\w+)', service['serviceId']).group(1)
-                type = re.search(r'urn:schemas-upnp-org:service:(\w+):\d+', service['serviceType']).group(1)
+                name = re.search(r'urn:upnp-org:serviceId:(\w+)', service['serviceId']).group(0)    # ID
+                type = re.search(r'urn:schemas-upnp-org:service:(\w+):\d+', service['serviceType']).group(0)
                 service_list[name] = type
             except Exception as e:
                 error("Device::service_list: Failed to parse '%s'. Is device description xml document provided?" % str(service))
