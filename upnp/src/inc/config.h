@@ -487,6 +487,11 @@
 #error "SUPnP was enabled but JSON / OpenSSL support was not"
 #endif
 
+/* SUPNP requires SSDP */
+#if ENABLE_SUPNP == 1 && EXCLUDE_SSDP == 1
+#error "SUPnP requires SSDP to be enabled"
+#endif
+
 /*
  * @}
  */

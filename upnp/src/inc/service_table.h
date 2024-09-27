@@ -53,6 +53,14 @@ extern "C" {
 
 #define SID_SIZE (size_t)41
 
+extern const char* STR_SERVICE;
+extern const char* STR_SERVICE_ID;
+extern const char* STR_SERVICE_TYPE;
+extern const char* STR_SERVICE_LIST;
+extern const char* FORMAT_SERVICE_ID;
+extern const char* FORMAT_SERVICE_TYPE;
+
+
 typedef struct SUBSCRIPTION
 {
 	Upnp_SID sid;
@@ -94,6 +102,13 @@ typedef struct SERVICE_TABLE
 } service_table;
 
 /* Functions for Subscriptions */
+
+/*!
+ * \brief Count the number of services in the service table.
+ */
+int CountServices(
+	/*! [in] Service table. */
+	const service_table *table);
 
 /*!
  * \brief Makes a copy of the subscription.
@@ -318,11 +333,11 @@ int addServiceTable(
 int getServiceTable(
 	/*! [in] XML node information. */
 	IXML_Node *node,
-	/*! [in] Output parameter which will contain the service list and URL.
-	 */
+	/*! [in] Output parameter which will contain the service list and URL. */
 	service_table *out,
 	/*! [in] Default base URL on which the URL will be returned. */
 	const char *DefaultURLBase);
+
 
 /*	Misc helper functions	*/
 
@@ -359,4 +374,4 @@ int getSubElement(
 }
 #endif
 
-#endif /* SERVICE_TABLE */
+#endif /* SERVICE_TABLE_H */

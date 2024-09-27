@@ -55,11 +55,72 @@ extern "C" {
 
 #ifdef SAMPLE_UTIL_C
 /*! Service types for tv services. */
-const char *TvServiceType[] = {"urn:schemas-upnp-org:service:tvcontrol:1",
-	"urn:schemas-upnp-org:service:tvpicture:1"};
+const char *TvServiceType[] = {
+	"urn:schemas-upnp-org:service:tvcontrol:1",
+	"urn:schemas-upnp-org:service:tvpicture:1"
+};
 #else  /* SAMPLE_UTIL_C */
 extern const char *TvServiceType[];
 #endif /* SAMPLE_UTIL_C */
+
+
+#ifdef ENABLE_SUPNP
+
+/*! Registration Authority services. */
+typedef enum _ERAServiceType
+{
+	/*! Registration Services. */
+	RA_SERVICE_REGISTER = 0,
+
+	/*! Number of services. */
+	RA_SERVICE_COUNT
+}ERAServiceType;
+
+typedef enum _ERARegisterServiceActions
+{
+	/*! Register action. */
+	RA_ACTION_REGISTER = 0,
+
+	/*! Number of actions. */
+	RA_REGISTER_SERVICE_ACTIONS
+}ERARegisterServiceActions;
+
+/*! Registration service action Register variables. */
+typedef enum _ERARegisterVariables
+{
+	/*! Specification Document variable. */
+	RA_REGISTER_SPEC_DOC = 0,
+
+	/*! Device Certificate variable. */
+	RA_REGISTER_CERT_DEVICE,
+
+	/*! UCA Certificate. */
+	RA_REGISTER_CERT_UCA,
+
+	/*! Number of variables. */
+	RA_REGISTER_VARCOUNT
+
+}ERARegisterVariables;
+
+#ifdef SAMPLE_UTIL_C
+const char *RaDeviceType = "urn:schemas-upnp-org:device:ra:1";
+const char *RaServiceType[RA_SERVICE_COUNT] = {
+	"urn:schemas-upnp-org:service:registration:1"
+};
+const char* RaRegistrationAction[RA_REGISTER_SERVICE_ACTIONS] = {"Register"};
+const char *RaRegisterVarName[RA_REGISTER_VARCOUNT] = {
+	"SpecDocUrl",
+	"CertDeviceUrl",
+	"CertUcaUrl"
+};
+#else  /* SAMPLE_UTIL_C */
+extern const char *RaDeviceType;
+extern const char *RaServiceType[];
+extern const char* RaRegistrationAction[RA_REGISTER_SERVICE_ACTIONS];
+extern const char *RaRegisterVarName[RA_REGISTER_VARCOUNT];
+#endif /* SAMPLE_UTIL_C */
+
+#endif /* ENABLE_SUPNP */
 
 /* mutex to control displaying of events */
 extern ithread_mutex_t display_mutex;
@@ -71,6 +132,64 @@ typedef enum
 	DEVICE_REMOVED = 2,
 	GET_VAR_COMPLETE = 3
 } eventType;
+
+typedef struct BASIC_SERVICE_INFO
+{
+	DOMString serviceType;
+	DOMString serviceId;
+	DOMString SCPDURL;
+	DOMString controlURL;
+	DOMString eventURL;
+	struct BASIC_SERVICE_INFO *next;
+} basic_service_info;
+
+/**
+ * \brief Free a pointer if it is not NULL
+ */
+#define freeif(ptr) { \
+    if (ptr != NULL) { \
+        free(ptr); \
+        ptr = NULL; \
+    } \
+}
+
+/**
+ * Free a ponter if it is not NULL with a given function
+ * @param ptr pointer to free
+ * @param func function to free pointer
+ */
+#define freeif2(ptr, free_func) { \
+    if (ptr != NULL) { \
+        free_func(ptr); \
+        ptr = NULL; \
+    } \
+}
+
+/**
+ * Internal verification macro
+ * @param test condition to check
+ * @param label label to jump to in case of failure
+ */
+#define sample_verify(test, label, ...) { \
+	if (!(test)) { \
+		SampleUtil_Print(__VA_ARGS__); \
+		goto label; \
+	} \
+}
+
+/*!
+ * \brief Get the service information from a DOM document.
+ *	      Based on getServiceTable function from service_table.c
+ * \note must be freed using SampleUtil_FreeServiceList.
+ */
+basic_service_info *SampleUtil_GetServices(IXML_Document *doc);
+
+/*!
+ * \brief Free a linked list of service_info_short structures.
+ *        Based on freeServiceList function from service_table.c
+ */
+void SampleUtil_FreeServiceList(basic_service_info *serviceList);
+
 
 /*!
  * \brief Given a DOM node such as <Channel>11</Channel>, this routine

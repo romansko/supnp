@@ -47,7 +47,8 @@ upnpinclude_HEADERS = \
 	inc/UpnpInet.h \
 	inc/UpnpIntTypes.h \
 	inc/UpnpStdInt.h \
-	inc/UpnpUniStd.h
+	inc/UpnpUniStd.h \
+	inc/file_utils.h
 
 nodist_upnpinclude_HEADERS = inc/upnpconfig.h 
 if ENABLE_TOOLS
@@ -56,16 +57,6 @@ endif
 
 if ENABLE_JSON
 upnpinclude_HEADERS += $(top_srcdir)/cJSON/cJSON.h
-endif
-
-if UPNP_ENABLE_OPEN_SSL
-upnpinclude_HEADERS += \
-	inc/file_utils.h
-else
-if ENABLE_SUPNP
-upnpinclude_HEADERS += \
-	inc/file_utils.h
-endif
 endif
 
 # OpenSSL Wrapper

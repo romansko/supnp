@@ -54,6 +54,17 @@
 
 #define DESC_URL_SIZE 200
 
+/*! Device type for registration authority */
+#ifdef ENABLE_SUPNP
+
+const char *RaRegisterDefaultFilenameSD[RA_REGISTER_VARCOUNT] = {
+    "dsd.json",
+    "cert_sd.pem",
+    "cert_uca.pem"
+};
+
+#endif
+
 /*! Global arrays for storing Tv Control Service variable names, values,
  * and defaults. */
 const char *tvc_varname[] = {"Power", "Channel", "Volume"};
@@ -76,6 +87,10 @@ struct TvService tv_service_table[2];
 
 /*! Device handle supplied by UPnP SDK. */
 UpnpDevice_Handle device_handle = -1;
+
+#ifdef ENABLE_SUPNP
+UpnpClient_Handle device_handle_ra = -1; /* For RA handshake */
+#endif
 
 /*! Mutex for protecting the global state table data
  * in a multi-threaded, asynchronous environment.
@@ -1409,7 +1424,7 @@ int TvDeviceStart(char *iface,
 
 	ithread_mutex_init(&TVDevMutex, NULL);
 	UpnpSetLogFileNames(NULL, NULL);
-	UpnpSetLogLevel(UPNP_ALL);
+	UpnpSetLogLevel(UPNP_ERROR);
 	UpnpInitLog();
 	SampleUtil_Initialize(pfun);
 	SampleUtil_Print("Initializing UPnP Sdk with\n"
@@ -1501,23 +1516,43 @@ int TvDeviceStart(char *iface,
 		SampleUtil_Print(
 			"Error registering the rootdevice : %d\n", ret);
 		UpnpFinish();
+		return ret;
+	}
+
+#ifdef ENABLE_SUPNP
+    ret = UpnpRegisterClient(TvDeviceCallbackEventHandler,
+        &device_handle_ra,
+        &device_handle_ra);
+    if (ret != UPNP_E_SUCCESS) {
+        SampleUtil_Print("Error registering handle for RA handshake: %d\n", ret);
+        UpnpFinish();
+        return ret;
+    }
+#endif
+
+	SampleUtil_Print("RootDevice Registered\n"
+			 "Initializing State Table\n");
+	TvDeviceStateTableInit(desc_doc_url);
+	SampleUtil_Print("State Table Initialized\n");
+
+	#ifdef ENABLE_SUPNP
+	/* RA Discovery */
+	ret = UpnpSearchAsync(device_handle_ra, 5, RaDeviceType, NULL);
+	if (UPNP_E_SUCCESS != ret) {
+	    SampleUtil_Print("Error sending RA discovery message (%d)\n", ret);
+	    return ret;
+	}
+	#endif
+
+	ret = UpnpSendAdvertisement(device_handle, default_advr_expire);
+	if (ret != UPNP_E_SUCCESS) {
+		SampleUtil_Print(
+			"Error sending advertisements : %d\n", ret);
+		UpnpFinish();
 
 		return ret;
-	} else {
-		SampleUtil_Print("RootDevice Registered\n"
-				 "Initializing State Table\n");
-		TvDeviceStateTableInit(desc_doc_url);
-		SampleUtil_Print("State Table Initialized\n");
-		ret = UpnpSendAdvertisement(device_handle, default_advr_expire);
-		if (ret != UPNP_E_SUCCESS) {
-			SampleUtil_Print(
-				"Error sending advertisements : %d\n", ret);
-			UpnpFinish();
-
-			return ret;
-		}
-		SampleUtil_Print("Advertisements Sent\n");
 	}
+	SampleUtil_Print("Advertisements Sent\n");
 
 	return UPNP_E_SUCCESS;
 }

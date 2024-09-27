@@ -99,6 +99,7 @@ list (APPEND UPNP_HEADERS
 	inc/UpnpSubscriptionRequest.h
 	inc/UpnpUniStd.h
 	${PUPNP_BINARY_DIR}/upnp/inc/upnpconfig.h
+	inc/file_utils.h
 )
 
 if (UPNP_ENABLE_HELPER_API_TOOLS)
@@ -118,12 +119,6 @@ if (ENABLE_JSON)
 
 	list (APPEND UPNP_HEADERS
 		${PROJECT_SOURCE_DIR}/cJSON/cJSON.h
-	)
-endif()
-
-if (UPNP_ENABLE_OPEN_SSL OR ENABLE_SUPNP)
-	list (APPEND UPNP_HEADERS
-		inc/file_utils.h
 	)
 endif()
 

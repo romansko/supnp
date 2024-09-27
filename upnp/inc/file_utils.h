@@ -5,6 +5,10 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifdef _WIN32
 #define _fopen(fp, filepath, mode) fopen_s(&fp, filepath, mode)
 #else
@@ -74,5 +78,9 @@ UPNP_EXPORT_SPEC char* read_file(const char* filepath, const char* mode, size_t*
  * \return FILE_OP_OK on success, FILE_OP_ERR on failure.
  */
 UPNP_EXPORT_SPEC int write_file(const char* filepath, const unsigned char* data, size_t size);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif //FILE_UTILS_H

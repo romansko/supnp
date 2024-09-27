@@ -275,7 +275,8 @@ cleanup:
 }
 
 /**
- * Verify certificate.
+ * Verifies the signature of a certificate using public key.
+ * Only the signature is checked: no other checks (such as certificate chain validity) are performed.
  * @param cert_name Certificate's name
  * @param cert a certificate
  * @param pkey a public key corresponding to the entity that signed the certificate
@@ -284,11 +285,11 @@ cleanup:
 int verify_certificate(const char* cert_name, X509* cert, EVP_PKEY* pkey)
 {
     int ret = OPENSSL_FAILURE;
-    //w_log("Verifying '%s''s certificate..\n", name);  // todo upnp log debug
+    w_log("Verifying '%s''s certificate..\n", cert_name);  // todo upnp log debug
     w_verify(cert_name, cleanup, "Empty certificate name provided.\n");
     w_verify(cert, cleanup, "Empty certificate provided.\n");
     w_verify(pkey, cleanup, "Empty CA public key provided.\n");
-    ret = X509_verify(cert, pkey);  // todo: Should use X509_verify_cert instead of X509_verify ?
+    ret = X509_verify(cert, pkey);
     w_verify(ret == OPENSSL_SUCCESS, cleanup, "'%s' certificate verification error\n", cert_name);
 cleanup:
     return ret;

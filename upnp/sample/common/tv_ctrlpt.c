@@ -43,9 +43,21 @@
 
 #include "tv_ctrlpt.h"
 
-#include "upnp.h"
+#include <upnp.h>
 
 #include "posix_overwrites.h"
+
+#include <registration_authority.h>
+
+#ifdef ENABLE_SUPNP
+
+const char *RaRegisterDefaultFilenameCP[RA_REGISTER_VARCOUNT] = {
+    "sad.json",
+    "cert_cp.pem",
+    "cert_uca.pem"
+};
+
+#endif
 
 /*!
  * Mutex for protecting the global device list in a multi-threaded,
@@ -55,6 +67,8 @@
 ithread_mutex_t DeviceListMutex;
 
 UpnpClient_Handle ctrlpt_handle = -1;
+
+static const int SEARCH_TIME = 10;
 
 /*! Device type for tv device. */
 const char TvDeviceType[] = "urn:schemas-upnp-org:device:tvdevice:1";
@@ -232,14 +246,25 @@ int TvCtrlPointRefresh(void)
 	int rc;
 
 	TvCtrlPointRemoveAll();
+
+    #ifdef ENABLE_SUPNP
+    /* RA Discovery */
+    rc = UpnpSearchAsync(ctrlpt_handle, SEARCH_TIME, RaDeviceType, NULL);
+    if (UPNP_E_SUCCESS != rc) {
+        SampleUtil_Print("Error sending RA discovery message (%d)\n", rc);
+        return TV_ERROR;
+    }
+
+    #else
 	/* Search for all devices of type tvdevice version 1,
 	 * waiting for up to 5 seconds for the response */
-	rc = UpnpSearchAsync(ctrlpt_handle, 5, TvDeviceType, NULL);
+	rc = UpnpSearchAsync(ctrlpt_handle, SEARCH_TIME, TvDeviceType, NULL);
 	if (UPNP_E_SUCCESS != rc) {
-		SampleUtil_Print("Error sending search request%d\n", rc);
+		SampleUtil_Print("Error sending search request (%d)\n", rc);
 
 		return TV_ERROR;
 	}
+    #endif
 
 	return TV_SUCCESS;
 }
@@ -652,8 +677,7 @@ int TvCtrlPointPrintDevice(int devnum)
  *   expires -- The expiration time for this advertisement
  *
  ********************************************************************************/
-void TvCtrlPointAddDevice(
-	IXML_Document *DescDoc, const char *location, int expires)
+void TvCtrlPointAddDevice(IXML_Document *DescDoc, const char *location, int expires)
 {
 	char *deviceType = NULL;
 	char *friendlyName = NULL;
@@ -877,9 +901,7 @@ void TvStateUpdate(
 								" Variable "
 								"Name: %s New "
 								"Value:'%s'\n",
-								TvVarName
-									[Service]
-									[j],
+								TvVarName[Service][j],
 								State[j]);
 						}
 						if (tmpstate)
@@ -1018,6 +1040,66 @@ void TvCtrlPointHandleGetVar(
 	ithread_mutex_unlock(&DeviceListMutex);
 }
 
+#if ENABLE_SUPNP
+int SendRAActionRegister(const char * baseUrl, const char * relControlUrl)
+{
+    IXML_Document *actionNode = NULL;
+    int rc = SUPNP_E_SUCCESS;
+    const char * registerService = RaServiceType[RA_SERVICE_REGISTER];
+    const char *actionName = RaRegistrationAction[RA_ACTION_REGISTER];
+    char *controlURL = NULL;
+    char *url[RA_REGISTER_VARCOUNT] = {NULL};
+
+    rc = UpnpResolveURL2(baseUrl, relControlUrl, &controlURL);
+    sample_verify(rc == UPNP_E_SUCCESS,
+        cleanup,
+        "Error generating controlURL from %s + %s\n",
+        baseUrl,
+        relControlUrl);
+
+    for (int param = 0; param < RA_REGISTER_VARCOUNT; ++param) {
+        rc = UpnpResolveURL2(baseUrl,
+            RaRegisterDefaultFilenameCP[param],
+            &url[param]);
+        sample_verify(rc == UPNP_E_SUCCESS, cleanup,
+            "Error generating URL from %s + %s\n",
+            baseUrl,
+            RaRegisterDefaultFilenameCP[param]);
+
+        if (UpnpAddToAction(&actionNode,
+            actionName,
+            registerService,
+            RaRegisterVarName[param],
+            url[param]) != UPNP_E_SUCCESS) {
+            SampleUtil_Print(
+                "ERROR: SendActionRegister: Trying to add action param\n");
+            }
+    }
+
+    rc = UpnpSendActionAsync(ctrlpt_handle,
+        controlURL,
+        registerService,
+        NULL,
+        actionNode,
+        TvCtrlPointCallbackEventHandler,
+        NULL);
+
+    if (rc != UPNP_E_SUCCESS) {
+        SampleUtil_Print("Error in UpnpSendActionAsync -- %d\n", rc);
+        rc = SUPNP_E_INTERNAL_ERROR;
+    }
+
+cleanup:
+    freeif2(actionNode, ixmlDocument_free);
+    freeif(controlURL);
+    for (int param = 0; param < RA_REGISTER_VARCOUNT; ++param) {
+        freeif(url[param]);
+    }
+
+    return rc;
+}
+#endif
+
 /********************************************************************************
  * TvCtrlPointCallbackEventHandler
  *
@@ -1032,29 +1114,25 @@ void TvCtrlPointHandleGetVar(
  *   Cookie -- Optional data specified during callback registration
  *
  ********************************************************************************/
-int TvCtrlPointCallbackEventHandler(
-	Upnp_EventType EventType, const void *Event, void *Cookie)
+int TvCtrlPointCallbackEventHandler(Upnp_EventType EventType, const void *Event, void *Cookie)
 {
 	int errCode = 0;
-	(void)Cookie;
+    (void) Cookie;
 
 	SampleUtil_PrintEvent(EventType, Event);
 	switch (EventType) {
 	/* SSDP Stuff */
 	case UPNP_DISCOVERY_ADVERTISEMENT_ALIVE:
 	case UPNP_DISCOVERY_SEARCH_RESULT: {
-		const UpnpDiscovery *d_event = (UpnpDiscovery *)Event;
-		IXML_Document *DescDoc = NULL;
-		const char *location = NULL;
-		int errCode = UpnpDiscovery_get_ErrCode(d_event);
-
-		if (errCode != UPNP_E_SUCCESS) {
-			SampleUtil_Print(
-				"Error in Discovery Callback -- %d\n", errCode);
-		}
-
-		location = UpnpString_get_String(
-			UpnpDiscovery_get_Location(d_event));
+	    const UpnpDiscovery *d_event = (UpnpDiscovery *)Event;
+	    IXML_Document *DescDoc = NULL;
+	    const char *location = NULL;
+	    errCode = UpnpDiscovery_get_ErrCode(d_event);
+	    if (errCode != UPNP_E_SUCCESS) {
+	        SampleUtil_Print("Error in Discovery Callback -- %d\n", errCode);
+	        break;
+	    }
+		location = UpnpString_get_String(UpnpDiscovery_get_Location(d_event));
 		errCode = UpnpDownloadXmlDoc(location, &DescDoc);
 		if (errCode != UPNP_E_SUCCESS) {
 			SampleUtil_Print("Error obtaining device description "
@@ -1062,14 +1140,45 @@ int TvCtrlPointCallbackEventHandler(
 				location,
 				errCode);
 		} else {
-			TvCtrlPointAddDevice(DescDoc,
-				location,
-				UpnpDiscovery_get_Expires(d_event));
+#ifdef ENABLE_SUPNP
+		    if (strcmp(SampleUtil_GetFirstDocumentItem(DescDoc, "deviceType"),
+		        RaDeviceType) == 0) {
+                /* Send to RA the DSD */
+		        basic_service_info * serviceList = SampleUtil_GetServices(DescDoc);
+		        //sample_verify(serviceList, )
+		        if (!serviceList) {
+		            SampleUtil_Print("Error obtaining service list\n");
+		        } else {
+                    const basic_service_info * service = serviceList;
+		            while (service) {
+		                if (strcmp(service->serviceType, RaServiceType[RA_SERVICE_REGISTER]) == 0) {
+		                    // Send the DSD to the RA
+		                    errCode = SendRAActionRegister(location, service->controlURL);
+		                    (void) errCode;
+		                    break;
+		                }
+		                service = service->next;
+		            }
+                }
+		        #if 0
+		        /* TV Device Search after registration */
+		        errCode = UpnpSearchAsync(ctrlpt_handle, SEARCH_TIME, TvDeviceType, NULL);
+		        if (UPNP_E_SUCCESS != errCode) {
+		            SampleUtil_Print("Error sending search request (%d)\n", errCode);
+		        }
+		        #endif
+		    } else {
+#endif
+			TvCtrlPointAddDevice(DescDoc, location,	UpnpDiscovery_get_Expires(d_event));
+#ifdef ENABLE_SUPNP
+		    }
+#endif
 		}
 		if (DescDoc) {
 			ixmlDocument_free(DescDoc);
 		}
 		TvCtrlPointPrintList();
+
 		break;
 	}
 	case UPNP_DISCOVERY_SEARCH_TIMEOUT:
@@ -1077,7 +1186,7 @@ int TvCtrlPointCallbackEventHandler(
 		break;
 	case UPNP_DISCOVERY_ADVERTISEMENT_BYEBYE: {
 		UpnpDiscovery *d_event = (UpnpDiscovery *)Event;
-		int errCode = UpnpDiscovery_get_ErrCode(d_event);
+		errCode = UpnpDiscovery_get_ErrCode(d_event);
 		const char *deviceId = UpnpString_get_String(
 			UpnpDiscovery_get_DeviceID(d_event));
 
@@ -1095,7 +1204,7 @@ int TvCtrlPointCallbackEventHandler(
 	/* SOAP Stuff */
 	case UPNP_CONTROL_ACTION_COMPLETE: {
 		UpnpActionComplete *a_event = (UpnpActionComplete *)Event;
-		int errCode = UpnpActionComplete_get_ErrCode(a_event);
+		errCode = UpnpActionComplete_get_ErrCode(a_event);
 		if (errCode != UPNP_E_SUCCESS) {
 			SampleUtil_Print(
 				"Error in  Action Complete Callback -- %d\n",
@@ -1107,7 +1216,7 @@ int TvCtrlPointCallbackEventHandler(
 	}
 	case UPNP_CONTROL_GET_VAR_COMPLETE: {
 		UpnpStateVarComplete *sv_event = (UpnpStateVarComplete *)Event;
-		int errCode = UpnpStateVarComplete_get_ErrCode(sv_event);
+		errCode = UpnpStateVarComplete_get_ErrCode(sv_event);
 		if (errCode != UPNP_E_SUCCESS) {
 			SampleUtil_Print(
 				"Error in Get Var Complete Callback -- %d\n",
@@ -1302,6 +1411,7 @@ int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo)
 		UpnpGetServerPort6(),
 		UpnpGetServerUlaGuaIp6Address(),
 		UpnpGetServerUlaGuaPort6());
+
 	SampleUtil_Print("Registering Control Point\n");
 	rc = UpnpRegisterClient(TvCtrlPointCallbackEventHandler,
 		&ctrlpt_handle,

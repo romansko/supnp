@@ -111,15 +111,6 @@ typedef struct _IXML_NodeList IXML_NodeList;
 UPNP_EXPORT_SPEC int SUpnpInit();
 
 /*!
- * \brief extract service list from DSD / SAD document.
- *
- * \Note The caller is responsible for freeing the returned list. (ixmlNodeList_free)
- *
- * \return pointer to service list on success, NULL on failure.
- */
-UPNP_EXPORT_SPEC IXML_NodeList* get_xml_service_list(IXML_Document* doc);
-
-/*!
  * \brief Verify DSD / SAD document.
  *
  * \return SUPNP_E_SUCCESS on success, SUPNP_E_INVALID_CERTIFICATE on failure.
@@ -129,7 +120,6 @@ UPNP_EXPORT_SPEC int verify_supnp_document(EVP_PKEY *ca_pkey, X509 *uca_cert, co
 /* Temporary function for testing */
 UPNP_EXPORT_SPEC void test_nonce_encryption(EVP_PKEY* pk, EVP_PKEY* sk);
 UPNP_EXPORT_SPEC void test_captoken_generation(const supnp_device_t* dev, EVP_PKEY* ra_sk);
-
 UPNP_EXPORT_SPEC void SUpnp_test_registration();
 /**/
 

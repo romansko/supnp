@@ -17,12 +17,14 @@
 
 #include "file_utils.h"
 #include "openssl_wrapper.h"
+#include "service_table.h"
 #include "supnp.h"
 #include "supnp_captoken.h"
 #include "supnp_device.h"
 #include "supnp_err.h"
 #include <cJSON/cJSON.h>
 #include <ixml.h>
+
 
 // todo: refactor to openssl_wrapper
 #include <openssl/x509.h>
@@ -31,17 +33,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/* Description Document related */
-static const char* SERVICE = "service";
-static const char* SERVICE_ID = "serviceId";
-static const char* SERVICE_TYPE = "serviceType";
-static const char* SERVICE_LIST = "serviceList";
-
-
-/* https://openconnectivity.org/upnp-specs/UPnP-arch-DeviceArchitecture-v2.0-20200417.pdf#page=52 */
-static const char* SERVICE_ID_FORMAT = "urn:upnp-org:serviceId:%s";
-static const char* SERVICE_TYPE_FORMAT = "urn:schemas-upnp-org:service:%[^:]:%d";
 
 #define supnp_extract_json_string(doc, key, value, label) \
 { \
@@ -55,39 +46,16 @@ static const char* SERVICE_TYPE_FORMAT = "urn:schemas-upnp-org:service:%[^:]:%d"
  */
 int SUpnpInit()
 {
-    supnp_log("Initializing SUPnP secure layer.\n");
+    supnp_log("Initializing SUPnP secure layer..\n");
     supnp_verify(init_openssl_wrapper() == OPENSSL_SUCCESS, cleanup, "Error initializing OpenSSL.\n");
+
+    // SUpnp_test_registration();
+
     return SUPNP_E_SUCCESS;
 cleanup:
     return SUPNP_E_INTERNAL_ERROR;
 }
 
-/**
- * Retrieve the service list from a device description document
- * Implemented in SampleUtil_GetFirstServiceList, sample_util.c
- * sample_util.c is not a library file, hence the function is copied.
- * @param doc device description document
- * @return list of services on success, NULL on failure
- * @note The caller is responsible for freeing the returned list.
- * (ixmlNodeList_free)
- */
-IXML_NodeList* get_xml_service_list(IXML_Document* doc)
-{
-    IXML_NodeList* ServiceList = NULL;
-    IXML_NodeList* servlistnodelist = NULL;
-    IXML_Node* servlistnode = NULL;
-
-    servlistnodelist = ixmlDocument_getElementsByTagName(doc, SERVICE_LIST);
-    if (servlistnodelist && ixmlNodeList_length(servlistnodelist))
-    {
-        /* we only care about the first service list, from the root device */
-        servlistnode = ixmlNodeList_item(servlistnodelist, 0);
-        /* create as list of DOM nodes */
-        ServiceList = ixmlElement_getElementsByTagName((IXML_Element*)servlistnode, "service");
-    }
-    freeif2(servlistnodelist, ixmlNodeList_free);
-    return ServiceList;
-}
 
 /**
  * Verify SUPnP document (DSD/ SAD).
@@ -109,7 +77,7 @@ int verify_supnp_document(EVP_PKEY* ca_pkey, X509* uca_cert, const supnp_device_
     EVP_PKEY* doc_pk = NULL;
     EVP_PKEY* uca_pk = NULL;
     EVP_PKEY* device_pkey = NULL;
-    IXML_NodeList* xml_services = NULL;
+    service_table services;
 
     /* Arguments Verification */
     supnp_verify(ca_pkey, cleanup, "Empty CA public key provided\n");
@@ -204,7 +172,7 @@ int verify_supnp_document(EVP_PKEY* ca_pkey, X509* uca_cert, const supnp_device_
     }
 
     /**
-     * Verify Services for SD.
+     * Verify Services ONLY for SD.
      * The RA retrieves the device description document of the SD.
      * The RA matches the services provided by the SD with its HW and SW specification included in the DSD.
      * The RA uses an attribute ledger to perform the validation.
@@ -214,57 +182,27 @@ int verify_supnp_document(EVP_PKEY* ca_pkey, X509* uca_cert, const supnp_device_
     const cJSON* json_services = cJSON_GetObjectItemCaseSensitive(dev->supnp_doc, SUPNP_DOC_SERVICES);
     supnp_verify(json_services, cleanup,
                  "Couldn't find services tagname '%s' in SUPnP Document.\n", SUPNP_DOC_SERVICES);
-    const int services_number = cJSON_GetArraySize(json_services);
-    xml_services = get_xml_service_list(dev->desc_doc);
-    supnp_verify(xml_services, cleanup,
-                 "Couldn't find services tagname '%s' in device description document.\n", SERVICE_LIST);
-    supnp_verify(services_number == ixmlNodeList_length(xml_services), cleanup,
-                 "Number of services in SUPnP Document (%d) doesn't match the number of services in description document (%lu).\n",
-                 services_number, ixmlNodeList_length(xml_services));
-    for (int i = 0; i < services_number; ++i)
-    {
-        ret = SUPNP_E_INVALID_DOCUMENT;
-        IXML_Node* service = ixmlNodeList_item(xml_services, i);
-        IXML_NodeList* service_nodes = ixmlNode_getChildNodes(service);
-        supnp_verify((service_nodes) && (ixmlNodeList_length(service_nodes) > 0), loop_cleanup,
-                     "Couldn't find child nodes in service node.\n");
-        char* _service_id = NULL;
-        char* _service_type = NULL;
-        for (size_t j = 0; j < ixmlNodeList_length(service_nodes); ++j)
-        {
-            IXML_Node* node = ixmlNodeList_item(service_nodes, j);
-            if (node == NULL)
-                continue;
-            const char* val = ixmlNode_getNodeValue(node->firstChild);
-            if (strcmp(ixmlNode_getNodeName(node), SERVICE_ID) == 0)
-            {
-                _service_id = malloc(strlen(val) + 1);
-                supnp_verify(sscanf(val, SERVICE_ID_FORMAT, _service_id) == 1, loop_cleanup,
-                             "Couldn't parse service id\n");
-            }
-            else if (strcmp(ixmlNode_getNodeName(node), SERVICE_TYPE) == 0)
-            {
-                int ver;
-                _service_type = malloc(strlen(val) + 1);
-                supnp_verify(sscanf(val, SERVICE_TYPE_FORMAT, _service_type, &ver) == 2, loop_cleanup,
-                             "Couldn't parse service type\n");
-            }
-        }
-        supnp_verify((_service_id) && (_service_type), loop_cleanup,
-                     "Couldn't find tagname '%s' or '%s' in service node.\n", SERVICE_ID, SERVICE_TYPE);
-        cJSON* _json_service = cJSON_GetObjectItemCaseSensitive(json_services, _service_id);
-        supnp_verify(_json_service, loop_cleanup, "Couldn't find service id '%s' in SUPnP Document.\n", _service_id);
-        supnp_verify(strcmp(_json_service->valuestring, _service_type) == 0, loop_cleanup,
-                     "Unexpected service type for service id '%s': '%s' vs '%s'\n", _service_id,
-                     _json_service->valuestring, _service_type);
-        ret = SUPNP_E_SUCCESS;
 
-    loop_cleanup:
-        freeif(_service_id);
-        freeif(_service_type);
-        freeif2(service_nodes, ixmlNodeList_free);
-        if (ret == SUPNP_E_INVALID_DOCUMENT)
-            break;
+    ret = getServiceTable((IXML_Node*)dev->desc_doc, &services, dev->desc_uri);
+    supnp_verify(ret, cleanup, "Couldn't fill service table.\n");
+    const int json_count = cJSON_GetArraySize(json_services);
+    const int services_number = CountServices(&services);
+    supnp_verify(services_number == json_count, cleanup,
+                 "Number of services in SUPnP Document (%d) doesn't match the number of services in description document (%d).\n",
+                 json_count, services_number);
+
+    ret = SUPNP_E_SUCCESS;
+    for (const service_info * service = services.serviceList; service != NULL; service = service->next)
+    {
+        cJSON* _json_service = cJSON_GetObjectItemCaseSensitive(json_services, service->serviceId);
+        supnp_verify(_json_service, error, "Couldn't find service id '%s' in SUPnP Document.\n", service->serviceId);
+        supnp_verify(strcmp(_json_service->valuestring, service->serviceType) == 0, error,
+                     "Unexpected service type for service id '%s': '%s' vs '%s'\n", service->serviceId,
+                     _json_service->valuestring, service->serviceType);
+        continue;
+    error:
+        ret = SUPNP_E_INVALID_DOCUMENT;
+        break;
     }
     supnp_verify(ret == SUPNP_E_SUCCESS, cleanup, "Services verification failed (SD).\n");
 
@@ -276,7 +214,8 @@ cleanup:
     freeif2(doc_pk, EVP_PKEY_free);
     freeif2(uca_pk, EVP_PKEY_free);
     freeif2(device_pkey, EVP_PKEY_free);
-    freeif2(xml_services, ixmlNodeList_free);
+    if (dev->type == DEVICE_TYPE_SD)
+        freeServiceTable(&services);  // applicable only for SD
     return ret;
 }
 
@@ -302,37 +241,37 @@ void test_nonce_encryption(EVP_PKEY* pk, EVP_PKEY* sk)
     /* Generates a nonce  */
     nonce = generate_nonce(OPENSSL_CSPRNG_SIZE);
     supnp_verify(nonce, cleanup, "Error generating nonce.\n");
-    //supnp_log("Generated nonce: ");    // todo upnp_log DEBUG
-    //print_as_hex(nonce, OPENSSL_CSPRNG_SIZE);
+    supnp_log("Generated nonce: ");    // todo upnp_log DEBUG
+    print_as_hex(nonce, OPENSSL_CSPRNG_SIZE);
 
     /* Encrypt the challenge using the participant's public key */
     enc_nonce = encrypt_asym(pk, &enc_len, nonce, OPENSSL_CSPRNG_SIZE);
     supnp_verify(enc_nonce, cleanup, "Error encrypting nonce.\n");
-    //supnp_log("Encrypted nonce: ");    // todo upnp_log DEBUG
-    //print_as_hex(enc_nonce, enc_len);
+    supnp_log("Encrypted nonce: ");    // todo upnp_log DEBUG
+    print_as_hex(enc_nonce, enc_len);
 
     /* Decrypt the challenge using the participant's private key */
     dec_nonce = decrypt_asym(sk, &dec_len, enc_nonce, enc_len);
     supnp_verify(dec_nonce, cleanup, "Error decrypting nonce.\n");
-    //supnp_log("Decrypted nonce: ");    // todo upnp_log DEBUG
-    //print_as_hex(dec_nonce, dec_len);
+    supnp_log("Decrypted nonce: ");    // todo upnp_log DEBUG
+    print_as_hex(dec_nonce, dec_len);
 
     /* hash the nonce N (HN = Hash(N)). */
     supnp_verify(do_sha256(hash, nonce, OPENSSL_CSPRNG_SIZE) == OPENSSL_SUCCESS, cleanup, "Error hashing nonce.\n");
-    //supnp_log("Hash(nonce): ");    // todo upnp_log DEBUG
-    //print_as_hex(hash, SHA256_DIGEST_LENGTH);
+    supnp_log("Hash(nonce): ");    // todo upnp_log DEBUG
+    print_as_hex(hash, SHA256_DIGEST_LENGTH);
 
     /* Encrypt the nonce hash with participant's private key (signed response) */
     enc_hash = encrypt_asym(sk, &ehash_len, hash, SHA256_DIGEST_LENGTH);
     supnp_verify(enc_hash, cleanup, "Error encrypting hash(nonce).\n");
-    //supnp_log("Encrypted Hash(nonce): ");    // todo upnp_log DEBUG
-    //print_as_hex(enc_hash, SHA256_DIGEST_LENGTH);
+    supnp_log("Encrypted Hash(nonce): ");    // todo upnp_log DEBUG
+    print_as_hex(enc_hash, SHA256_DIGEST_LENGTH);
 
     /* Decrypt the response using the public key */
     dec_hash = decrypt_asym(sk, &dhash_len, enc_hash, ehash_len);
     supnp_verify(dec_hash, cleanup, "Error decrypting hash(nonce).\n");
-    //supnp_log("Decrypted Hash(nonce): ");    // todo upnp_log DEBUG
-    //print_as_hex(dec_hash, SHA256_DIGEST_LENGTH);
+    supnp_log("Decrypted Hash(nonce): ");    // todo upnp_log DEBUG
+    print_as_hex(dec_hash, SHA256_DIGEST_LENGTH);
 
     /* Verify hashes matches */
     supnp_verify(memcmp(nonce, dec_nonce, OPENSSL_CSPRNG_SIZE) == 0, cleanup,
@@ -356,7 +295,7 @@ void test_captoken_generation(const supnp_device_t* dev, EVP_PKEY* ra_sk)
     supnp_verify(ra_sk, cleanup, "NULL RA PK\n");
     token = generate_cap_token(dev, ra_sk);
     supnp_verify(token, cleanup, "Error generating %s's capability token\n", supnp_device_type_str(dev->type));
-    //supnp_log("%s's Capability Token: %s\n", supnp_device_type_str(dev->type), cJSON_Print(token)); // todo upnp_log DEBUG
+    supnp_log("%s's Capability Token: %s\n", supnp_device_type_str(dev->type), cJSON_Print(token)); // todo upnp_log DEBUG
 cleanup:
     freeif2(token, cJSON_Delete);
 }
