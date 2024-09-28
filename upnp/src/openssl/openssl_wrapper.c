@@ -145,8 +145,8 @@ unsigned char* hex_string_to_binary(const char* hex, size_t* dsize)
     w_verify(hex, cleanup, "NULL hex string provided.\n");
     w_verify(dsize, cleanup, "NULL data size ptr.\n");
     const size_t hex_len = strlen(hex);
+    w_verify((hex_len % 2 == 0) && (hex_len > 0), cleanup, "Invalid hex string length.\n");
     *dsize = hex_len / 2;
-    w_verify((*dsize % 2 == 0) && (*dsize > 0), cleanup, "Invalid hex string length.\n");
     binary = malloc(*dsize);
     w_verify(binary, cleanup, "Error allocating memory for binary data.\n");
     for (size_t i = 0; i < hex_len; i += 2)
@@ -179,6 +179,15 @@ cleanup:
     return pubkey; /* Remember to EVP_PKEY_free(pubkey); */
 }
 
+/**
+ * Helper function to free a PKEY.
+ * @param key a PKEY
+ */
+void free_key(EVP_PKEY* key)
+{
+    if(key)
+        EVP_PKEY_free(key);
+}
 
 /**
  * Convert a public key to bytes.
@@ -254,6 +263,27 @@ EVP_PKEY* load_private_key_from_pem(const char* pem_file_path)
 cleanup:
     macro_file_close(fp);
     return loaded_key; /* Remember to EVP_PKEY_free(loaded_key); */
+}
+
+/**
+ * Load a certificate object from string.
+ * The caller is responsible for freeing the certificate.
+ * @param cert_str certificate string
+ * @return a X509 * certificate on success, NULL on failure
+ */
+X509* load_certificate_from_str(const char* cert_str)
+{
+    X509* cert = NULL;
+    BIO *bio = BIO_new_mem_buf((void *)cert_str, -1); // -1 = compute strlen
+    w_verify(bio, cleanup, "Error creating BIO\n");
+    cert = PEM_read_bio_X509(bio, NULL, NULL, NULL); // allocates new X509
+    w_verify(cert, cleanup, "Error reading X509 certificate from string\n");
+
+cleanup:
+    w_freeif(bio, BIO_free);
+    BIO_free(bio); // Clean up BIO
+
+    return cert; /* Remember to X509_free(cert); */
 }
 
 /**

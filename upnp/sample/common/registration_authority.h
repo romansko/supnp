@@ -187,16 +187,6 @@ int RAStateTableInit(
 	char *DescDocURL);
 
 /*!
- * \brief Called during a subscription request callback.
- *
- * If the subscription request is for this device and its services,
- * then accept it.
- */
-int RAHandleSubscriptionRequest(
-	/*! [in] The subscription request event structure. */
-	const UpnpSubscriptionRequest *sr_event);
-
-/*!
  * \brief Called during a get variable request callback.
  *
  * If the request is for this device and its services,
@@ -252,15 +242,13 @@ int RASetServiceTableVar(
 /*!
  * \brief Turn the power on.
  */
-int RaRegister(
+int RegisterDevice(
 	/*! [in] Document of action request. */
 	IXML_Document *in,
 	/*! [in] Action result. */
 	IXML_Document **out,
 	/*! [out] ErrorString in case action was unsuccessful. */
 	const char **errorString);
-
-
 
 /*!
  * \brief Initializes the UPnP Sdk, registers the device, and sends out

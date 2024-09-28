@@ -18,6 +18,8 @@
 
 #ifdef ENABLE_SUPNP
 
+#include <supnp_device.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -27,7 +29,6 @@ extern "C" {
 typedef struct evp_pkey_st EVP_PKEY;
 typedef struct x509_st X509;
 typedef struct cJSON cJSON;
-typedef struct _supnp_device_t supnp_device_t;
 typedef struct _IXML_Document IXML_Document;
 typedef struct _IXML_NodeList IXML_NodeList;
 
@@ -115,7 +116,7 @@ UPNP_EXPORT_SPEC int SUpnpInit();
  *
  * \return SUPNP_E_SUCCESS on success, SUPNP_E_INVALID_CERTIFICATE on failure.
  */
-UPNP_EXPORT_SPEC int verify_supnp_document(EVP_PKEY *ca_pkey, X509 *uca_cert, const supnp_device_t *dev);
+UPNP_EXPORT_SPEC int verify_supnp_document(EVP_PKEY *ca_pkey, supnp_device_t *dev);
 
 /* Temporary function for testing */
 UPNP_EXPORT_SPEC void test_nonce_encryption(EVP_PKEY* pk, EVP_PKEY* sk);

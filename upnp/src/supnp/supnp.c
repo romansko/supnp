@@ -60,11 +60,10 @@ cleanup:
 /**
  * Verify SUPnP document (DSD/ SAD).
  * @param ca_pkey CA public key
- * @param uca_cert UCA certificate
  * @param dev Device info
  * @return SUPNP_E_SUCCESS on success, SUPNP_E_INVALID_CERTIFICATE on failure.
  */
-int verify_supnp_document(EVP_PKEY* ca_pkey, X509* uca_cert, const supnp_device_t* dev)
+int verify_supnp_document(EVP_PKEY* ca_pkey, supnp_device_t* p_dev)
 {
     int ret = SUPNP_E_INVALID_ARGUMENT;
     int x, y;
@@ -80,37 +79,45 @@ int verify_supnp_document(EVP_PKEY* ca_pkey, X509* uca_cert, const supnp_device_
     service_table services;
 
     /* Arguments Verification */
-    supnp_verify(ca_pkey, cleanup, "Empty CA public key provided\n");
-    supnp_verify(uca_cert, cleanup, "Empty UCA Certificate provided\n");
-    supnp_verify(supnp_verify_device(dev) == SUPNP_DEV_OK, cleanup, "Invalid device\n");
+    supnp_verify(ca_pkey, cleanup,  "NULL CA public key provided.\n");
+    supnp_verify(p_dev, cleanup, "NULL device provided.\n");
 
     /* Read SUPnP document name & type */
     ret = SUPNP_E_INVALID_DOCUMENT;
-    supnp_extract_json_string(dev->supnp_doc, SUPNP_DOC_NAME, dev_name, cleanup);
-    supnp_extract_json_string(dev->supnp_doc, SUPNP_DOC_TYPE, dev_type, cleanup);
-    supnp_log("Verifying '%s' document. Type: '%s'.\n", dev_name, dev_type);
+    supnp_verify(p_dev->supnp_doc, cleanup, "NULL SAD/DSD provided.\n");
+    supnp_extract_json_string(p_dev->supnp_doc, SUPNP_DOC_NAME, dev_name, cleanup);
+    supnp_extract_json_string(p_dev->supnp_doc, SUPNP_DOC_TYPE, dev_type, cleanup);
+    if (!strcmp("CP", dev_type)) {
+        p_dev->type = DEVICE_TYPE_CP;
+    } else if (!strcmp("SD", dev_type)) {
+        p_dev->type = DEVICE_TYPE_SD;
+    } else {
+        supnp_verify(NULL, cleanup, "Invalid device type '%s'.\n", dev_type);
+    }
+    supnp_log("Verifying %s document. Type: '%s'.\n", dev_name, dev_type);
 
     /* Verify UCA Certificate */
     ret = SUPNP_E_INVALID_CERTIFICATE;
-    supnp_verify(verify_certificate("UCA", uca_cert, ca_pkey) == OPENSSL_SUCCESS, cleanup, "Invalid UCA cert.\n");
+    supnp_verify(p_dev->uca_cert, cleanup, "NULL UCA Certificate provided.\n");
+    supnp_verify(verify_certificate("UCA", p_dev->uca_cert, ca_pkey) == OPENSSL_SUCCESS, cleanup, "Invalid UCA cert.\n");
 
     /* Extract UCA Public Key && Verify Device Certificate */
-    uca_pk = X509_get_pubkey(uca_cert);
-    supnp_verify(verify_certificate(dev_name, dev->cert, uca_pk) == OPENSSL_SUCCESS, cleanup, "Invalid Device cert.\n");
+    uca_pk = X509_get_pubkey(p_dev->uca_cert);
+    supnp_verify(verify_certificate(dev_name, p_dev->dev_cert, uca_pk) == OPENSSL_SUCCESS, cleanup, "Invalid Device cert.\n");
 
     /* Extract Device Public Key */
-    device_pkey = X509_get_pubkey(dev->cert);
+    device_pkey = X509_get_pubkey(p_dev->dev_cert);
 
     /* Verify Device Public Key */
     ret = SUPNP_E_INVALID_DOCUMENT;
-    supnp_extract_json_string(dev->supnp_doc, SUPNP_DOC_PUBLIC_KEY, in_doc_pkey, cleanup);
+    supnp_extract_json_string(p_dev->supnp_doc, SUPNP_DOC_PUBLIC_KEY, in_doc_pkey, cleanup);
     doc_pk = load_public_key_from_hex(in_doc_pkey);
     supnp_verify(doc_pk, cleanup, "Error loading public key from '%s'.\n", SUPNP_DOC_PUBLIC_KEY);
     supnp_verify(EVP_PKEY_eq(doc_pk, device_pkey) == OPENSSL_SUCCESS, cleanup,
-                 "Document's device public key doesn't match Device ceretificate's public key.\n");
+                 "Document's device public key doesn't match Device certificate's public key.\n");
 
     /* Retrieve signature verification conditions */
-    supnp_extract_json_string(dev->supnp_doc, SUPNP_DOC_SIG_CON, sig_ver_con, cleanup);
+    supnp_extract_json_string(p_dev->supnp_doc, SUPNP_DOC_SIG_CON, sig_ver_con, cleanup);
     supnp_verify(sscanf(sig_ver_con, "%d-of-%d", &x, &y) == 2, cleanup,
                  "Error parsing Signature Verification Conditions '%s'.\n", SUPNP_DOC_SIG_CON);
     supnp_verify(x >= 0 && y >= 0 && x <= y, cleanup, "Invalid Signature Verification Conditions '%s'.\n",
@@ -118,7 +125,7 @@ int verify_supnp_document(EVP_PKEY* ca_pkey, X509* uca_cert, const supnp_device_
     supnp_log("Signature Verification Conditions: %d-of-%d\n", x, y);
 
     /* Retrieve Signatures */
-    const cJSON* sigs = cJSON_GetObjectItemCaseSensitive(dev->supnp_doc, SUPNP_DOC_SIGNATURES);
+    const cJSON* sigs = cJSON_GetObjectItemCaseSensitive(p_dev->supnp_doc, SUPNP_DOC_SIGNATURES);
     supnp_verify(cJSON_IsArray(sigs), cleanup, "Unexpected '%s'\n", SUPNP_DOC_SIGNATURES);
     supnp_verify(cJSON_GetArraySize(sigs) == y, cleanup,
                  "Unexpected number of signatures in '%s'\n", SUPNP_DOC_SIGNATURES);
@@ -130,7 +137,7 @@ int verify_supnp_document(EVP_PKEY* ca_pkey, X509* uca_cert, const supnp_device_
     }
 
     /* Delete signatures from document, leaving only the content. */
-    cJSON* doc_content = cJSON_Duplicate(dev->supnp_doc, 1);
+    cJSON* doc_content = cJSON_Duplicate(p_dev->supnp_doc, 1);
     cJSON_DeleteItemFromObjectCaseSensitive(doc_content, SUPNP_DOC_SIG_OWNER);
     cJSON_DeleteItemFromObjectCaseSensitive(doc_content, SUPNP_DOC_SIG_UCA);
     data = cJSON_PrintUnformatted(doc_content);
@@ -155,7 +162,7 @@ int verify_supnp_document(EVP_PKEY* ca_pkey, X509* uca_cert, const supnp_device_
         }
         /* Extract the hex string signature and convert it to bytes */
         const char* signature = cJSON_GetStringValue(
-            cJSON_GetObjectItemCaseSensitive(dev->supnp_doc, sig_name));
+            cJSON_GetObjectItemCaseSensitive(p_dev->supnp_doc, sig_name));
         if (verify_signature(sig_name, pkey, signature, (unsigned char*)data, strlen(data)) != OPENSSL_SUCCESS)
         {
             ret = SUPNP_E_INVALID_DOCUMENT;
@@ -165,7 +172,7 @@ int verify_supnp_document(EVP_PKEY* ca_pkey, X509* uca_cert, const supnp_device_
     }
 
     /* Done verification for CP */
-    if (dev->type == DEVICE_TYPE_CP)
+    if (p_dev->type == DEVICE_TYPE_CP)
     {
         ret = SUPNP_E_SUCCESS;
         goto cleanup;
@@ -179,11 +186,11 @@ int verify_supnp_document(EVP_PKEY* ca_pkey, X509* uca_cert, const supnp_device_
      * The ledger maintains a mapping between a service type and the HW and SW attributes require to provide the service.
      * todo: verify that the capability of an SD matches its DDD. Maintain Ledger.
      */
-    const cJSON* json_services = cJSON_GetObjectItemCaseSensitive(dev->supnp_doc, SUPNP_DOC_SERVICES);
+    const cJSON* json_services = cJSON_GetObjectItemCaseSensitive(p_dev->supnp_doc, SUPNP_DOC_SERVICES);
     supnp_verify(json_services, cleanup,
                  "Couldn't find services tagname '%s' in SUPnP Document.\n", SUPNP_DOC_SERVICES);
 
-    ret = getServiceTable((IXML_Node*)dev->desc_doc, &services, dev->desc_uri);
+    ret = getServiceTable((IXML_Node*)p_dev->desc_doc, &services, p_dev->desc_uri);
     supnp_verify(ret, cleanup, "Couldn't fill service table.\n");
     const int json_count = cJSON_GetArraySize(json_services);
     const int services_number = CountServices(&services);
@@ -214,7 +221,7 @@ cleanup:
     freeif2(doc_pk, EVP_PKEY_free);
     freeif2(uca_pk, EVP_PKEY_free);
     freeif2(device_pkey, EVP_PKEY_free);
-    if (dev->type == DEVICE_TYPE_SD)
+    if (p_dev->type == DEVICE_TYPE_SD)
         freeServiceTable(&services);  // applicable only for SD
     return ret;
 }
@@ -291,7 +298,7 @@ cleanup:
 void test_captoken_generation(const supnp_device_t* dev, EVP_PKEY* ra_sk)
 {
     cJSON* token = NULL;
-    supnp_verify(supnp_verify_device(dev), cleanup, "Device verification failed\n");
+    supnp_verify((dev->type == DEVICE_TYPE_CP) || (dev->type == DEVICE_TYPE_SD), cleanup, "Invalid device type\n");
     supnp_verify(ra_sk, cleanup, "NULL RA PK\n");
     token = generate_cap_token(dev, ra_sk);
     supnp_verify(token, cleanup, "Error generating %s's capability token\n", supnp_device_type_str(dev->type));
@@ -330,7 +337,8 @@ void SUpnp_test_registration()
     sd_info.type = DEVICE_TYPE_SD;
     sd_info.pk = load_public_key_from_pem("../../simulation/SD/public_key.pem");
     sd_info.sk = load_private_key_from_pem("../../simulation/SD/private_key.pem");
-    sd_info.cert = load_certificate_from_pem("../../simulation/SD/certificate.pem");
+    sd_info.dev_cert = load_certificate_from_pem("../../simulation/SD/certificate.pem");
+    sd_info.uca_cert = uca_cert;
     sd_info.desc_uri = strdup("http://192.168.1.100:49152/tvdevicedesc.xml");
     sd_info.desc_doc = ixmlLoadDocument("./web/tvdevicedesc.xml");
     sd_info.supnp_doc = cJSON_Parse(dsd);
@@ -340,7 +348,8 @@ void SUpnp_test_registration()
     cp_info.type = DEVICE_TYPE_CP;
     cp_info.pk = load_public_key_from_pem("../../simulation/CP/public_key.pem");
     cp_info.sk = load_private_key_from_pem("../../simulation/CP/private_key.pem");
-    cp_info.cert = load_certificate_from_pem("../../simulation/CP/certificate.pem");
+    cp_info.dev_cert = load_certificate_from_pem("../../simulation/CP/certificate.pem");
+    cp_info.uca_cert = uca_cert;
     cp_info.desc_uri = NULL;
     cp_info.desc_doc = NULL;
     cp_info.supnp_doc = cJSON_Parse(sad);
@@ -352,11 +361,11 @@ void SUpnp_test_registration()
      * which is included in the certificates, by verifying the signatures of these certificates.
      * The RA verifies the authenticity and integrity of the specification document DSD or SAD.
      */
-    if (verify_supnp_document(ca_pk, uca_cert, &sd_info) == SUPNP_E_SUCCESS)
+    if (verify_supnp_document(ca_pk, &sd_info) == SUPNP_E_SUCCESS)
     {
         supnp_log("Device Specification Document (DSD) OK.\n");
     }
-    if (verify_supnp_document(ca_pk, uca_cert, &cp_info) == SUPNP_E_SUCCESS)
+    if (verify_supnp_document(ca_pk, &cp_info) == SUPNP_E_SUCCESS)
     {
         supnp_log("Service Action Document (SAD) OK.\n");
     }

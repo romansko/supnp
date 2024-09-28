@@ -104,9 +104,6 @@ cJSON* generate_cap_token(const supnp_device_t* dev, EVP_PKEY* sk_ra)
     char* concatenate_uri = NULL; // description uri || token uri
     char* cap_token_content = NULL;
 
-    /* Params verification */
-    supnp_verify(supnp_verify_device(dev) == SUPNP_DEV_OK, error, "Device verification error\n");
-
     /* Init Cap Token */
     cap_token = cJSON_CreateObject();
     supnp_verify(cap_token, error, "cap_token initial generation failed\n");
@@ -129,6 +126,7 @@ cJSON* generate_cap_token(const supnp_device_t* dev, EVP_PKEY* sk_ra)
     /* Export Device Public Key & Type */
     cJSON* _pk_dev = bytes_to_json_string(public_key_to_bytes(dev->pk, NULL));
     supnp_verify(_pk_dev, error, "Device Public Key exporting failed\n");
+    supnp_verify((dev->type == DEVICE_TYPE_CP) || (dev->type == DEVICE_TYPE_SD), cleanup, "Invalid device type\n");
     switch (dev->type)
     {
     case DEVICE_TYPE_SD:
@@ -141,9 +139,12 @@ cJSON* generate_cap_token(const supnp_device_t* dev, EVP_PKEY* sk_ra)
         break;
     }
 
+    supnp_verify(dev->cap_token_uri != NULL, cleanup, "NULL cap token URI\n");
+
     /* Sign advertisement URI (description uri || token uri) */
     if (dev->type == DEVICE_TYPE_SD)
     {
+        supnp_verify(dev->desc_uri != NULL, cleanup, "NULL description document URI\n");
         concatenate_uri = malloc(strlen(dev->desc_uri) + strlen(dev->cap_token_uri) + 1);
         supnp_verify(concatenate_uri, error, "concatenate_uri memory allocation failed\n");
         strcpy(concatenate_uri, dev->desc_uri);
@@ -166,6 +167,7 @@ cJSON* generate_cap_token(const supnp_device_t* dev, EVP_PKEY* sk_ra)
     /* Sign Device Description Document */
     if (dev->type == DEVICE_TYPE_SD)
     {
+        supnp_verify(dev->desc_doc != NULL, cleanup, "NULL device description document\n");
         desc_doc = ixmlDocumenttoString(dev->desc_doc);
         const size_t doc_size = strlen(desc_doc);
         supnp_verify(desc_doc, error, "ixmlPrintDocument failed\n");
@@ -182,6 +184,7 @@ cJSON* generate_cap_token(const supnp_device_t* dev, EVP_PKEY* sk_ra)
      *   if CP:
      *     cap_token.add_Service(service_type);
      */
+    supnp_verify(dev->supnp_doc != NULL, cleanup, "NULL supnp specification document\n");
     const cJSON* service_list = cJSON_GetObjectItemCaseSensitive(dev->supnp_doc, "SERVICES");
     supnp_verify(service_list, cleanup, "Couldn't find services tagname in SUPnP Document.\n");
     cJSON* _services = dev->type == DEVICE_TYPE_SD ? cJSON_CreateObject() : cJSON_CreateArray();

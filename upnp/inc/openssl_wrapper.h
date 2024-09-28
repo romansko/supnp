@@ -39,6 +39,12 @@ extern "C" {
  */
 UPNP_EXPORT_SPEC int init_openssl_wrapper();
 
+
+/*!
+ * \brief Helper function to free a PKEY.
+ */
+UPNP_EXPORT_SPEC void free_key(EVP_PKEY* key);
+
 /*!
  * \brief print data as hex.
  */
@@ -107,10 +113,20 @@ UPNP_EXPORT_SPEC EVP_PKEY* load_public_key_from_pem(const char* pem_file_path);
  */
 UPNP_EXPORT_SPEC EVP_PKEY* load_private_key_from_pem(const char* pem_file_path);
 
+
+/*!
+ * \brief Load a certificate from PEM string.
+ *
+ * \note Remember to X509_free(cert)
+ *
+ * \return X509 * certificate on success, NULL on failure.
+ */
+UPNP_EXPORT_SPEC X509* load_certificate_from_str(const char* cert_str);
+
 /*!
  * \brief Load a certificate from PEM file.
  *
- * \note Remember to Remember to X509_free(cert)
+ * \note Remember to X509_free(cert)
  *
  * \return X509 * certificate on success, NULL on failure.
  */

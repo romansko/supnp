@@ -51,10 +51,14 @@
 
 #ifdef ENABLE_SUPNP
 
-const char *RaRegisterDefaultFilenameCP[RA_REGISTER_VARCOUNT] = {
-    "sad.json",
-    "cert_cp.pem",
-    "cert_uca.pem"
+#include <file_utils.h>
+#include <openssl_wrapper.h>
+
+/*! Relative to upnp/sample */
+const char *RegisterDocsDefaultFilepathCP[RA_REGISTER_VARCOUNT] = {
+    "../../simulation/CP/sad.json",
+    "../../simulation/CP/certificate.pem",
+    "../../simulation/UCA/certificate.pem"
 };
 
 #endif
@@ -1041,44 +1045,30 @@ void TvCtrlPointHandleGetVar(
 }
 
 #if ENABLE_SUPNP
-int SendRAActionRegister(const char * baseUrl, const char * relControlUrl)
+int SendRAActionRegister(const char * controlUrl)
 {
-    IXML_Document *actionNode = NULL;
     int rc = SUPNP_E_SUCCESS;
-    const char * registerService = RaServiceType[RA_SERVICE_REGISTER];
-    const char *actionName = RaRegistrationAction[RA_ACTION_REGISTER];
-    char *controlURL = NULL;
-    char *url[RA_REGISTER_VARCOUNT] = {NULL};
+    IXML_Document *actionNode = NULL;
+    char* docs[RA_REGISTER_VARCOUNT] = {NULL};
+    char* docs_hex[RA_REGISTER_VARCOUNT] = {NULL};
+    size_t docs_size[RA_REGISTER_VARCOUNT] = {0};
 
-    rc = UpnpResolveURL2(baseUrl, relControlUrl, &controlURL);
-    sample_verify(rc == UPNP_E_SUCCESS,
-        cleanup,
-        "Error generating controlURL from %s + %s\n",
-        baseUrl,
-        relControlUrl);
-
-    for (int param = 0; param < RA_REGISTER_VARCOUNT; ++param) {
-        rc = UpnpResolveURL2(baseUrl,
-            RaRegisterDefaultFilenameCP[param],
-            &url[param]);
-        sample_verify(rc == UPNP_E_SUCCESS, cleanup,
-            "Error generating URL from %s + %s\n",
-            baseUrl,
-            RaRegisterDefaultFilenameCP[param]);
-
-        if (UpnpAddToAction(&actionNode,
-            actionName,
-            registerService,
-            RaRegisterVarName[param],
-            url[param]) != UPNP_E_SUCCESS) {
-            SampleUtil_Print(
-                "ERROR: SendActionRegister: Trying to add action param\n");
-            }
+    for (int i = 0; i < RA_REGISTER_VARCOUNT; ++i) {
+        docs[i] = read_file(RegisterDocsDefaultFilepathCP[i], "rb", &docs_size[i]);
+        sample_verify(docs[i] != NULL, cleanup, "Error reading Registration Document ID %d\n", i);
+        docs_hex[i] = binary_to_hex_string((unsigned char *)docs[i], docs_size[i]);
+        sample_verify(docs_hex[i] != NULL, cleanup, "Error converting to hex string Registration Document ID %d\n", i);
+        rc = UpnpAddToAction(&actionNode,
+            RaRegistrationAction[RA_ACTION_REGISTER],
+            RaServiceType[RA_SERVICE_REGISTER],
+            RaRegisterVarName[i],
+            docs_hex[i]);
+        sample_verify(rc == UPNP_E_SUCCESS, cleanup, "Error trying to add action param\n");
     }
 
     rc = UpnpSendActionAsync(ctrlpt_handle,
-        controlURL,
-        registerService,
+        controlUrl,
+        RaServiceType[RA_SERVICE_REGISTER],
         NULL,
         actionNode,
         TvCtrlPointCallbackEventHandler,
@@ -1091,9 +1081,9 @@ int SendRAActionRegister(const char * baseUrl, const char * relControlUrl)
 
 cleanup:
     freeif2(actionNode, ixmlDocument_free);
-    freeif(controlURL);
-    for (int param = 0; param < RA_REGISTER_VARCOUNT; ++param) {
-        freeif(url[param]);
+    for (int i = 0; i < RA_REGISTER_VARCOUNT; ++i) {
+        freeif(docs[i]);
+        freeif(docs_hex[i]);
     }
 
     return rc;
@@ -1143,7 +1133,7 @@ int TvCtrlPointCallbackEventHandler(Upnp_EventType EventType, const void *Event,
 #ifdef ENABLE_SUPNP
 		    if (strcmp(SampleUtil_GetFirstDocumentItem(DescDoc, "deviceType"),
 		        RaDeviceType) == 0) {
-                /* Send to RA the DSD */
+                /* Send to RA the SAD */
 		        basic_service_info * serviceList = SampleUtil_GetServices(DescDoc);
 		        //sample_verify(serviceList, )
 		        if (!serviceList) {
@@ -1151,22 +1141,30 @@ int TvCtrlPointCallbackEventHandler(Upnp_EventType EventType, const void *Event,
 		        } else {
                     const basic_service_info * service = serviceList;
 		            while (service) {
-		                if (strcmp(service->serviceType, RaServiceType[RA_SERVICE_REGISTER]) == 0) {
+		                char* controlURL = NULL;
+		                if (UpnpResolveURL2(location, service->controlURL, &controlURL) != UPNP_E_SUCCESS) {
+		                    SampleUtil_Print("Error generating controlURL from %s + %s\n",
+		                        location, service->controlURL);
+		                }
+		                else if (strcmp(service->serviceType, RaServiceType[RA_SERVICE_REGISTER]) == 0) {
 		                    // Send the DSD to the RA
-		                    errCode = SendRAActionRegister(location, service->controlURL);
+		                    errCode = SendRAActionRegister(controlURL);
 		                    (void) errCode;
+
+                            // todo TvDevice search only after successful registration.
+		                    // todo stop trying to register if already registered.
+		                    #if 0
+		                    errCode = UpnpSearchAsync(ctrlpt_handle, SEARCH_TIME, TvDeviceType, NULL);
+		                    if (UPNP_E_SUCCESS != errCode) {
+		                        SampleUtil_Print("Error sending search request (%d)\n", errCode);
+		                    }
+                            #endif
 		                    break;
 		                }
+		                freeif(controlURL);
 		                service = service->next;
 		            }
                 }
-		        #if 0
-		        /* TV Device Search after registration */
-		        errCode = UpnpSearchAsync(ctrlpt_handle, SEARCH_TIME, TvDeviceType, NULL);
-		        if (UPNP_E_SUCCESS != errCode) {
-		            SampleUtil_Print("Error sending search request (%d)\n", errCode);
-		        }
-		        #endif
 		    } else {
 #endif
 			TvCtrlPointAddDevice(DescDoc, location,	UpnpDiscovery_get_Expires(d_event));

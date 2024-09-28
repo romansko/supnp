@@ -13,18 +13,18 @@
       <name>Register</name>
       <argumentList>
          <argument>
-           <name>SpecDocUrl</name>
-           <relatedStateVariable>SpecDocUrl</relatedStateVariable>
+           <name>SpecificationDocument</name>
+           <relatedStateVariable>SpecDoc</relatedStateVariable>
            <direction>in</direction>
           </argument>
         <argument>
-          <name>CertDevice</name>
-          <relatedStateVariable>CertDeviceUrl</relatedStateVariable>
+          <name>CertificateDevice</name>
+          <relatedStateVariable>CertDevice</relatedStateVariable>
           <direction>in</direction>
         </argument>
         <argument>
-          <name>CertUca</name>
-          <relatedStateVariable>CertUcaUrl</relatedStateVariable>
+          <name>CertificateUCA</name>
+          <relatedStateVariable>CertUCA</relatedStateVariable>
           <direction>in</direction>
         </argument>
       </argumentList>

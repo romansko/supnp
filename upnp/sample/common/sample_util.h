@@ -66,6 +66,9 @@ extern const char *TvServiceType[];
 
 #ifdef ENABLE_SUPNP
 
+/*! Maximum size for SAD / DSD / certificates in supnp */
+#define MAX_SUPNP_DOC_SIZE 4096
+
 /*! Registration Authority services. */
 typedef enum _ERAServiceType
 {
@@ -109,9 +112,9 @@ const char *RaServiceType[RA_SERVICE_COUNT] = {
 };
 const char* RaRegistrationAction[RA_REGISTER_SERVICE_ACTIONS] = {"Register"};
 const char *RaRegisterVarName[RA_REGISTER_VARCOUNT] = {
-	"SpecDocUrl",
-	"CertDeviceUrl",
-	"CertUcaUrl"
+	"SpecificationDocument",
+	"CertificateDevice",
+	"CertificateUCA"
 };
 #else  /* SAMPLE_UTIL_C */
 extern const char *RaDeviceType;
@@ -173,6 +176,19 @@ typedef struct BASIC_SERVICE_INFO
 #define sample_verify(test, label, ...) { \
 	if (!(test)) { \
 		SampleUtil_Print(__VA_ARGS__); \
+		goto label; \
+	} \
+}
+
+/**
+ * Internal verification macro. USE ONLY WITHOUT FORMATTING.
+ * @param test condition to check
+ * @param label label to jump to in case of failure
+ */
+#define sample_verify_ex(test, label, errorString, errorMessage) { \
+	if (!(test)) { \
+		*errorString = errorMessage; \
+		SampleUtil_Print(errorMessage); \
 		goto label; \
 	} \
 }

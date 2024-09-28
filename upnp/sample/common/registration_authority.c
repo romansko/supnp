@@ -46,6 +46,9 @@
 #include "upnp.h"
 #include "upnpdebug.h"
 
+#include <openssl_wrapper.h>
+#include <supnp.h>
+
 #include <assert.h>
 
 #define DEFAULT_WEB_DIR "./web"
@@ -54,13 +57,13 @@
 
 #define DESC_URL_SIZE 200
 
+const char* CA_PK_DEF_PATH = "../../simulation/CA/public_key.pem";
 
+supnp_device_t * SUPnPDeviceList = NULL;
 
 const int RAServiceVariableCount[RA_SERVICE_COUNT] = { 1 };
 
-const char *rar_varname[] = {"SpecDocUrl", "CertDeviceUrl", "CertUcaUrl"};
-
-char rar_varval[RA_REGISTER_VARCOUNT][RA_MAX_VAL_LEN] = { 0 };
+char RegistrationDocs[RA_REGISTER_VARCOUNT][MAX_SUPNP_DOC_SIZE] = { 0 };
 
 /*! The amount of time (in seconds) before advertisements will expire. */
 int default_advr_expire = 100;
@@ -128,8 +131,8 @@ static int SetServiceTable(
 	strcpy(out->ServiceType, serviceTypeS);
 
     for (int i = 0; i < out->VariableCount; ++i) {
-        out->VariableName[i] = rar_varname[i];
-        out->VariableStrVal[i] = rar_varval[i];
+        out->VariableName[i] = RaRegisterVarName[i];
+        out->VariableStrVal[i] = RegistrationDocs[i];
     }
 
 	return SetActionTable(serviceType, out);
@@ -145,7 +148,7 @@ int SetActionTable(const ERAServiceType serviceType, struct RAService *out)
     case RA_SERVICE_REGISTER:
         {
 		out->ActionNames[0] = "Register";
-		out->actions[0] = RaRegister;
+		out->actions[0] = RegisterDevice;
 		out->ActionNames[1] = NULL;
 		ret = UPNP_E_SUCCESS;
         break;
@@ -206,40 +209,6 @@ error_handler:
     }
 	freeif2(DescDoc, ixmlDocument_free);
 	return ret;
-}
-
-int RAHandleSubscriptionRequest(const UpnpSubscriptionRequest *sr_event)
-{
-	unsigned int i = 0;
-    const char *l_serviceId = NULL;
-	const char *l_udn = NULL;
-	const char *l_sid = NULL;
-
-	/* lock state mutex */
-	ithread_mutex_lock(&RAMutex);
-
-	l_serviceId = UpnpString_get_String(
-		UpnpSubscriptionRequest_get_ServiceId(sr_event));
-	l_udn = UpnpSubscriptionRequest_get_UDN_cstr(sr_event);
-	l_sid = UpnpSubscriptionRequest_get_SID_cstr(sr_event);
-	for (i = 0; i < RA_SERVICE_COUNT; ++i) {
-        const struct RAService *pRaSrvc = &ra_service_table[i];
-        const int cmp1 = strcmp(l_udn, pRaSrvc->UDN);
-        const int cmp2 = strcmp(l_serviceId, pRaSrvc->ServiceId);
-		if (cmp1 == 0 && cmp2 == 0) {
-			UpnpAcceptSubscription(device_handle,
-				l_udn,
-				l_serviceId,
-				pRaSrvc->VariableName,    // todo fix should be const char**
-				pRaSrvc->VariableStrVal,  // todo fix should be const char**
-				pRaSrvc->VariableCount,
-				l_sid);
-		}
-	}
-
-	ithread_mutex_unlock(&RAMutex);
-
-	return 1;
 }
 
 int RAHandleGetVarRequest(UpnpStateVarRequest *cgv_event)
@@ -379,44 +348,68 @@ int RASetServiceTableVar(unsigned int service, int variable, char *value)
 }
 
 
-int RaRegister(IXML_Document *in, IXML_Document **out, const char **errorString)
+/**
+ * Handles Device Registration process. For more details refer to
+ * SUPnP Paper - Fig. 15 DSD/SAD verification process.
+ */
+int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorString)
 {
-    int ret = UPNP_E_SUCCESS;
-    char *spec_doc_url = NULL;  // SAD or DSD url
-    char *device_cert_url = NULL;
-    char *uca_cert_url = NULL;
+    ithread_mutex_lock(&RAMutex);
+    supnp_device_t *p_dev = NULL;
+    int ret = UPNP_E_INVALID_PARAM;
+    char* hex[RA_REGISTER_VARCOUNT]  = {NULL};
+    char* docs[RA_REGISTER_VARCOUNT] = {NULL};
+    size_t doc_size[RA_REGISTER_VARCOUNT] = {0};
+    EVP_PKEY* ca_pk  = NULL;
 
     (*out) = NULL;
-    (*errorString) = NULL;
 
-    spec_doc_url = SampleUtil_GetFirstDocumentItem(in, "SpecDocUrl");
-    if (!spec_doc_url) {
-        (*errorString) = "Invalid SUPnP document URL";
-        ret =  UPNP_E_INVALID_PARAM;
-        goto cleanup;
+    /* Step 1 - Receive and Load DSD/SAD, Device Certificate, UCA Certificate */
+    for (int i=0; i<RA_REGISTER_VARCOUNT; ++i) {
+        hex[i] = SampleUtil_GetFirstDocumentItem(in, RaRegisterVarName[i]);
+        docs[i] = (char * )hex_string_to_binary(hex[i], &doc_size[i]);
+        sample_verify_ex(docs[i], cleanup, errorString, "Invalid Registration parameters.\n");
     }
+    ca_pk = load_public_key_from_pem(CA_PK_DEF_PATH);
+    sample_verify_ex(ca_pk, cleanup, errorString, "Error loading CA Public Key.\n");
 
-    device_cert_url = SampleUtil_GetFirstDocumentItem(in, "CertDeviceUrl");
-    if (!device_cert_url) {
-        (*errorString) = "Invalid Device Certificate URL";
-        ret = UPNP_E_INVALID_PARAM;
-        goto cleanup;
-    }
+    p_dev = new_supnp_device(docs[RA_REGISTER_SPEC_DOC],
+        docs[RA_REGISTER_CERT_DEVICE],
+        docs[RA_REGISTER_CERT_UCA]);
+    sample_verify_ex(p_dev, cleanup, errorString, "Unable to initialize new device\n");
 
-    uca_cert_url = SampleUtil_GetFirstDocumentItem(in, "CertUcaUrl");
-    if (!uca_cert_url) {
-        (*errorString) = "Invalid UCA Certificate URL";
-        ret =  UPNP_E_INVALID_PARAM;
-        goto cleanup;
-    }
+    /* Step 2 + 3
+     * Verify UCA Certificate using CA's public key.
+     * Verify Device Certificate using UCA's public key.
+     * Verify DSD / SAD Using Device public key & UCA public key.
+     */
+    ret = verify_supnp_document(ca_pk, p_dev);
+    sample_verify_ex(ret == SUPNP_E_SUCCESS, cleanup, errorString, "Unable to verify device\n");
+    SampleUtil_Print("Specification document ok\n");
 
-    // todo download docs and verify..
+    /* Save device */
+    add_list_device(&SUPnPDeviceList, p_dev);
+
+    ret = UpnpAddToActionResponse(out,
+            RaRegistrationAction[RA_ACTION_REGISTER],
+            RaServiceType[RA_SERVICE_REGISTER],
+            "Registered",
+            "1");
+    sample_verify_ex(ret == UPNP_E_SUCCESS, cleanup, errorString, "Unable to add response\n");
+
+    ithread_mutex_unlock(&RAMutex);
+    ret = UPNP_E_SUCCESS;
 
 cleanup:
-    freeif(spec_doc_url);
-    freeif(device_cert_url);
-    freeif(uca_cert_url);
-
+    if (ret != SUPNP_E_SUCCESS) {
+        supnp_free_device(&p_dev);
+    }
+    for (int i=0; i<RA_REGISTER_VARCOUNT; ++i) {
+        freeif(hex[i]);
+        freeif(docs[i]);
+    }
+    free_key(ca_pk);
+    ithread_mutex_unlock(&RAMutex);
     return ret;
 }
 
@@ -425,16 +418,14 @@ int RACallbackEventHandler(
 {
 	(void)Cookie;
 	switch (EventType) {
-	case UPNP_EVENT_SUBSCRIPTION_REQUEST:
-		RAHandleSubscriptionRequest((UpnpSubscriptionRequest *)Event);
-		break;
 	case UPNP_CONTROL_GET_VAR_REQUEST:
 		RAHandleGetVarRequest((UpnpStateVarRequest *)Event);
 		break;
 	case UPNP_CONTROL_ACTION_REQUEST:
 		RAHandleActionRequest((UpnpActionRequest *)Event);
 		break;
-	/* ignore these cases, since this is not a control point */
+	/* Ignore */
+	case UPNP_EVENT_SUBSCRIPTION_REQUEST:
 	case UPNP_DISCOVERY_ADVERTISEMENT_ALIVE:
 	case UPNP_DISCOVERY_SEARCH_RESULT:
 	case UPNP_DISCOVERY_SEARCH_TIMEOUT:
