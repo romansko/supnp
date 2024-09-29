@@ -82,45 +82,70 @@ typedef enum _ERAServiceType
 typedef enum _ERARegisterServiceActions
 {
 	/*! Register action. */
-	RA_ACTION_REGISTER = 0,
+	RA_ACTIONS_REGISTER = 0,
+
+	/*!< Challenge action. */
+	RA_ACTIONS_CHALLENGE,
 
 	/*! Number of actions. */
 	RA_REGISTER_SERVICE_ACTIONS
 }ERARegisterServiceActions;
 
 /*! Registration service action Register variables. */
-typedef enum _ERARegisterVariables
+typedef enum _ERARegisterActionVariables
 {
-	/*! Specification Document variable. */
+	/*! Specification Document hex string */
 	RA_REGISTER_SPEC_DOC = 0,
 
-	/*! Device Certificate variable. */
+	/*! Device Certificate hex string */
 	RA_REGISTER_CERT_DEVICE,
 
-	/*! UCA Certificate. */
+	/*! UCA Certificate hex string */
 	RA_REGISTER_CERT_UCA,
 
 	/*! Number of variables. */
 	RA_REGISTER_VARCOUNT
 
-}ERARegisterVariables;
+}ERARegisterActionVariables;
+
+/*! Registration service action Chalenge variables. */
+typedef enum _ERAChallengeActionVariables
+{
+	/*! Challenge response hex string */
+	CHALLENGE_ACTION_RESPONSE = 0,
+
+	/*! Public key hex string */
+	CHALLENGE_ACTION_PUBLICKEY,
+
+	/*! Number of variables. */
+	CHALLENGE_ACTION_VARCOUNT
+
+}ERAChallengeActionVariables;
 
 #ifdef SAMPLE_UTIL_C
 const char *RaDeviceType = "urn:schemas-upnp-org:device:ra:1";
 const char *RaServiceType[RA_SERVICE_COUNT] = {
 	"urn:schemas-upnp-org:service:registration:1"
 };
-const char* RaRegistrationAction[RA_REGISTER_SERVICE_ACTIONS] = {"Register"};
+const char *RaRegistrationAction[RA_REGISTER_SERVICE_ACTIONS] = {
+	"Register",
+	"Challenge"
+};
 const char *RaRegisterVarName[RA_REGISTER_VARCOUNT] = {
 	"SpecificationDocument",
 	"CertificateDevice",
 	"CertificateUCA"
 };
+const char* RaActionChallengeVarName[CHALLENGE_ACTION_VARCOUNT] = {
+	"ChallengeResponse",
+	"PublicKey"
+};
 #else  /* SAMPLE_UTIL_C */
 extern const char *RaDeviceType;
-extern const char *RaServiceType[];
+extern const char *RaServiceType[RA_SERVICE_COUNT];
 extern const char* RaRegistrationAction[RA_REGISTER_SERVICE_ACTIONS];
 extern const char *RaRegisterVarName[RA_REGISTER_VARCOUNT];
+extern const char* RaActionChallengeVarName[CHALLENGE_ACTION_VARCOUNT];
 #endif /* SAMPLE_UTIL_C */
 
 #endif /* ENABLE_SUPNP */

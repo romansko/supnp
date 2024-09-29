@@ -51,6 +51,10 @@
 
 #include <assert.h>
 
+#if OPENSSL_CSPRNG_SIZE != SHA256_DIGEST_LENGTH
+#error "Hash size mismatch"
+#endif
+
 #define DEFAULT_WEB_DIR "./web"
 
 #define DEFAULT_DESC_DOC "radesc.xml"
@@ -146,10 +150,13 @@ int SetActionTable(const ERAServiceType serviceType, struct RAService *out)
     int ret = UPNP_E_INVALID_SERVICE;
     switch(serviceType) {
     case RA_SERVICE_REGISTER:
-        {
-		out->ActionNames[0] = "Register";
+    {
+		out->ActionNames[0] = RaRegistrationAction[RA_ACTIONS_REGISTER];
 		out->actions[0] = RegisterDevice;
-		out->ActionNames[1] = NULL;
+		out->ActionNames[1] = RaRegistrationAction[RA_ACTIONS_CHALLENGE];
+        out->actions[1] = VerifyChallenge;
+        out->ActionNames[2] = NULL;
+        out->actions[2] = NULL;
 		ret = UPNP_E_SUCCESS;
         break;
 	}
@@ -361,7 +368,13 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
     char* docs[RA_REGISTER_VARCOUNT] = {NULL};
     size_t doc_size[RA_REGISTER_VARCOUNT] = {0};
     EVP_PKEY* ca_pk  = NULL;
+    unsigned char *nonce = NULL;
+    unsigned char* enc_nonce = NULL;
+    char * challenge_str = NULL;
+    size_t enc_len = 0;
+    char retVal[5] = {0};
 
+    sample_verify_ex(in && out && errorString, cleanup, errorString, "NULL arguments.\n");
     (*out) = NULL;
 
     /* Step 1 - Receive and Load DSD/SAD, Device Certificate, UCA Certificate */
@@ -378,7 +391,7 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
         docs[RA_REGISTER_CERT_UCA]);
     sample_verify_ex(p_dev, cleanup, errorString, "Unable to initialize new device\n");
 
-    /* Step 2 + 3
+    /* Fig.15 - Step 2 + 3
      * Verify UCA Certificate using CA's public key.
      * Verify Device Certificate using UCA's public key.
      * Verify DSD / SAD Using Device public key & UCA public key.
@@ -387,34 +400,118 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
     sample_verify_ex(ret == SUPNP_E_SUCCESS, cleanup, errorString, "Unable to verify device\n");
     SampleUtil_Print("Specification document ok\n");
 
+    ret = SUPNP_E_INTERNAL_ERROR;
 
+    /* Fig. 15 - step 4 - Generates nonce  */
+    nonce = generate_nonce(OPENSSL_CSPRNG_SIZE);
+    sample_verify_ex(nonce, cleanup, errorString, "Error generating nonce.\n");
 
-    /* Save device */
-    SampleUtil_Print("Device %s ok.\n", p_dev->id);
-    add_list_device(&SUPnPDeviceList, p_dev);
+    /* Save hash(nonce) for later */
+    sample_verify_ex(do_sha256(p_dev->hash, nonce, OPENSSL_CSPRNG_SIZE) == OPENSSL_SUCCESS,
+        cleanup, errorString, "Error hashing nonce.\n");
 
+    /* Fig. 15 - step 5 - Encrypt and send the challenge. */
+    enc_nonce = encrypt_asym(p_dev->dev_pkey, &enc_len, nonce, OPENSSL_CSPRNG_SIZE);
+    sample_verify_ex(enc_nonce, cleanup, errorString, "Error encrypting nonce challenge.\n");
+    challenge_str = binary_to_hex_string(enc_nonce, enc_len);
+    sample_verify_ex(challenge_str, cleanup, errorString, "Error converting challenge to hex string.\n");
     ret = UpnpAddToActionResponse(out,
-            RaRegistrationAction[RA_ACTION_REGISTER],
+            RaRegistrationAction[RA_ACTIONS_REGISTER],
             RaServiceType[RA_SERVICE_REGISTER],
-            "Registered",
-            "1");
+            "Challenge",
+            challenge_str);
     sample_verify_ex(ret == UPNP_E_SUCCESS, cleanup, errorString, "Unable to add response\n");
 
-    ithread_mutex_unlock(&RAMutex);
+    /* Save Device - Phase B will verify if device challenge is correct */
+    add_list_device(&SUPnPDeviceList, p_dev);
+
     ret = UPNP_E_SUCCESS;
 
 cleanup:
     if (ret != SUPNP_E_SUCCESS) {
         supnp_free_device(&p_dev);
+        sprintf(retVal, "%d", ret);
+        (void) UpnpAddToActionResponse(out,
+            RaRegistrationAction[RA_ACTIONS_REGISTER],
+            RaServiceType[RA_SERVICE_REGISTER],
+            "ErrorCode",
+            retVal);
     }
     for (int i=0; i<RA_REGISTER_VARCOUNT; ++i) {
         freeif(hex[i]);
         freeif(docs[i]);
     }
+    freeif(challenge_str);
+    freeif(nonce);
+    freeif(enc_nonce);
     free_key(ca_pk);
     ithread_mutex_unlock(&RAMutex);
     return ret;
 }
+
+/**
+ * Completes Device Registration Challenge Verification process.
+ */
+int VerifyChallenge(IXML_Document *in, IXML_Document **out, const char **errorString)
+{
+    int ret = SUPNP_DEV_ERR;
+    char *hex = NULL;
+    unsigned char *response = NULL;
+    EVP_PKEY *pk = NULL;
+    size_t resp_size;
+    unsigned char *hash = NULL;
+    size_t hash_len;
+    char retVal[5] = {0};
+
+    sample_verify_ex(in && out && errorString, cleanup, errorString, "NULL arguments.\n");
+    (*out) = NULL;
+
+    /* Extract challenge response */
+    hex = SampleUtil_GetFirstDocumentItem(in, RaActionChallengeVarName[CHALLENGE_ACTION_RESPONSE]);
+    response = hex_string_to_binary(hex, &resp_size);
+    sample_verify(response, cleanup, "Unable to extract Challenge Response.\n");
+
+    /* Extract public key */
+    freeif(hex);
+    hex = SampleUtil_GetFirstDocumentItem(in, RaActionChallengeVarName[CHALLENGE_ACTION_PUBLICKEY]);
+    pk = load_public_key_from_hex(hex);
+    sample_verify(pk, cleanup, "Unable to extract Public Key.\n");
+
+    /* Decrypt the response using the public key */
+    hash = decrypt_asym(pk, &hash_len, response, resp_size);
+    sample_verify(hash, cleanup, "Error decrypting hash(nonce).\n");
+
+    /* Find corresponding device by hash */
+    supnp_device_t *p_dev = find_device_by_hash(SUPnPDeviceList, hash);
+    sample_verify(p_dev, cleanup, "Device by hash not found.\n");
+    p_dev->verified = 1;
+
+    SampleUtil_Print("Device %s successfully verified\n", p_dev->name);
+
+    ret = SUPNP_E_SUCCESS;
+    (void) UpnpAddToActionResponse(out,
+        RaRegistrationAction[RA_ACTIONS_CHALLENGE],
+        RaServiceType[RA_SERVICE_REGISTER],
+        "DeviceRegistered",
+        "1");
+cleanup:
+    if (ret != SUPNP_E_SUCCESS) {
+        supnp_free_device(&p_dev);
+        sprintf(retVal, "%d", ret);
+        (void) UpnpAddToActionResponse(out,
+            RaRegistrationAction[RA_ACTIONS_CHALLENGE],
+            RaServiceType[RA_SERVICE_REGISTER],
+            "ErrorCode",
+            retVal);
+    }
+
+    freeif(hex);
+    freeif(response);
+    free_key(pk);
+    freeif(hash);
+    return ret;
+}
+
 
 int RACallbackEventHandler(
 	Upnp_EventType EventType, const void *Event, void *Cookie)

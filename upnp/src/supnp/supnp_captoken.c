@@ -124,7 +124,7 @@ cJSON* generate_cap_token(const supnp_device_t* dev, EVP_PKEY* sk_ra)
     cJSON_AddItemToObject(cap_token, RA_PK, _pk_ra);
 
     /* Export Device Public Key & Type */
-    cJSON* _pk_dev = bytes_to_json_string(public_key_to_bytes(dev->pk, NULL));
+    cJSON* _pk_dev = bytes_to_json_string(public_key_to_bytes(dev->dev_pkey, NULL));
     supnp_verify(_pk_dev, error, "Device Public Key exporting failed\n");
     supnp_verify((dev->type == DEVICE_TYPE_CP) || (dev->type == DEVICE_TYPE_SD), cleanup, "Invalid device type\n");
     switch (dev->type)

@@ -74,8 +74,6 @@ int verify_supnp_document(EVP_PKEY* ca_pkey, supnp_device_t* p_dev)
     char* data = NULL;
     EVP_PKEY* pkey = NULL;
     EVP_PKEY* doc_pk = NULL;
-    EVP_PKEY* uca_pk = NULL;
-    EVP_PKEY* device_pkey = NULL;
     service_table services;
 
     /* Arguments Verification */
@@ -102,18 +100,14 @@ int verify_supnp_document(EVP_PKEY* ca_pkey, supnp_device_t* p_dev)
     supnp_verify(verify_certificate("UCA", p_dev->uca_cert, ca_pkey) == OPENSSL_SUCCESS, cleanup, "Invalid UCA cert.\n");
 
     /* Fig.15 step 2 - Verify Device Certificate using UCA's public key */
-    uca_pk = X509_get_pubkey(p_dev->uca_cert); // Extract UCA's public key
-    supnp_verify(verify_certificate(dev_name, p_dev->dev_cert, uca_pk) == OPENSSL_SUCCESS, cleanup, "Invalid Device cert.\n");
-
-    /* Extract Device Public Key */
-    device_pkey = X509_get_pubkey(p_dev->dev_cert);
+    supnp_verify(verify_certificate(dev_name, p_dev->dev_cert, p_dev->uca_pkey) == OPENSSL_SUCCESS, cleanup, "Invalid Device cert.\n");
 
     /* Verify Device Public Key */
     ret = SUPNP_E_INVALID_DOCUMENT;
     supnp_extract_json_string(p_dev->supnp_doc, SUPNP_DOC_PUBLIC_KEY, in_doc_pkey, cleanup);
     doc_pk = load_public_key_from_hex(in_doc_pkey);
     supnp_verify(doc_pk, cleanup, "Error loading public key from '%s'.\n", SUPNP_DOC_PUBLIC_KEY);
-    supnp_verify(EVP_PKEY_eq(doc_pk, device_pkey) == OPENSSL_SUCCESS, cleanup,
+    supnp_verify(EVP_PKEY_eq(doc_pk, p_dev->dev_pkey) == OPENSSL_SUCCESS, cleanup,
                  "Document's device public key doesn't match Device certificate's public key.\n");
 
     /* Retrieve signature verification conditions */
@@ -148,11 +142,11 @@ int verify_supnp_document(EVP_PKEY* ca_pkey, supnp_device_t* p_dev)
         char* sig_name = cJSON_GetStringValue(cJSON_GetArrayItem(sigs, sig_index));
         if (strcmp(sig_name, SUPNP_DOC_SIG_OWNER) == 0)
         {
-            pkey = device_pkey;
+            pkey = p_dev->dev_pkey;
         }
         else if (strcmp(sig_name, SUPNP_DOC_SIG_UCA) == 0)
         {
-            pkey = uca_pk;
+            pkey = p_dev->uca_pkey;
         }
         else
         {
@@ -219,8 +213,6 @@ int verify_supnp_document(EVP_PKEY* ca_pkey, supnp_device_t* p_dev)
 cleanup:
     freeif(data);
     freeif2(doc_pk, EVP_PKEY_free);
-    freeif2(uca_pk, EVP_PKEY_free);
-    freeif2(device_pkey, EVP_PKEY_free);
     if (p_dev && p_dev->type == DEVICE_TYPE_SD)
         freeServiceTable(&services);  // applicable only for SD
     return ret;
@@ -305,83 +297,6 @@ cleanup:
     freeif2(token, cJSON_Delete);
 }
 
-void SUpnp_test_registration()
-{
-    supnp_device_t sd_info = {0};
-    supnp_device_t cp_info = {0};
-    EVP_PKEY* ca_pk = NULL;
-    X509* uca_cert = NULL;
-    EVP_PKEY* ra_sk = NULL;
-    EVP_PKEY* ra_pk = NULL;
-    char* dsd = NULL;
-    char* sad = NULL;
-
-    /* Load UCA Certificate & CA's public key */
-    ca_pk = load_public_key_from_pem("../../simulation/CA/public_key.pem");
-    uca_cert = load_certificate_from_pem("../../simulation/UCA/certificate.pem");
-
-    /* Load RA Keys */
-    ra_pk = load_public_key_from_pem("../../simulation/RA/public_key.pem");
-    ra_sk = load_private_key_from_pem("../../simulation/RA/private_key.pem");
-
-    /* Read SUPnP Documents */
-    dsd = read_file("../../simulation/SD/dsd.json", "r", NULL);
-    sad = read_file("../../simulation/CP/sad.json", "r", NULL);
-
-    /* Load SD device info */
-    sd_info.type = DEVICE_TYPE_SD;
-    sd_info.pk = load_public_key_from_pem("../../simulation/SD/public_key.pem");
-    sd_info.sk = load_private_key_from_pem("../../simulation/SD/private_key.pem");
-    sd_info.dev_cert = load_certificate_from_pem("../../simulation/SD/certificate.pem");
-    sd_info.uca_cert = uca_cert;
-    sd_info.desc_uri = strdup("http://192.168.1.100:49152/tvdevicedesc.xml");
-    sd_info.desc_doc = ixmlLoadDocument("./web/tvdevicedesc.xml");
-    sd_info.supnp_doc = cJSON_Parse(dsd);
-    sd_info.cap_token_uri = strdup("http://192.168.1.100:49152/captoken.json");
-
-    /* Load CP device info */
-    cp_info.type = DEVICE_TYPE_CP;
-    cp_info.pk = load_public_key_from_pem("../../simulation/CP/public_key.pem");
-    cp_info.sk = load_private_key_from_pem("../../simulation/CP/private_key.pem");
-    cp_info.dev_cert = load_certificate_from_pem("../../simulation/CP/certificate.pem");
-    cp_info.uca_cert = uca_cert;
-    cp_info.desc_uri = NULL;
-    cp_info.desc_doc = NULL;
-    cp_info.supnp_doc = cJSON_Parse(sad);
-    cp_info.cap_token_uri = strdup("http://192.168.1.100:49152/captoken.json");
-
-    /**
-     * A participant sends its SAD / DSD, Cert(uca) and Cert(p).
-     * The RA validates the authenticity of the participant's public key & the UCA's public key,
-     * which is included in the certificates, by verifying the signatures of these certificates.
-     * The RA verifies the authenticity and integrity of the specification document DSD or SAD.
-     */
-    if (verify_supnp_document(ca_pk, &sd_info) == SUPNP_E_SUCCESS)
-    {
-        supnp_log("Device Specification Document (DSD) OK.\n");
-    }
-    if (verify_supnp_document(ca_pk, &cp_info) == SUPNP_E_SUCCESS)
-    {
-        supnp_log("Service Action Document (SAD) OK.\n");
-    }
-
-    /* Nonce Challenge Tests */
-    test_nonce_encryption(sd_info.pk, sd_info.sk);
-
-    /* Cap Token Generation Tests */
-    test_captoken_generation(&sd_info, ra_sk);
-    test_captoken_generation(&cp_info, ra_sk);
-
-cleanup:
-    freeif2(uca_cert, X509_free);
-    freeif2(ca_pk, EVP_PKEY_free);
-    freeif2(ra_sk, EVP_PKEY_free);
-    freeif2(ra_pk, EVP_PKEY_free);
-    supnp_free_device_content(&sd_info);
-    supnp_free_device_content(&cp_info);
-    freeif(dsd);
-    freeif(sad);
-}
 #endif /* SUPNP_TEST */
 
 #ifdef __cplusplus

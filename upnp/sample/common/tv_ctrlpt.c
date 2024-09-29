@@ -54,6 +54,9 @@
 #include <file_utils.h>
 #include <openssl_wrapper.h>
 
+const char *DefaultPrivateKeyPathCP = "../../simulation/CP/private_key.pem";
+const char *DefaultPublicKeyPathCP = "../../simulation/CP/public_key.pem";
+
 /*! Relative to upnp/sample */
 const char *RegisterDocsDefaultFilepathCP[RA_REGISTER_VARCOUNT] = {
     "../../simulation/CP/sad.json",
@@ -1047,11 +1050,38 @@ void TvCtrlPointHandleGetVar(
 #if ENABLE_SUPNP
 int SendRAActionRegister(const char * controlUrl)
 {
-    int rc = SUPNP_E_SUCCESS;
+    int rc = SUPNP_E_INTERNAL_ERROR;
+    EVP_PKEY *sk = NULL; /* Private key */
+    EVP_PKEY *pk = NULL; /* Public key */
+    char *pk_hex = NULL; /* Public key hex string */
     IXML_Document *actionNode = NULL;
-    char* docs[RA_REGISTER_VARCOUNT] = {NULL};
-    char* docs_hex[RA_REGISTER_VARCOUNT] = {NULL};
+    IXML_Document *respNode = NULL;
+    char *docs[RA_REGISTER_VARCOUNT] = {NULL};
+    char *docs_hex[RA_REGISTER_VARCOUNT] = {NULL};
     size_t docs_size[RA_REGISTER_VARCOUNT] = {0};
+    char *challenge_str = NULL;
+    unsigned char *challenge = NULL;
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    unsigned char *nonce = NULL;
+    unsigned char *ehash = NULL;
+    char *ehash_hex = NULL;
+    size_t challenge_size;
+    size_t nonce_len = 0;
+    size_t ehash_len = 0;
+
+    sample_verify(controlUrl, cleanup, "NULL Control URL.\n");
+
+    sk = load_private_key_from_pem(DefaultPrivateKeyPathCP);
+    sample_verify(sk, cleanup, "Error loading private key.\n");
+
+    pk = load_public_key_from_pem(DefaultPublicKeyPathCP);
+    sample_verify(pk, cleanup, "Error loading public key.\n");
+
+    size_t pkb_size;
+    unsigned char * pkb = public_key_to_bytes(pk, &pkb_size);
+    pk_hex = binary_to_hex_string(pkb, pkb_size);
+    freeif(pkb);
+    sample_verify(pk_hex, cleanup, "Error converting public key to hex string.\n");
 
     for (int i = 0; i < RA_REGISTER_VARCOUNT; ++i) {
         docs[i] = read_file(RegisterDocsDefaultFilepathCP[i], "rb", &docs_size[i]);
@@ -1059,32 +1089,89 @@ int SendRAActionRegister(const char * controlUrl)
         docs_hex[i] = binary_to_hex_string((unsigned char *)docs[i], docs_size[i]);
         sample_verify(docs_hex[i] != NULL, cleanup, "Error converting to hex string Registration Document ID %d\n", i);
         rc = UpnpAddToAction(&actionNode,
-            RaRegistrationAction[RA_ACTION_REGISTER],
+            RaRegistrationAction[RA_ACTIONS_REGISTER],
             RaServiceType[RA_SERVICE_REGISTER],
             RaRegisterVarName[i],
             docs_hex[i]);
-        sample_verify(rc == UPNP_E_SUCCESS, cleanup, "Error trying to add action param\n");
+        sample_verify(rc == UPNP_E_SUCCESS, cleanup, "Error trying to add registration action param\n");
     }
 
-    rc = UpnpSendActionAsync(ctrlpt_handle,
+    rc = UpnpSendAction(ctrlpt_handle,
         controlUrl,
         RaServiceType[RA_SERVICE_REGISTER],
-        NULL,
+        NULL, /* UDN ignored & Must be NULL */
         actionNode,
-        TvCtrlPointCallbackEventHandler,
-        NULL);
+        &respNode);
+    sample_verify(rc == UPNP_E_SUCCESS, cleanup, "Error in UpnpSendAction -- %d\n", rc);
 
-    if (rc != UPNP_E_SUCCESS) {
-        SampleUtil_Print("Error in UpnpSendActionAsync -- %d\n", rc);
-        rc = SUPNP_E_INTERNAL_ERROR;
-    }
+    rc = SUPNP_E_INTERNAL_ERROR;
+
+    /* Extract Challenge from respNode */
+    challenge_str = SampleUtil_GetFirstElementItem((IXML_Element*)respNode,
+        RaRegistrationAction[RA_ACTIONS_CHALLENGE]);
+    challenge = hex_string_to_binary(challenge_str, &challenge_size);
+    sample_verify(challenge, cleanup, "Error extracting challenge.\n");
+
+    /* Decrypt the challenge using the participant's private key */
+    nonce = decrypt_asym(sk, &nonce_len, challenge, challenge_size);
+    sample_verify(nonce, cleanup, "Error decrypting nonce.\n");
+    sample_verify(nonce_len == SHA256_DIGEST_LENGTH, cleanup, "Unexpected nonce length.\n");
+
+    /* hash the nonce N (HN = Hash(N)). */
+    sample_verify(do_sha256(hash, nonce, nonce_len) == OPENSSL_SUCCESS, cleanup, "Error hashing nonce.\n");
+
+    /* Encrypt the nonce hash with participant's private key (signed response) */
+    ehash = encrypt_asym(sk, &ehash_len, hash, SHA256_DIGEST_LENGTH);
+    sample_verify(ehash, cleanup, "Error encrypting hash(nonce).\n");
+
+    /* To Hex String */
+    ehash_hex = binary_to_hex_string(ehash, ehash_len);
+
+    /* Send E(sk,H(n)) to RA */
+    freeif2(actionNode, ixmlDocument_free);
+    freeif2(respNode, ixmlDocument_free);
+
+
+
+    rc = UpnpAddToAction(&actionNode,
+        RaRegistrationAction[RA_ACTIONS_CHALLENGE],
+        RaServiceType[RA_SERVICE_REGISTER],
+        RaActionChallengeVarName[CHALLENGE_ACTION_RESPONSE],
+        ehash_hex);
+    sample_verify(rc == UPNP_E_SUCCESS, cleanup, "Error trying to add challenge action challenge param.\n");
+
+    rc = UpnpAddToAction(&actionNode,
+        RaRegistrationAction[RA_ACTIONS_CHALLENGE],
+        RaServiceType[RA_SERVICE_REGISTER],
+        RaActionChallengeVarName[CHALLENGE_ACTION_PUBLICKEY],
+        pk_hex);
+    sample_verify(rc == UPNP_E_SUCCESS, cleanup, "Error trying to add challenge action public key param.\n");
+
+    rc = UpnpSendAction(ctrlpt_handle,
+            controlUrl,
+            RaServiceType[RA_SERVICE_REGISTER],
+            NULL, /* UDN ignored & Must be NULL */
+            actionNode,
+            &respNode);
+    sample_verify(rc == UPNP_E_SUCCESS, cleanup, "Error in UpnpSendAction -- %d\n", rc);
+
+    rc = SUPNP_E_SUCCESS;
 
 cleanup:
+    free_key(sk);
+    free_key(pk);
+    freeif(pk_hex);
     freeif2(actionNode, ixmlDocument_free);
+    freeif2(respNode, ixmlDocument_free);
     for (int i = 0; i < RA_REGISTER_VARCOUNT; ++i) {
         freeif(docs[i]);
         freeif(docs_hex[i]);
     }
+    freeif(challenge_str);
+    freeif(challenge);
+    freeif(nonce);
+    freeif(ehash);
+    freeif(ehash_hex);
 
     return rc;
 }
@@ -1421,7 +1508,9 @@ int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo)
 		return TV_ERROR;
 	}
 
+#if ENABLE_SUPNP == 0
 	SampleUtil_Print("Control Point Registered\n");
+#endif
 
 	TvCtrlPointRefresh();
 

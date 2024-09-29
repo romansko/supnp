@@ -12,7 +12,7 @@
 
 #include "UpnpGlobal.h" /* for UPNP_EXPORT_SPEC */
 #include "upnpconfig.h"
-#include <stddef.h>
+#include <openssl/sha.h>
 
 #if ENABLE_SUPNP
 
@@ -26,9 +26,8 @@ typedef struct _IXML_Document IXML_Document;
 extern "C" {
 #endif
 
-/* Simulate boolean */
-#define SUPNP_DEV_OK  (1)
-#define SUPNP_DEV_ERR (0)
+#define SUPNP_DEV_OK  (0)
+#define SUPNP_DEV_ERR (-1)
 
 typedef enum EDeviceType
 {
@@ -38,16 +37,18 @@ typedef enum EDeviceType
 
 typedef struct _supnp_device_t
 {
-    char* id;                  /* Device ID */
-    EDeviceType type;
-    EVP_PKEY *pk;              /* Public Key */
-    EVP_PKEY *sk;              /* Private Key */
+    int verified;              /* Device verified */
+    char* name;                /* Device Name */
+    EDeviceType type;          /* Device Type */
     X509 *dev_cert;            /* Device Certificate issued by UCA */
     X509 *uca_cert;            /* UCA Certificate */
+    EVP_PKEY *dev_pkey;        /* Device Public Key */
+    EVP_PKEY *uca_pkey;        /* UCA Public Key */
     char *desc_uri;            /* Device Description URI - SD Only */
     IXML_Document *desc_doc;   /* Device Description Document - SD Only  */
     cJSON *supnp_doc;
     char *cap_token_uri;
+    unsigned char hash[SHA256_DIGEST_LENGTH];  /* nonce hash - set upon registration */
     struct _supnp_device_t *next;
     struct _supnp_device_t *prev;
 } supnp_device_t;
@@ -63,6 +64,8 @@ UPNP_EXPORT_SPEC void supnp_free_device(supnp_device_t** pp_dev);
 UPNP_EXPORT_SPEC void add_list_device(supnp_device_t** head, supnp_device_t *p_dev);
 
 UPNP_EXPORT_SPEC void remove_list_device(supnp_device_t** head, supnp_device_t *p_dev);
+
+UPNP_EXPORT_SPEC supnp_device_t *find_device_by_hash( supnp_device_t *head, const unsigned char *hash);
 
 #ifdef __cplusplus
 }

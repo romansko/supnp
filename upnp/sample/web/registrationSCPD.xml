@@ -19,12 +19,28 @@
           </argument>
         <argument>
           <name>CertificateDevice</name>
-          <relatedStateVariable>CertDevice</relatedStateVariable>
+          <relatedStateVariable>CertDev</relatedStateVariable>
           <direction>in</direction>
         </argument>
         <argument>
           <name>CertificateUCA</name>
           <relatedStateVariable>CertUCA</relatedStateVariable>
+          <direction>in</direction>
+        </argument>
+      </argumentList>
+    </action>
+
+    <action>
+      <name>Challenge</name>
+      <argumentList>
+        <argument>
+          <name>ChallengeResponse</name>
+          <relatedStateVariable>ChResp</relatedStateVariable>
+          <direction>in</direction>
+        </argument>
+        <argument>
+          <name>PublicKey</name>
+          <relatedStateVariable>PubKey</relatedStateVariable>
           <direction>in</direction>
         </argument>
       </argumentList>

@@ -240,12 +240,24 @@ int RASetServiceTableVar(
 /* Control Service Actions */
 
 /*!
- * \brief Turn the power on.
+ * \brief First phase of DSD/SAD verification process.
  */
 int RegisterDevice(
 	/*! [in] Document of action request. */
 	IXML_Document *in,
 	/*! [in] Action result. */
+	IXML_Document **out,
+	/*! [out] ErrorString in case action was unsuccessful. */
+	const char **errorString);
+
+/*!
+ * \brief Second phase of DSD/SAD verification process.
+ *        Verifies the challenge.
+ */
+int VerifyChallenge(
+	/*! [in] Document of action request. */
+	IXML_Document *in,
+	/*! [out] Action result. */
 	IXML_Document **out,
 	/*! [out] ErrorString in case action was unsuccessful. */
 	const char **errorString);
