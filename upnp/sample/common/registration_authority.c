@@ -387,7 +387,10 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
     sample_verify_ex(ret == SUPNP_E_SUCCESS, cleanup, errorString, "Unable to verify device\n");
     SampleUtil_Print("Specification document ok\n");
 
+
+
     /* Save device */
+    SampleUtil_Print("Device %s ok.\n", p_dev->id);
     add_list_device(&SUPnPDeviceList, p_dev);
 
     ret = UpnpAddToActionResponse(out,
@@ -436,8 +439,6 @@ int RACallbackEventHandler(
 	case UPNP_EVENT_RENEWAL_COMPLETE:
 	case UPNP_EVENT_SUBSCRIBE_COMPLETE:
 	case UPNP_EVENT_UNSUBSCRIBE_COMPLETE:
-		break;
-	/* todo: required ? */
 	case UPNP_EVENT_AUTORENEWAL_FAILED:
 	case UPNP_EVENT_SUBSCRIPTION_EXPIRED:
 	    break;

@@ -14,7 +14,7 @@
 #include "upnpconfig.h"
 #include <stddef.h>
 
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
 
 /* Forward decleration */
 typedef struct x509_st X509;

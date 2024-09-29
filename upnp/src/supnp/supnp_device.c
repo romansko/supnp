@@ -15,7 +15,7 @@
 #include <cJSON/cJSON.h>
 #include "openssl_wrapper.h"
 
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
 
 #ifdef __cplusplus
 extern "C" {

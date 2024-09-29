@@ -16,7 +16,7 @@
 #include "UpnpGlobal.h" /* for UPNP_EXPORT_SPEC */
 #include "upnpconfig.h"
 
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
 
 #include <supnp_device.h>
 
@@ -118,11 +118,11 @@ UPNP_EXPORT_SPEC int SUpnpInit();
  */
 UPNP_EXPORT_SPEC int verify_supnp_document(EVP_PKEY *ca_pkey, supnp_device_t *dev);
 
-/* Temporary function for testing */
+#if SUPNP_TEST
 UPNP_EXPORT_SPEC void test_nonce_encryption(EVP_PKEY* pk, EVP_PKEY* sk);
 UPNP_EXPORT_SPEC void test_captoken_generation(const supnp_device_t* dev, EVP_PKEY* ra_sk);
 UPNP_EXPORT_SPEC void SUpnp_test_registration();
-/**/
+#endif
 
 #ifdef __cplusplus
 }

@@ -13,7 +13,7 @@
 #include "UpnpGlobal.h" /* for UPNP_EXPORT_SPEC */
 #include "upnpconfig.h"
 
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
 
 /* Forward decleration */
 typedef struct evp_pkey_st EVP_PKEY;

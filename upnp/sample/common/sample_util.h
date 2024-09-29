@@ -64,7 +64,7 @@ extern const char *TvServiceType[];
 #endif /* SAMPLE_UTIL_C */
 
 
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
 
 /*! Maximum size for SAD / DSD / certificates in supnp */
 #define MAX_SUPNP_DOC_SIZE 4096

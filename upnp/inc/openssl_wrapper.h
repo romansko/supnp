@@ -14,7 +14,7 @@
 #include "upnpconfig.h"
 #include <stddef.h>
 
-#ifdef UPNP_ENABLE_OPEN_SSL
+#if UPNP_ENABLE_OPEN_SSL
 
 #define OPENSSL_API_COMPAT 30000 /* OpenSSL 3.0.0 */
 

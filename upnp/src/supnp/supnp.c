@@ -13,7 +13,7 @@
 #include "stdio.h"
 #include "upnpconfig.h"
 
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
 
 #include "file_utils.h"
 #include "openssl_wrapper.h"
@@ -56,12 +56,12 @@ cleanup:
     return SUPNP_E_INTERNAL_ERROR;
 }
 
-
 /**
- * Verify SUPnP document (DSD/ SAD).
+ * DSD/SAD Verification process. Figure 15, SUPnP paper.
+ * Steps 2-3.
  * @param ca_pkey CA public key
- * @param dev Device info
- * @return SUPNP_E_SUCCESS on success, SUPNP_E_INVALID_CERTIFICATE on failure.
+ * @param p_dev Device info
+ * @return SUPNP_E_SUCCESS on success. Error code otherwise.
  */
 int verify_supnp_document(EVP_PKEY* ca_pkey, supnp_device_t* p_dev)
 {
@@ -96,13 +96,13 @@ int verify_supnp_document(EVP_PKEY* ca_pkey, supnp_device_t* p_dev)
     }
     supnp_log("Verifying %s document. Type: '%s'.\n", dev_name, dev_type);
 
-    /* Verify UCA Certificate */
+    /* Fig.15 step 2 - Verify UCA Certificate using CA's public key */
     ret = SUPNP_E_INVALID_CERTIFICATE;
     supnp_verify(p_dev->uca_cert, cleanup, "NULL UCA Certificate provided.\n");
     supnp_verify(verify_certificate("UCA", p_dev->uca_cert, ca_pkey) == OPENSSL_SUCCESS, cleanup, "Invalid UCA cert.\n");
 
-    /* Extract UCA Public Key && Verify Device Certificate */
-    uca_pk = X509_get_pubkey(p_dev->uca_cert);
+    /* Fig.15 step 2 - Verify Device Certificate using UCA's public key */
+    uca_pk = X509_get_pubkey(p_dev->uca_cert); // Extract UCA's public key
     supnp_verify(verify_certificate(dev_name, p_dev->dev_cert, uca_pk) == OPENSSL_SUCCESS, cleanup, "Invalid Device cert.\n");
 
     /* Extract Device Public Key */
@@ -221,16 +221,14 @@ cleanup:
     freeif2(doc_pk, EVP_PKEY_free);
     freeif2(uca_pk, EVP_PKEY_free);
     freeif2(device_pkey, EVP_PKEY_free);
-    if (p_dev->type == DEVICE_TYPE_SD)
+    if (p_dev && p_dev->type == DEVICE_TYPE_SD)
         freeServiceTable(&services);  // applicable only for SD
     return ret;
 }
 
-/**
- * nonce challenge tests in order to validate that a public key really belongs to the participant.
- * @param pk public key
- * @param sk private key
- */
+
+#if SUPNP_TEST
+
 void test_nonce_encryption(EVP_PKEY* pk, EVP_PKEY* sk)
 {
     unsigned char hash[SHA256_DIGEST_LENGTH];
@@ -307,9 +305,6 @@ cleanup:
     freeif2(token, cJSON_Delete);
 }
 
-/**
- * Test Phase B - registration process
- */
 void SUpnp_test_registration()
 {
     supnp_device_t sd_info = {0};
@@ -387,6 +382,7 @@ cleanup:
     freeif(dsd);
     freeif(sad);
 }
+#endif /* SUPNP_TEST */
 
 #ifdef __cplusplus
 }

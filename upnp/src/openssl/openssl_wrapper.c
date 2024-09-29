@@ -11,7 +11,7 @@
  */
 #include "upnpconfig.h"
 
-#ifdef UPNP_ENABLE_OPEN_SSL
+#if UPNP_ENABLE_OPEN_SSL
 
 #include "openssl_wrapper.h"
 #include "file_utils.h"

@@ -251,7 +251,7 @@ int http_FixUrl(uri_type *url, uri_type *fixed_url)
 	const char *temp_path = "/";
 
 	*fixed_url = *url;
-#ifdef UPNP_ENABLE_OPEN_SSL
+#if UPNP_ENABLE_OPEN_SSL
 	if (token_string_casecmp(&fixed_url->scheme, "http") != 0 &&
 		token_string_casecmp(&fixed_url->scheme, "https") != 0) {
 		return UPNP_E_INVALID_URL;
@@ -1308,7 +1308,7 @@ int http_OpenHttpConnection(const char *url_str, void **Handle, int timeout)
 		ret_code = UPNP_E_SOCKET_CONNECT;
 		goto errorHandler;
 	}
-#ifdef UPNP_ENABLE_OPEN_SSL
+#if UPNP_ENABLE_OPEN_SSL
 	/* For HTTPS connections start the TLS/SSL handshake. */
 	if (token_string_casecmp(&url.scheme, "https") == 0) {
 		ret_code = sock_ssl_connect(&handle->sock_info);

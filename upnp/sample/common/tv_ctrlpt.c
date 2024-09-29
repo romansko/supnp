@@ -49,7 +49,7 @@
 
 #include <registration_authority.h>
 
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
 
 #include <file_utils.h>
 #include <openssl_wrapper.h>
@@ -251,7 +251,7 @@ int TvCtrlPointRefresh(void)
 
 	TvCtrlPointRemoveAll();
 
-    #ifdef ENABLE_SUPNP
+    #if ENABLE_SUPNP
     /* RA Discovery */
     rc = UpnpSearchAsync(ctrlpt_handle, SEARCH_TIME, RaDeviceType, NULL);
     if (UPNP_E_SUCCESS != rc) {
@@ -1130,7 +1130,7 @@ int TvCtrlPointCallbackEventHandler(Upnp_EventType EventType, const void *Event,
 				location,
 				errCode);
 		} else {
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
 		    if (strcmp(SampleUtil_GetFirstDocumentItem(DescDoc, "deviceType"),
 		        RaDeviceType) == 0) {
                 /* Send to RA the SAD */
@@ -1168,7 +1168,7 @@ int TvCtrlPointCallbackEventHandler(Upnp_EventType EventType, const void *Event,
 		    } else {
 #endif
 			TvCtrlPointAddDevice(DescDoc, location,	UpnpDiscovery_get_Expires(d_event));
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
 		    }
 #endif
 		}

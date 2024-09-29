@@ -55,7 +55,7 @@
 #define DESC_URL_SIZE 200
 
 /*! Device type for registration authority */
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
 
 const char *RaRegisterDefaultFilenameSD[RA_REGISTER_VARCOUNT] = {
     "dsd.json",
@@ -88,7 +88,7 @@ struct TvService tv_service_table[2];
 /*! Device handle supplied by UPnP SDK. */
 UpnpDevice_Handle device_handle = -1;
 
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
 UpnpClient_Handle device_handle_ra = -1; /* For RA handshake */
 #endif
 
@@ -1519,7 +1519,7 @@ int TvDeviceStart(char *iface,
 		return ret;
 	}
 
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
     ret = UpnpRegisterClient(TvDeviceCallbackEventHandler,
         &device_handle_ra,
         &device_handle_ra);
@@ -1535,7 +1535,7 @@ int TvDeviceStart(char *iface,
 	TvDeviceStateTableInit(desc_doc_url);
 	SampleUtil_Print("State Table Initialized\n");
 
-	#ifdef ENABLE_SUPNP
+	#if ENABLE_SUPNP
 	/* RA Discovery */
 	ret = UpnpSearchAsync(device_handle_ra, 5, RaDeviceType, NULL);
 	if (UPNP_E_SUCCESS != ret) {

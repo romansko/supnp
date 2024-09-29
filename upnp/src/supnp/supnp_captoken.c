@@ -20,7 +20,7 @@
 #include <string.h>
 #include <time.h>
 
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
 
 #ifdef __cplusplus
 extern "C" {
