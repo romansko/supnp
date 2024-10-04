@@ -71,11 +71,20 @@ UPNP_EXPORT_SPEC unsigned char* hex_string_to_binary(const char* hex, size_t* ds
 /*!
  * \brief Load a public key from hex string.
  *
- * \note Remember to EVP_PKEY_free(loaded_public_key)
+ * \note Remember to EVP_PKEY_free(pkey)
  *
  * \return EVP_PKEY* on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC EVP_PKEY* load_public_key_from_hex(const char* hex);
+
+/*!
+* \brief Load a private key from hex string.
+*
+* \note Remember to EVP_PKEY_free(pkey)
+*
+* \return EVP_PKEY* on success, NULL on failure.
+*/
+UPNP_EXPORT_SPEC EVP_PKEY* load_private_key_from_hex(const char* hex);
 
 /*!
  * \brief Convert public key to bytes.
@@ -210,7 +219,7 @@ UPNP_EXPORT_SPEC int do_sha256(unsigned char* hash, const unsigned char* data, s
  *
  * \return pointer to signature on success, NULL on failure.
  */
-UPNP_EXPORT_SPEC unsigned char* sign(EVP_PKEY* pkey, const unsigned char* data, size_t dsize);
+UPNP_EXPORT_SPEC unsigned char* sign(EVP_PKEY* pkey, const unsigned char* data, size_t dsize, size_t *signature_len);
 
 #ifdef __cplusplus
 }

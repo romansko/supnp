@@ -58,13 +58,14 @@ cleanup:
  * Helper function to convert bytes to cJSON.
  * @note the function free the input bytes.
  * @param bytes input bytes
+ * @param size size of input bytes
  * @return cJSON object on success, NULL on failure
  */
-cJSON* bytes_to_json_string(unsigned char* bytes)
+cJSON* bytes_to_json_string(unsigned char* bytes, size_t size)
 {
     cJSON* node = NULL;
-    supnp_verify(bytes != NULL, cleanup, "NULL bytes\n");
-    char* hex_string = binary_to_hex_string(bytes, ID_SIZE);
+    supnp_verify((bytes != NULL) && (size > 0), cleanup, "Invalids arguments.\n");
+    char* hex_string = binary_to_hex_string(bytes, size);
     node = cJSON_CreateString(hex_string);
 cleanup:
     freeif(hex_string);
@@ -103,13 +104,15 @@ cJSON* generate_cap_token(const supnp_device_t* dev, EVP_PKEY* sk_ra)
     char* desc_doc = NULL;
     char* concatenate_uri = NULL; // description uri || token uri
     char* cap_token_content = NULL;
+    unsigned char* bytes = NULL;
+    size_t size = 0;
 
     /* Init Cap Token */
     cap_token = cJSON_CreateObject();
     supnp_verify(cap_token, error, "cap_token initial generation failed\n");
 
     /* ID */
-    cJSON* id = bytes_to_json_string(generate_nonce(ID_SIZE));
+    cJSON* id = bytes_to_json_string(generate_nonce(ID_SIZE), ID_SIZE);
     supnp_verify(id, error, "ID Generation failed\n");
     cJSON_AddItemToObject(cap_token, "ID", id);
 
@@ -119,12 +122,14 @@ cJSON* generate_cap_token(const supnp_device_t* dev, EVP_PKEY* sk_ra)
     cJSON_AddItemToObject(cap_token, CT_TIMESTAMP, _timestamp);
 
     /* Export RA Public Key */
-    cJSON* _pk_ra = bytes_to_json_string(public_key_to_bytes(sk_ra, NULL));
+    bytes = public_key_to_bytes(sk_ra, &size);
+    cJSON* _pk_ra = bytes_to_json_string(bytes, size);
     supnp_verify(_pk_ra, error, "RA Public Key exporting failed\n");
     cJSON_AddItemToObject(cap_token, RA_PK, _pk_ra);
 
     /* Export Device Public Key & Type */
-    cJSON* _pk_dev = bytes_to_json_string(public_key_to_bytes(dev->dev_pkey, NULL));
+    bytes = public_key_to_bytes(dev->dev_pkey, &size);
+    cJSON* _pk_dev = bytes_to_json_string(bytes, size);
     supnp_verify(_pk_dev, error, "Device Public Key exporting failed\n");
     supnp_verify((dev->type == DEVICE_TYPE_CP) || (dev->type == DEVICE_TYPE_SD), cleanup, "Invalid device type\n");
     switch (dev->type)
@@ -149,8 +154,8 @@ cJSON* generate_cap_token(const supnp_device_t* dev, EVP_PKEY* sk_ra)
         supnp_verify(concatenate_uri, error, "concatenate_uri memory allocation failed\n");
         strcpy(concatenate_uri, dev->desc_uri);
         strcat(concatenate_uri, dev->cap_token_uri);
-        cJSON* _adv_sig = bytes_to_json_string(sign(sk_ra, (const unsigned char*)concatenate_uri,
-                                                    strlen(concatenate_uri)));
+        bytes = sign(sk_ra, (const unsigned char*)concatenate_uri, strlen(concatenate_uri), &size);
+        cJSON* _adv_sig = bytes_to_json_string(bytes, size);
         supnp_verify(_adv_sig, error, "Advertisement Signature exporting failed (SD)\n");
         cJSON_AddItemToObject(cap_token, CT_ADV_SIG, _adv_sig);
     }
@@ -158,8 +163,8 @@ cJSON* generate_cap_token(const supnp_device_t* dev, EVP_PKEY* sk_ra)
     /* Sign Cap Token URI */
     if (dev->type == DEVICE_TYPE_CP)
     {
-        cJSON* _uri_sig = bytes_to_json_string(sign(sk_ra, (const unsigned char*)dev->cap_token_uri,
-                                                    strlen(dev->cap_token_uri)));
+        bytes = sign(sk_ra, (const unsigned char*)dev->cap_token_uri, strlen(dev->cap_token_uri), &size);
+        cJSON* _uri_sig = bytes_to_json_string(bytes, size);
         supnp_verify(_uri_sig, error, "Advertisement Signature exporting failed (CP)\n");
         cJSON_AddItemToObject(cap_token, CT_URI_SIG, _uri_sig);
     }
@@ -171,7 +176,8 @@ cJSON* generate_cap_token(const supnp_device_t* dev, EVP_PKEY* sk_ra)
         desc_doc = ixmlDocumenttoString(dev->desc_doc);
         const size_t doc_size = strlen(desc_doc);
         supnp_verify(desc_doc, error, "ixmlPrintDocument failed\n");
-        cJSON* _doc_sig = bytes_to_json_string(sign(sk_ra, (unsigned char*)desc_doc, doc_size));
+        bytes = sign(sk_ra, (unsigned char*)desc_doc, doc_size, &size);
+        cJSON* _doc_sig = bytes_to_json_string(bytes, size);
         supnp_verify(_doc_sig, error, "Description Signature exporting failed\n");
         cJSON_AddItemToObject(cap_token, CT_DESC_SIG, _doc_sig);
     }
@@ -199,7 +205,8 @@ cJSON* generate_cap_token(const supnp_device_t* dev, EVP_PKEY* sk_ra)
         {
             if (dev->type == DEVICE_TYPE_SD)
             {
-                cJSON* _service_sig = bytes_to_json_string(sign(sk_ra, (unsigned char*)_id, strlen(_id)));
+                bytes = sign(sk_ra, (unsigned char*)_id, strlen(_id), &size);
+                cJSON* _service_sig = bytes_to_json_string(bytes, size);
                 cJSON_AddItemToObject(_services, _type, _service_sig);
             }
             else
@@ -212,8 +219,8 @@ cJSON* generate_cap_token(const supnp_device_t* dev, EVP_PKEY* sk_ra)
 
     /* Sign the cap token's content */
     cap_token_content = cJSON_PrintUnformatted(cap_token);
-    cJSON* _content_sig = bytes_to_json_string(sign(sk_ra, (unsigned char*)cap_token_content,
-                                                    strlen(cap_token_content)));
+    bytes = sign(sk_ra, (unsigned char*)cap_token_content, strlen(cap_token_content), &size);
+    cJSON* _content_sig = bytes_to_json_string(bytes, size);
     supnp_verify(_content_sig, error, "Signing Cap Token content failed\n");
     cJSON_AddItemToObject(cap_token, RA_SIG, _content_sig);
 
@@ -223,6 +230,7 @@ error:
     freeif2(cap_token, cJSON_Delete);
 
 cleanup:
+    freeif(bytes); /* Should be NULL because freed by bytes_to_json_string */
     freeif(cap_token_content);
     freeif(desc_doc);
     freeif(concatenate_uri);

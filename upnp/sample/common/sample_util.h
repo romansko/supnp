@@ -50,9 +50,6 @@ extern "C" {
 #include "upnp.h" /* for Upnp_EventType */
 #include "upnptools.h"
 
-#include <stdlib.h>
-#include <string.h>
-
 #ifdef SAMPLE_UTIL_C
 /*! Service types for tv services. */
 const char *TvServiceType[] = {

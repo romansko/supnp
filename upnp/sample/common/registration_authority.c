@@ -361,7 +361,6 @@ int RASetServiceTableVar(unsigned int service, int variable, char *value)
  */
 int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorString)
 {
-    ithread_mutex_lock(&RAMutex);
     supnp_device_t *p_dev = NULL;
     int ret = UPNP_E_INVALID_PARAM;
     char* hex[RA_REGISTER_VARCOUNT]  = {NULL};
@@ -376,6 +375,8 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
 
     sample_verify_ex(in && out && errorString, cleanup, errorString, "NULL arguments.\n");
     (*out) = NULL;
+
+    ithread_mutex_lock(&RAMutex);
 
     /* Step 1 - Receive and Load DSD/SAD, Device Certificate, UCA Certificate */
     for (int i=0; i<RA_REGISTER_VARCOUNT; ++i) {
@@ -406,9 +407,8 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
     nonce = generate_nonce(OPENSSL_CSPRNG_SIZE);
     sample_verify_ex(nonce, cleanup, errorString, "Error generating nonce.\n");
 
-    /* Save hash(nonce) for later */
-    sample_verify_ex(do_sha256(p_dev->hash, nonce, OPENSSL_CSPRNG_SIZE) == OPENSSL_SUCCESS,
-        cleanup, errorString, "Error hashing nonce.\n");
+    /* Save nonce for later */
+    memcpy(p_dev->nonce, nonce, OPENSSL_CSPRNG_SIZE);
 
     /* Fig. 15 - step 5 - Encrypt and send the challenge. */
     enc_nonce = encrypt_asym(p_dev->dev_pkey, &enc_len, nonce, OPENSSL_CSPRNG_SIZE);
@@ -451,52 +451,58 @@ cleanup:
 
 /**
  * Completes Device Registration Challenge Verification process.
+ * Steps 9-11 in SUPnP Paper - Fig. 15 DSD/SAD verification process,
+ * are actually signature verification.
  */
 int VerifyChallenge(IXML_Document *in, IXML_Document **out, const char **errorString)
 {
     int ret = SUPNP_DEV_ERR;
     char *hex = NULL;
-    unsigned char *response = NULL;
-    EVP_PKEY *pk = NULL;
-    size_t resp_size;
-    unsigned char *hash = NULL;
-    size_t hash_len;
+    char *response = NULL;
+    EVP_PKEY *pkey = NULL;
     char retVal[5] = {0};
+    supnp_device_t *p_dev = NULL;
 
     sample_verify_ex(in && out && errorString, cleanup, errorString, "NULL arguments.\n");
     (*out) = NULL;
 
-    /* Extract challenge response */
-    hex = SampleUtil_GetFirstDocumentItem(in, RaActionChallengeVarName[CHALLENGE_ACTION_RESPONSE]);
-    response = hex_string_to_binary(hex, &resp_size);
-    sample_verify(response, cleanup, "Unable to extract Challenge Response.\n");
+    ithread_mutex_lock(&RAMutex);
 
     /* Extract public key */
-    freeif(hex);
     hex = SampleUtil_GetFirstDocumentItem(in, RaActionChallengeVarName[CHALLENGE_ACTION_PUBLICKEY]);
-    pk = load_public_key_from_hex(hex);
-    sample_verify(pk, cleanup, "Unable to extract Public Key.\n");
+    pkey = load_public_key_from_hex(hex);
+    sample_verify_ex(pkey, cleanup, errorString, "Unable to load Public Key.\n");
 
-    /* Decrypt the response using the public key */
-    hash = decrypt_asym(pk, &hash_len, response, resp_size);
-    sample_verify(hash, cleanup, "Error decrypting hash(nonce).\n");
+    /* Search for the device by the given public key */
+    p_dev = find_device_by_pkey(SUPnPDeviceList, pkey);
+    sample_verify_ex(p_dev, cleanup, errorString, "Device by public key not found.\n");
 
-    /* Find corresponding device by hash */
-    supnp_device_t *p_dev = find_device_by_hash(SUPnPDeviceList, hash);
-    sample_verify(p_dev, cleanup, "Device by hash not found.\n");
+    if (p_dev->verified == 1) {
+        ret = SUPNP_E_SUCCESS;
+        goto cleanup;
+    }
+
+    /* Extract challenge response */
+    response = SampleUtil_GetFirstDocumentItem(in, RaActionChallengeVarName[CHALLENGE_ACTION_RESPONSE]);
+
+    /* Verify Signature  */
+    ret = verify_signature("nonce challenge", pkey, response, p_dev->nonce, OPENSSL_CSPRNG_SIZE);
+    sample_verify_ex(ret == OPENSSL_SUCCESS, cleanup, errorString, "Error verifying nonce challenge signature.\n");
+
+    /* Verification successful */
     p_dev->verified = 1;
-
-    SampleUtil_Print("Device %s successfully verified\n", p_dev->name);
-
+    SampleUtil_Print("Device %s challenge successfully verified\n", p_dev->name);
     ret = SUPNP_E_SUCCESS;
-    (void) UpnpAddToActionResponse(out,
-        RaRegistrationAction[RA_ACTIONS_CHALLENGE],
-        RaServiceType[RA_SERVICE_REGISTER],
-        "DeviceRegistered",
-        "1");
+
 cleanup:
-    if (ret != SUPNP_E_SUCCESS) {
-        supnp_free_device(&p_dev);
+    if (ret == SUPNP_E_SUCCESS) {
+        (void) UpnpAddToActionResponse(out,
+       RaRegistrationAction[RA_ACTIONS_CHALLENGE],
+       RaServiceType[RA_SERVICE_REGISTER],
+       "DeviceRegistered",
+       "1");
+    } else{
+        remove_device(&SUPnPDeviceList, p_dev); /* Also frees the device */
         sprintf(retVal, "%d", ret);
         (void) UpnpAddToActionResponse(out,
             RaRegistrationAction[RA_ACTIONS_CHALLENGE],
@@ -507,8 +513,8 @@ cleanup:
 
     freeif(hex);
     freeif(response);
-    free_key(pk);
-    freeif(hash);
+    free_key(pkey);
+    ithread_mutex_unlock(&RAMutex);
     return ret;
 }
 

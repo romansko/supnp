@@ -1048,6 +1048,12 @@ void TvCtrlPointHandleGetVar(
 }
 
 #if ENABLE_SUPNP
+
+/**
+* @brief Send a RA Action Register request to the RA service.
+* The logics correspond to figure 15 in the SUPnP paper.
+* Steps 7+8 are actually singing process. signature = E(sk, H(nonce))
+*/
 int SendRAActionRegister(const char * controlUrl)
 {
     int rc = SUPNP_E_INTERNAL_ERROR;
@@ -1061,13 +1067,12 @@ int SendRAActionRegister(const char * controlUrl)
     size_t docs_size[RA_REGISTER_VARCOUNT] = {0};
     char *challenge_str = NULL;
     unsigned char *challenge = NULL;
-    unsigned char hash[SHA256_DIGEST_LENGTH];
     unsigned char *nonce = NULL;
-    unsigned char *ehash = NULL;
-    char *ehash_hex = NULL;
+    unsigned char *signature = NULL;
+    char *hex_sig = NULL;
     size_t challenge_size;
     size_t nonce_len = 0;
-    size_t ehash_len = 0;
+    size_t sig_len = 0;
 
     sample_verify(controlUrl, cleanup, "NULL Control URL.\n");
 
@@ -1117,27 +1122,21 @@ int SendRAActionRegister(const char * controlUrl)
     sample_verify(nonce, cleanup, "Error decrypting nonce.\n");
     sample_verify(nonce_len == SHA256_DIGEST_LENGTH, cleanup, "Unexpected nonce length.\n");
 
-    /* hash the nonce N (HN = Hash(N)). */
-    sample_verify(do_sha256(hash, nonce, nonce_len) == OPENSSL_SUCCESS, cleanup, "Error hashing nonce.\n");
-
-    /* Encrypt the nonce hash with participant's private key (signed response) */
-    ehash = encrypt_asym(sk, &ehash_len, hash, SHA256_DIGEST_LENGTH);
-    sample_verify(ehash, cleanup, "Error encrypting hash(nonce).\n");
+    /* Signature = E(sk, H(nonce)) */
+    signature = sign(sk, nonce, nonce_len, &sig_len);
+    sample_verify(signature, cleanup, "Error signing nonce E(sk, H(nonce)).\n");
 
     /* To Hex String */
-    ehash_hex = binary_to_hex_string(ehash, ehash_len);
+    hex_sig = binary_to_hex_string(signature, sig_len);
 
     /* Send E(sk,H(n)) to RA */
     freeif2(actionNode, ixmlDocument_free);
     freeif2(respNode, ixmlDocument_free);
-
-
-
     rc = UpnpAddToAction(&actionNode,
         RaRegistrationAction[RA_ACTIONS_CHALLENGE],
         RaServiceType[RA_SERVICE_REGISTER],
         RaActionChallengeVarName[CHALLENGE_ACTION_RESPONSE],
-        ehash_hex);
+        hex_sig);
     sample_verify(rc == UPNP_E_SUCCESS, cleanup, "Error trying to add challenge action challenge param.\n");
 
     rc = UpnpAddToAction(&actionNode,
@@ -1170,8 +1169,8 @@ cleanup:
     freeif(challenge_str);
     freeif(challenge);
     freeif(nonce);
-    freeif(ehash);
-    freeif(ehash_hex);
+    freeif(signature);
+    freeif(hex_sig);
 
     return rc;
 }
