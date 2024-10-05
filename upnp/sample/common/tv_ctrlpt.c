@@ -52,7 +52,6 @@
 #if ENABLE_SUPNP
 
 #include <file_utils.h>
-#include <openssl_wrapper.h>
 
 const char *DefaultPrivateKeyPathCP = "../../simulation/CP/private_key.pem";
 const char *DefaultPublicKeyPathCP = "../../simulation/CP/public_key.pem";
@@ -63,6 +62,9 @@ const char *RegisterDocsDefaultFilepathCP[RA_REGISTER_VARCOUNT] = {
     "../../simulation/CP/certificate.pem",
     "../../simulation/UCA/certificate.pem"
 };
+
+ERegistrationStatus CP_STATUS = SUPNP_DEVICE_UNREGISTERED;
+ithread_mutex_t RegistrationMutex;
 
 #endif
 
@@ -254,15 +256,6 @@ int TvCtrlPointRefresh(void)
 
 	TvCtrlPointRemoveAll();
 
-    #if ENABLE_SUPNP
-    /* RA Discovery */
-    rc = UpnpSearchAsync(ctrlpt_handle, SEARCH_TIME, RaDeviceType, NULL);
-    if (UPNP_E_SUCCESS != rc) {
-        SampleUtil_Print("Error sending RA discovery message (%d)\n", rc);
-        return TV_ERROR;
-    }
-
-    #else
 	/* Search for all devices of type tvdevice version 1,
 	 * waiting for up to 5 seconds for the response */
 	rc = UpnpSearchAsync(ctrlpt_handle, SEARCH_TIME, TvDeviceType, NULL);
@@ -271,7 +264,6 @@ int TvCtrlPointRefresh(void)
 
 		return TV_ERROR;
 	}
-    #endif
 
 	return TV_SUCCESS;
 }
@@ -1047,134 +1039,6 @@ void TvCtrlPointHandleGetVar(
 	ithread_mutex_unlock(&DeviceListMutex);
 }
 
-#if ENABLE_SUPNP
-
-/**
-* @brief Send a RA Action Register request to the RA service.
-* The logics correspond to figure 15 in the SUPnP paper.
-* Steps 7+8 are actually singing process. signature = E(sk, H(nonce))
-*/
-int SendRAActionRegister(const char * controlUrl)
-{
-    int rc = SUPNP_E_INTERNAL_ERROR;
-    EVP_PKEY *sk = NULL; /* Private key */
-    EVP_PKEY *pk = NULL; /* Public key */
-    char *pk_hex = NULL; /* Public key hex string */
-    IXML_Document *actionNode = NULL;
-    IXML_Document *respNode = NULL;
-    char *docs[RA_REGISTER_VARCOUNT] = {NULL};
-    char *docs_hex[RA_REGISTER_VARCOUNT] = {NULL};
-    size_t docs_size[RA_REGISTER_VARCOUNT] = {0};
-    char *challenge_str = NULL;
-    unsigned char *challenge = NULL;
-    unsigned char *nonce = NULL;
-    unsigned char *signature = NULL;
-    char *hex_sig = NULL;
-    size_t challenge_size;
-    size_t nonce_len = 0;
-    size_t sig_len = 0;
-
-    sample_verify(controlUrl, cleanup, "NULL Control URL.\n");
-
-    sk = load_private_key_from_pem(DefaultPrivateKeyPathCP);
-    sample_verify(sk, cleanup, "Error loading private key.\n");
-
-    pk = load_public_key_from_pem(DefaultPublicKeyPathCP);
-    sample_verify(pk, cleanup, "Error loading public key.\n");
-
-    size_t pkb_size;
-    unsigned char * pkb = public_key_to_bytes(pk, &pkb_size);
-    pk_hex = binary_to_hex_string(pkb, pkb_size);
-    freeif(pkb);
-    sample_verify(pk_hex, cleanup, "Error converting public key to hex string.\n");
-
-    for (int i = 0; i < RA_REGISTER_VARCOUNT; ++i) {
-        docs[i] = read_file(RegisterDocsDefaultFilepathCP[i], "rb", &docs_size[i]);
-        sample_verify(docs[i] != NULL, cleanup, "Error reading Registration Document ID %d\n", i);
-        docs_hex[i] = binary_to_hex_string((unsigned char *)docs[i], docs_size[i]);
-        sample_verify(docs_hex[i] != NULL, cleanup, "Error converting to hex string Registration Document ID %d\n", i);
-        rc = UpnpAddToAction(&actionNode,
-            RaRegistrationAction[RA_ACTIONS_REGISTER],
-            RaServiceType[RA_SERVICE_REGISTER],
-            RaRegisterVarName[i],
-            docs_hex[i]);
-        sample_verify(rc == UPNP_E_SUCCESS, cleanup, "Error trying to add registration action param\n");
-    }
-
-    rc = UpnpSendAction(ctrlpt_handle,
-        controlUrl,
-        RaServiceType[RA_SERVICE_REGISTER],
-        NULL, /* UDN ignored & Must be NULL */
-        actionNode,
-        &respNode);
-    sample_verify(rc == UPNP_E_SUCCESS, cleanup, "Error in UpnpSendAction -- %d\n", rc);
-
-    rc = SUPNP_E_INTERNAL_ERROR;
-
-    /* Extract Challenge from respNode */
-    challenge_str = SampleUtil_GetFirstElementItem((IXML_Element*)respNode,
-        RaRegistrationAction[RA_ACTIONS_CHALLENGE]);
-    challenge = hex_string_to_binary(challenge_str, &challenge_size);
-    sample_verify(challenge, cleanup, "Error extracting challenge.\n");
-
-    /* Decrypt the challenge using the participant's private key */
-    nonce = decrypt_asym(sk, &nonce_len, challenge, challenge_size);
-    sample_verify(nonce, cleanup, "Error decrypting nonce.\n");
-    sample_verify(nonce_len == SHA256_DIGEST_LENGTH, cleanup, "Unexpected nonce length.\n");
-
-    /* Signature = E(sk, H(nonce)) */
-    signature = sign(sk, nonce, nonce_len, &sig_len);
-    sample_verify(signature, cleanup, "Error signing nonce E(sk, H(nonce)).\n");
-
-    /* To Hex String */
-    hex_sig = binary_to_hex_string(signature, sig_len);
-
-    /* Send E(sk,H(n)) to RA */
-    freeif2(actionNode, ixmlDocument_free);
-    freeif2(respNode, ixmlDocument_free);
-    rc = UpnpAddToAction(&actionNode,
-        RaRegistrationAction[RA_ACTIONS_CHALLENGE],
-        RaServiceType[RA_SERVICE_REGISTER],
-        RaActionChallengeVarName[CHALLENGE_ACTION_RESPONSE],
-        hex_sig);
-    sample_verify(rc == UPNP_E_SUCCESS, cleanup, "Error trying to add challenge action challenge param.\n");
-
-    rc = UpnpAddToAction(&actionNode,
-        RaRegistrationAction[RA_ACTIONS_CHALLENGE],
-        RaServiceType[RA_SERVICE_REGISTER],
-        RaActionChallengeVarName[CHALLENGE_ACTION_PUBLICKEY],
-        pk_hex);
-    sample_verify(rc == UPNP_E_SUCCESS, cleanup, "Error trying to add challenge action public key param.\n");
-
-    rc = UpnpSendAction(ctrlpt_handle,
-            controlUrl,
-            RaServiceType[RA_SERVICE_REGISTER],
-            NULL, /* UDN ignored & Must be NULL */
-            actionNode,
-            &respNode);
-    sample_verify(rc == UPNP_E_SUCCESS, cleanup, "Error in UpnpSendAction -- %d\n", rc);
-
-    rc = SUPNP_E_SUCCESS;
-
-cleanup:
-    free_key(sk);
-    free_key(pk);
-    freeif(pk_hex);
-    freeif2(actionNode, ixmlDocument_free);
-    freeif2(respNode, ixmlDocument_free);
-    for (int i = 0; i < RA_REGISTER_VARCOUNT; ++i) {
-        freeif(docs[i]);
-        freeif(docs_hex[i]);
-    }
-    freeif(challenge_str);
-    freeif(challenge);
-    freeif(nonce);
-    freeif(signature);
-    freeif(hex_sig);
-
-    return rc;
-}
-#endif
 
 /********************************************************************************
  * TvCtrlPointCallbackEventHandler
@@ -1217,46 +1081,12 @@ int TvCtrlPointCallbackEventHandler(Upnp_EventType EventType, const void *Event,
 				errCode);
 		} else {
 #if ENABLE_SUPNP
-		    if (strcmp(SampleUtil_GetFirstDocumentItem(DescDoc, "deviceType"),
-		        RaDeviceType) == 0) {
-                /* Send to RA the SAD */
-		        basic_service_info * serviceList = SampleUtil_GetServices(DescDoc);
-		        //sample_verify(serviceList, )
-		        if (!serviceList) {
-		            SampleUtil_Print("Error obtaining service list\n");
-		        } else {
-                    const basic_service_info * service = serviceList;
-		            while (service) {
-		                char* controlURL = NULL;
-		                if (UpnpResolveURL2(location, service->controlURL, &controlURL) != UPNP_E_SUCCESS) {
-		                    SampleUtil_Print("Error generating controlURL from %s + %s\n",
-		                        location, service->controlURL);
-		                }
-		                else if (strcmp(service->serviceType, RaServiceType[RA_SERVICE_REGISTER]) == 0) {
-		                    // Send the DSD to the RA
-		                    errCode = SendRAActionRegister(controlURL);
-		                    (void) errCode;
-
-                            // todo TvDevice search only after successful registration.
-		                    // todo stop trying to register if already registered.
-		                    #if 0
-		                    errCode = UpnpSearchAsync(ctrlpt_handle, SEARCH_TIME, TvDeviceType, NULL);
-		                    if (UPNP_E_SUCCESS != errCode) {
-		                        SampleUtil_Print("Error sending search request (%d)\n", errCode);
-		                    }
-                            #endif
-		                    break;
-		                }
-		                freeif(controlURL);
-		                service = service->next;
-		            }
-                }
-		    } else {
-#endif
-			TvCtrlPointAddDevice(DescDoc, location,	UpnpDiscovery_get_Expires(d_event));
-#if ENABLE_SUPNP
+		    if (strcmp(GetFirstElementItem((IXML_Element*)DescDoc, "deviceType"), RaDeviceType) == 0 ) {
+		        freeif2(DescDoc, ixmlDocument_free);
+		        break; /* ignore ra device */
 		    }
 #endif
+			TvCtrlPointAddDevice(DescDoc, location,	UpnpDiscovery_get_Expires(d_event));
 		}
 		if (DescDoc) {
 			ixmlDocument_free(DescDoc);
@@ -1453,6 +1283,30 @@ void *TvCtrlPointTimerLoop(void *args)
 	return NULL;
 }
 
+#if ENABLE_SUPNP
+int RaRegistrationCallback(void *Cookie)
+{
+    ithread_t timer_thread;
+    int rc = UpnpRegisterClient(TvCtrlPointCallbackEventHandler,
+        &ctrlpt_handle,
+        &ctrlpt_handle);
+    if (rc != UPNP_E_SUCCESS) {
+        SampleUtil_Print("Error registering CP: %d\n", rc);
+        UpnpFinish();
+        return TV_ERROR;
+    }
+    SampleUtil_Print("Control Point Registered with UPnP SDK\n");
+
+    TvCtrlPointRefresh();
+
+    /* start a timer thread */
+    ithread_create(&timer_thread, NULL, TvCtrlPointTimerLoop, NULL);
+    ithread_detach(timer_thread);
+
+    return TV_SUCCESS;
+}
+#endif
+
 /*!
  * \brief Call this function to initialize the UPnP library and start the TV
  * Control Point.  This function creates a timer thread and provides a
@@ -1497,6 +1351,19 @@ int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo)
 		UpnpGetServerUlaGuaPort6());
 
 	SampleUtil_Print("Registering Control Point\n");
+#if ENABLE_SUPNP
+    rc = SupnpRegisterDevice(DefaultPublicKeyPathCP,
+        DefaultPrivateKeyPathCP,
+        RegisterDocsDefaultFilepathCP,
+        10 /* timeout */, RaRegistrationCallback);
+    if (rc != SUPNP_E_SUCCESS) {
+        SampleUtil_Print("Error registering CP with RA: %d\n", rc);
+        UpnpFinish();
+        return TV_ERROR;
+    }
+
+#else
+
 	rc = UpnpRegisterClient(TvCtrlPointCallbackEventHandler,
 		&ctrlpt_handle,
 		&ctrlpt_handle);
@@ -1507,15 +1374,15 @@ int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo)
 		return TV_ERROR;
 	}
 
-#if ENABLE_SUPNP == 0
 	SampleUtil_Print("Control Point Registered\n");
-#endif
+
 
 	TvCtrlPointRefresh();
 
 	/* start a timer thread */
 	ithread_create(&timer_thread, NULL, TvCtrlPointTimerLoop, NULL);
 	ithread_detach(timer_thread);
+#endif
 
 	return TV_SUCCESS;
 }

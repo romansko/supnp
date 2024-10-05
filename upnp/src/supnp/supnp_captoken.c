@@ -90,7 +90,7 @@ cJSON* get_timestamp()
  *   RA_SIG - RA Signature on Cap Token's content
  *   TYPE - "SERVICE-DEVICE"
  *   ADV_SIG - RA Signature on (description uri || cap token uri).
- *   SERVICES - List of service types and corresponding signature by RA on thier
+ *   SERVICES - List of service types and corresponding signature by RA on their
  * ID. Note: This differs from the paper, where the signature is on the
  * description.
  *

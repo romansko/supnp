@@ -61,91 +61,10 @@ extern const char *TvServiceType[];
 #endif /* SAMPLE_UTIL_C */
 
 
-#if ENABLE_SUPNP
-
 /*! Maximum size for SAD / DSD / certificates in supnp */
 #define MAX_SUPNP_DOC_SIZE 4096
 
-/*! Registration Authority services. */
-typedef enum _ERAServiceType
-{
-	/*! Registration Services. */
-	RA_SERVICE_REGISTER = 0,
 
-	/*! Number of services. */
-	RA_SERVICE_COUNT
-}ERAServiceType;
-
-typedef enum _ERARegisterServiceActions
-{
-	/*! Register action. */
-	RA_ACTIONS_REGISTER = 0,
-
-	/*!< Challenge action. */
-	RA_ACTIONS_CHALLENGE,
-
-	/*! Number of actions. */
-	RA_REGISTER_SERVICE_ACTIONS
-}ERARegisterServiceActions;
-
-/*! Registration service action Register variables. */
-typedef enum _ERARegisterActionVariables
-{
-	/*! Specification Document hex string */
-	RA_REGISTER_SPEC_DOC = 0,
-
-	/*! Device Certificate hex string */
-	RA_REGISTER_CERT_DEVICE,
-
-	/*! UCA Certificate hex string */
-	RA_REGISTER_CERT_UCA,
-
-	/*! Number of variables. */
-	RA_REGISTER_VARCOUNT
-
-}ERARegisterActionVariables;
-
-/*! Registration service action Chalenge variables. */
-typedef enum _ERAChallengeActionVariables
-{
-	/*! Challenge response hex string */
-	CHALLENGE_ACTION_RESPONSE = 0,
-
-	/*! Public key hex string */
-	CHALLENGE_ACTION_PUBLICKEY,
-
-	/*! Number of variables. */
-	CHALLENGE_ACTION_VARCOUNT
-
-}ERAChallengeActionVariables;
-
-#ifdef SAMPLE_UTIL_C
-const char *RaDeviceType = "urn:schemas-upnp-org:device:ra:1";
-const char *RaServiceType[RA_SERVICE_COUNT] = {
-	"urn:schemas-upnp-org:service:registration:1"
-};
-const char *RaRegistrationAction[RA_REGISTER_SERVICE_ACTIONS] = {
-	"Register",
-	"Challenge"
-};
-const char *RaRegisterVarName[RA_REGISTER_VARCOUNT] = {
-	"SpecificationDocument",
-	"CertificateDevice",
-	"CertificateUCA"
-};
-const char* RaActionChallengeVarName[CHALLENGE_ACTION_VARCOUNT] = {
-	"ChallengeResponse",
-	"PublicKey"
-};
-#else  /* SAMPLE_UTIL_C */
-extern const char *RaDeviceType;
-extern const char *RaServiceType[RA_SERVICE_COUNT];
-extern const char* RaRegistrationAction[RA_REGISTER_SERVICE_ACTIONS];
-extern const char *RaRegisterVarName[RA_REGISTER_VARCOUNT];
-extern const char* RaActionChallengeVarName[CHALLENGE_ACTION_VARCOUNT];
-#endif /* SAMPLE_UTIL_C */
-
-#endif /* ENABLE_SUPNP */
 
 /* mutex to control displaying of events */
 extern ithread_mutex_t display_mutex;
@@ -157,16 +76,6 @@ typedef enum
 	DEVICE_REMOVED = 2,
 	GET_VAR_COMPLETE = 3
 } eventType;
-
-typedef struct BASIC_SERVICE_INFO
-{
-	DOMString serviceType;
-	DOMString serviceId;
-	DOMString SCPDURL;
-	DOMString controlURL;
-	DOMString eventURL;
-	struct BASIC_SERVICE_INFO *next;
-} basic_service_info;
 
 /**
  * \brief Free a pointer if it is not NULL
@@ -214,19 +123,6 @@ typedef struct BASIC_SERVICE_INFO
 		goto label; \
 	} \
 }
-
-/*!
- * \brief Get the service information from a DOM document.
- *	      Based on getServiceTable function from service_table.c
- * \note must be freed using SampleUtil_FreeServiceList.
- */
-basic_service_info *SampleUtil_GetServices(IXML_Document *doc);
-
-/*!
- * \brief Free a linked list of service_info_short structures.
- *        Based on freeServiceList function from service_table.c
- */
-void SampleUtil_FreeServiceList(basic_service_info *serviceList);
 
 
 /*!
@@ -410,6 +306,8 @@ void linux_print(const char *format, ...)
 	__attribute__((format(__printf__, 1, 2)))
 #endif
 	;
+
+
 
 #ifdef __cplusplus
 };

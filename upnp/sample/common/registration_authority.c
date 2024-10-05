@@ -397,7 +397,7 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
      * Verify Device Certificate using UCA's public key.
      * Verify DSD / SAD Using Device public key & UCA public key.
      */
-    ret = verify_supnp_document(ca_pk, p_dev);
+    ret = SUpnpVerifyDocument(ca_pk, p_dev);
     sample_verify_ex(ret == SUPNP_E_SUCCESS, cleanup, errorString, "Unable to verify device\n");
     SampleUtil_Print("Specification document ok\n");
 
@@ -499,15 +499,15 @@ cleanup:
         (void) UpnpAddToActionResponse(out,
        RaRegistrationAction[RA_ACTIONS_CHALLENGE],
        RaServiceType[RA_SERVICE_REGISTER],
-       "DeviceRegistered",
-       "1");
+       RaResponseVarName,
+       RaResponseSuccess);
     } else{
         remove_device(&SUPnPDeviceList, p_dev); /* Also frees the device */
         sprintf(retVal, "%d", ret);
         (void) UpnpAddToActionResponse(out,
             RaRegistrationAction[RA_ACTIONS_CHALLENGE],
             RaServiceType[RA_SERVICE_REGISTER],
-            "ErrorCode",
+            RaResponseVarName,
             retVal);
     }
 

@@ -46,6 +46,10 @@
 
 #include "posix_overwrites.h"
 
+#if ENABLE_SUPNP
+#include <file_utils.h>
+#endif
+
 #if !UPNP_HAVE_TOOLS
 	#error "Need upnptools.h to compile samples ; try ./configure --enable-tools"
 #endif
@@ -729,45 +733,6 @@ void SampleUtil_StateUpdate(const char *varName,
 		gStateUpdateFun(varName, varValue, UDN, type);
 }
 
-basic_service_info *SampleUtil_GetServices(IXML_Document *doc)
-{
-    IXML_NodeList *ixmServiceList = NULL;
-    IXML_Element *ixml_service = NULL;
-    basic_service_info *serviceList = NULL;
-
-    ixmServiceList = SampleUtil_GetFirstServiceList(doc);
-    const size_t length = ixmlNodeList_length(ixmServiceList);
-    sample_verify(length > 0, cleanup, "No services found");
-    serviceList = malloc(sizeof(basic_service_info) * length);
-    sample_verify(serviceList, cleanup, "Unable to allocate memory");
-
-    for (size_t i = 0; i < length; ++i) {
-        ixml_service = (IXML_Element *)ixmlNodeList_item(ixmServiceList, i);
-        serviceList[i].serviceType = SampleUtil_GetFirstElementItem(ixml_service, "serviceType");
-        serviceList[i].serviceId = SampleUtil_GetFirstElementItem(ixml_service, "serviceId");
-        serviceList[i].SCPDURL = SampleUtil_GetFirstElementItem(ixml_service, "SCPDURL");
-        serviceList[i].controlURL = SampleUtil_GetFirstElementItem(ixml_service, "controlURL");
-        serviceList[i].eventURL = SampleUtil_GetFirstElementItem(ixml_service, "eventSubURL");
-    }
-
-cleanup:
-    freeif2(ixmServiceList, ixmlNodeList_free);
-    return serviceList;
-}
-
-void SampleUtil_FreeServiceList(basic_service_info *serviceList)
-{
-    basic_service_info *service = serviceList;
-    while (service) {
-        freeif2(service->serviceType, ixmlFreeDOMString);
-        freeif2(service->serviceId, ixmlFreeDOMString);
-        freeif(service->SCPDURL);
-        freeif(service->controlURL);
-        freeif(service->eventURL);
-        service = service->next;
-    }
-    freeif(serviceList); // free allocated bulk memory
-}
 
 /*!
  * \brief Prints a string to standard out.
