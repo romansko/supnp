@@ -96,9 +96,11 @@ typedef struct _RegistrationParams
 {
 	int handle; /* Registration handle */
 	SUpnp_FunPtr callback;  /* To call upon successful registration */
+	void *callback_cookie;
     const char *publicKeyPath;
     const char *privateKeyPath;
     const char *RegistrationDocsPath[RA_REGISTER_VARCOUNT];
+	const char *desc_doc_uri;       /* Only for SD */
 }RegistrationParams;
 
 static const char *RaDeviceType = "urn:schemas-upnp-org:device:ra:1";
@@ -224,8 +226,13 @@ UPNP_EXPORT_SPEC char *GetFirstElementItem(IXML_Element *element, const char *it
 UPNP_EXPORT_SPEC int SUpnpVerifyDocument(EVP_PKEY *ca_pkey, supnp_device_t *dev);
 
 
-UPNP_EXPORT_SPEC int SupnpRegisterDevice(const char *pk_path, const char *sk_path,
-    const char *RegistrationDocsPath[], int timeout, SUpnp_FunPtr callback);
+UPNP_EXPORT_SPEC int SupnpRegisterDevice(const char *pk_path,
+	const char *sk_path,
+    const char *RegistrationDocsPath[],
+    const char *desc_doc_uri,
+    int timeout,
+    SUpnp_FunPtr callback,
+    void *callback_cookie);
 
 
 /* Internal */

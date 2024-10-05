@@ -50,32 +50,6 @@ extern "C" {
 #include "upnp.h" /* for Upnp_EventType */
 #include "upnptools.h"
 
-#ifdef SAMPLE_UTIL_C
-/*! Service types for tv services. */
-const char *TvServiceType[] = {
-	"urn:schemas-upnp-org:service:tvcontrol:1",
-	"urn:schemas-upnp-org:service:tvpicture:1"
-};
-#else  /* SAMPLE_UTIL_C */
-extern const char *TvServiceType[];
-#endif /* SAMPLE_UTIL_C */
-
-
-/*! Maximum size for SAD / DSD / certificates in supnp */
-#define MAX_SUPNP_DOC_SIZE 4096
-
-
-
-/* mutex to control displaying of events */
-extern ithread_mutex_t display_mutex;
-
-typedef enum
-{
-	STATE_UPDATE = 0,
-	DEVICE_ADDED = 1,
-	DEVICE_REMOVED = 2,
-	GET_VAR_COMPLETE = 3
-} eventType;
 
 /**
  * \brief Free a pointer if it is not NULL
@@ -124,6 +98,26 @@ typedef enum
 	} \
 }
 
+#ifdef SAMPLE_UTIL_C
+/*! Service types for tv services. */
+const char *TvServiceType[] = {
+	"urn:schemas-upnp-org:service:tvcontrol:1",
+	"urn:schemas-upnp-org:service:tvpicture:1"
+};
+#else  /* SAMPLE_UTIL_C */
+extern const char *TvServiceType[];
+#endif /* SAMPLE_UTIL_C */
+
+/* mutex to control displaying of events */
+extern ithread_mutex_t display_mutex;
+
+typedef enum
+{
+	STATE_UPDATE = 0,
+	DEVICE_ADDED = 1,
+	DEVICE_REMOVED = 2,
+	GET_VAR_COMPLETE = 3
+} eventType;
 
 /*!
  * \brief Given a DOM node such as <Channel>11</Channel>, this routine
@@ -306,8 +300,6 @@ void linux_print(const char *format, ...)
 	__attribute__((format(__printf__, 1, 2)))
 #endif
 	;
-
-
 
 #ifdef __cplusplus
 };

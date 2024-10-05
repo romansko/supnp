@@ -154,7 +154,6 @@ int TvCtrlPointPrintDevice(int);
 void TvCtrlPointAddDevice(IXML_Document *, const char *, int);
 void TvCtrlPointHandleGetVar(const char *, const char *, const DOMString);
 
-
 /*!
  * \brief Update a Tv state table. Called when an event is received.
  *

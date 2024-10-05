@@ -47,8 +47,6 @@
 
 #include "posix_overwrites.h"
 
-#include <registration_authority.h>
-
 #if ENABLE_SUPNP
 
 #include <file_utils.h>
@@ -62,9 +60,6 @@ const char *RegisterDocsDefaultFilepathCP[RA_REGISTER_VARCOUNT] = {
     "../../simulation/CP/certificate.pem",
     "../../simulation/UCA/certificate.pem"
 };
-
-ERegistrationStatus CP_STATUS = SUPNP_DEVICE_UNREGISTERED;
-ithread_mutex_t RegistrationMutex;
 
 #endif
 
@@ -1284,7 +1279,7 @@ void *TvCtrlPointTimerLoop(void *args)
 }
 
 #if ENABLE_SUPNP
-int RaRegistrationCallback(void *Cookie)
+int RegistrationCallbackCP(void *Cookie)
 {
     ithread_t timer_thread;
     int rc = UpnpRegisterClient(TvCtrlPointCallbackEventHandler,
@@ -1355,7 +1350,8 @@ int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo)
     rc = SupnpRegisterDevice(DefaultPublicKeyPathCP,
         DefaultPrivateKeyPathCP,
         RegisterDocsDefaultFilepathCP,
-        10 /* timeout */, RaRegistrationCallback);
+        NULL,
+        10 /* timeout */, RegistrationCallbackCP, NULL);
     if (rc != SUPNP_E_SUCCESS) {
         SampleUtil_Print("Error registering CP with RA: %d\n", rc);
         UpnpFinish();

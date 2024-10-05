@@ -197,9 +197,10 @@ int SUpnpVerifyDocument(EVP_PKEY* ca_pkey, supnp_device_t* p_dev)
      * The ledger maintains a mapping between a service type and the HW and SW attributes require to provide the service.
      * todo: verify that the capability of an SD matches its DDD. Maintain Ledger.
      */
+    supnp_verify(p_dev->desc_uri, cleanup, "NULL description URI.\n");
+    supnp_verify(p_dev->desc_doc, cleanup, "NULL description document.\n");
     const cJSON* json_services = cJSON_GetObjectItemCaseSensitive(p_dev->supnp_doc, SUPNP_DOC_SERVICES);
-    supnp_verify(json_services, cleanup,
-                 "Couldn't find services tagname '%s' in SUPnP Document.\n", SUPNP_DOC_SERVICES);
+    supnp_verify(json_services, cleanup, "Couldn't find services tagname '%s' in SUPnP Document.\n", SUPNP_DOC_SERVICES);
 
     ret = getServiceTable((IXML_Node*)p_dev->desc_doc, &services, p_dev->desc_uri);
     supnp_verify(ret, cleanup, "Couldn't fill service table.\n");
@@ -390,6 +391,9 @@ int RegistrationCallbackEventHandler(Upnp_EventType eventType, const void *event
     if (status == SUPNP_DEVICE_REGISTERED)
         return SUPNP_E_SUCCESS;  /* Ignore */
 
+    supnp_verify(d_event, cleanup, "NULL Discovery event.\n");
+    supnp_verify(params, cleanup, "NULL params.\n");
+
     /* Retrieve RA Description Document */
     errCode = UpnpDiscovery_get_ErrCode(d_event);
     supnp_verify(errCode == UPNP_E_SUCCESS, cleanup, "Error in Discovery Callback -- %d\n", errCode);
@@ -424,7 +428,7 @@ int RegistrationCallbackEventHandler(Upnp_EventType eventType, const void *event
             supnp_log("SUPnP Control Point Registered\n");
             status = SUPNP_DEVICE_REGISTERED;
             UpnpUnRegisterClient(params->handle);
-            params->callback(NULL);
+            params->callback(params->callback_cookie);
         } else {
             supnp_error("Error registering SUPnP device. Code: (%d).\n", errCode);
         }
@@ -432,13 +436,18 @@ int RegistrationCallbackEventHandler(Upnp_EventType eventType, const void *event
 cleanup:
     freeServiceTable(&services);
     freeif2(desc_doc, ixmlDocument_free);
+    freeif(params);
     return errCode;
 }
 
 
-
-int SupnpRegisterDevice(const char *pk_path, const char *sk_path,
-    const char *RegistrationDocsPath[], int timeout, SUpnp_FunPtr callback)
+int SupnpRegisterDevice(const char *pk_path,
+    const char *sk_path,
+    const char *RegistrationDocsPath[],
+    const char *desc_doc_uri,
+    int timeout,
+    SUpnp_FunPtr callback,
+    void *callback_cookie)
 {
     int ret = SUPNP_E_SUCCESS;
 
@@ -452,12 +461,14 @@ int SupnpRegisterDevice(const char *pk_path, const char *sk_path,
     supnp_verify(params, cleanup, "Error allocating memory for registration params.\n");
     params->handle = -1;
     params->callback = callback;
+    params->callback_cookie = callback_cookie;
     params->publicKeyPath = pk_path;
     params->privateKeyPath = sk_path;
     for (int i = 0; i < RA_REGISTER_VARCOUNT; ++i) {
         supnp_verify(RegistrationDocsPath[i], cleanup, "NULL %s.\n", RaRegisterVarName[i]);
         params->RegistrationDocsPath[i] = RegistrationDocsPath[i];
     }
+    params->desc_doc_uri = desc_doc_uri;
 
     /* Register registration handle with UPnP SDK */
     ret = UpnpRegisterClient(RegistrationCallbackEventHandler, params, &(params->handle));

@@ -61,6 +61,8 @@
 
 #define DESC_URL_SIZE 200
 
+#define MAX_SUPNP_DOC_SIZE 4096
+
 const char* CA_PK_DEF_PATH = "../../simulation/CA/public_key.pem";
 
 supnp_device_t * SUPnPDeviceList = NULL;
@@ -377,6 +379,8 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
     (*out) = NULL;
 
     ithread_mutex_lock(&RAMutex);
+
+    // todo: if SD, send desc uri as well..
 
     /* Step 1 - Receive and Load DSD/SAD, Device Certificate, UCA Certificate */
     for (int i=0; i<RA_REGISTER_VARCOUNT; ++i) {

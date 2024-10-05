@@ -40,15 +40,10 @@
 #define SAMPLE_UTIL_C
 
 #include "sample_util.h"
-#include <ixml.h>
 #include <stdarg.h>
 #include <stdio.h>
 
 #include "posix_overwrites.h"
-
-#if ENABLE_SUPNP
-#include <file_utils.h>
-#endif
 
 #if !UPNP_HAVE_TOOLS
 	#error "Need upnptools.h to compile samples ; try ./configure --enable-tools"
@@ -732,7 +727,6 @@ void SampleUtil_StateUpdate(const char *varName,
 	if (gStateUpdateFun)
 		gStateUpdateFun(varName, varValue, UDN, type);
 }
-
 
 /*!
  * \brief Prints a string to standard out.
