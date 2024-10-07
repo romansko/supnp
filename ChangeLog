@@ -12,6 +12,31 @@ Version 1.16.0
 Version 1.14.20
 *******************************************************************************
 
+2024-10-03 Vollstrecker <werner(at)vollstreckernet.de>
+
+	- ixml has its own version
+
+2024-07-09 Karlchen <k_straussberger(at)netzland.net>
+
+	- Add CORS header to avoid browser warnings
+	- Add new API call
+	- Add internal function
+	- Implement setting allow-origin in header
+	- Implement new API call
+	- Headers do not have to be quoted
+	- Allow setting MaxJobsTotal for ThreadPools
+
+2024-06-29 Rosen Penev <rosenp(at)gmail.com>
+
+	- fix formats under newer newer MSVC
+	- fix 32-bit format warnings
+
+2024-04-25 Marcelo Roberto Jimenez <mroberto(at)users.sourceforge.net>
+
+	- Fixes broken cmake regex
+	- Fixes cmake redefinition warnings
+
+
 *******************************************************************************
 Version 1.14.19
 *******************************************************************************
@@ -67,7 +92,7 @@ Version 1.14.16
 
         1- When sending Action(Ex)Async
         The ActionRequest document was not released nor was the ActionResult.
-        I initially tought that this should be done in
+        I initially thought that this should be done in
         UpnpActionComplete::UpnpActionComplete_delete() but I was wrong because
         ActionRequest and ActionResult do not "belong" to the Evt object.
         The sets methods only set a pointer and modifying generator.c is not the
@@ -129,7 +154,7 @@ Version 1.14.14
         don't use strxxx_s on Windows
 
         The use of these fails as 2nd argument is the same as 4th argument.
-        Reading the cpp_reference defintions of these, it can't be right.
+        Reading the cpp_reference definitions of these, it can't be right.
 
 2022-09-20 Rex Cheung <93339127+rexcheung21(at)users.noreply.github.com>
 

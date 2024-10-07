@@ -157,3 +157,14 @@ compile_commands.json
 pupnp-cppcheck-build-dir
 pupnp.cppcheck
 
+# CMAKE
+CMakeCache.txt
+CMakeFiles
+CTestTestfile.cmake
+cmake_install.cmake
+autoconfig.h.cm
+build.ninja
+IXMLConfig.cmake
+IXMLConfigVersion.cmake
+UPNPConfig.cmake
+UPNPConfigVersion.cmake
