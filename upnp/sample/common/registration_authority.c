@@ -67,7 +67,7 @@ const char* CA_PK_DEF_PATH = "../../simulation/CA/public_key.pem";
 
 supnp_device_t * SUPnPDeviceList = NULL;
 
-const int RAServiceVariableCount[RA_SERVICE_COUNT] = { 1 };
+const int RAServiceVariableCount[RA_SERVICE_COUNT] = { RA_REGISTER_VARCOUNT };
 
 char RegistrationDocs[RA_REGISTER_VARCOUNT][MAX_SUPNP_DOC_SIZE] = { 0 };
 
@@ -365,9 +365,9 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
 {
     supnp_device_t *p_dev = NULL;
     int ret = UPNP_E_INVALID_PARAM;
-    char* hex[RA_REGISTER_VARCOUNT]  = {NULL};
-    char* docs[RA_REGISTER_VARCOUNT] = {NULL};
-    size_t doc_size[RA_REGISTER_VARCOUNT] = {0};
+    char* hex[SUPNP_DOCS_ON_DEVICE]  = {NULL};
+    char* docs[SUPNP_DOCS_ON_DEVICE] = {NULL};
+    size_t doc_size[SUPNP_DOCS_ON_DEVICE] = {0};
     EVP_PKEY* ca_pk  = NULL;
     unsigned char *nonce = NULL;
     unsigned char* enc_nonce = NULL;
@@ -375,26 +375,34 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
     size_t enc_len = 0;
     char retVal[5] = {0};
 
+
     sample_verify_ex(in && out && errorString, cleanup, errorString, "NULL arguments.\n");
     (*out) = NULL;
 
     ithread_mutex_lock(&RAMutex);
 
-    // todo: if SD, send desc uri as well..
-
     /* Step 1 - Receive and Load DSD/SAD, Device Certificate, UCA Certificate */
-    for (int i=0; i<RA_REGISTER_VARCOUNT; ++i) {
+    for (int i=0; i<SUPNP_DOCS_ON_DEVICE; ++i) {
         hex[i] = SampleUtil_GetFirstDocumentItem(in, RaRegisterVarName[i]);
         docs[i] = (char * )hex_string_to_binary(hex[i], &doc_size[i]);
         sample_verify_ex(docs[i], cleanup, errorString, "Invalid Registration parameters.\n");
     }
+
     ca_pk = load_public_key_from_pem(CA_PK_DEF_PATH);
     sample_verify_ex(ca_pk, cleanup, errorString, "Error loading CA Public Key.\n");
 
     p_dev = new_supnp_device(docs[RA_REGISTER_SPEC_DOC],
         docs[RA_REGISTER_CERT_DEVICE],
         docs[RA_REGISTER_CERT_UCA]);
-    sample_verify_ex(p_dev, cleanup, errorString, "Unable to initialize new device\n");
+    sample_verify_ex(p_dev, cleanup, errorString, "Unable to initialize new device.\n");
+
+    /* Applicable only for SD */
+    p_dev->desc_uri = SampleUtil_GetFirstDocumentItem(in, RaRegisterVarName[RA_REGISTER_DESC_DOC_URL]);
+    if (p_dev->desc_uri != NULL) {
+        ret = UpnpDownloadXmlDoc(p_dev->desc_uri, &(p_dev->desc_doc));
+        sample_verify_ex(ret == UPNP_E_SUCCESS, cleanup, errorString, "Error in UpnpDownloadXmlDoc.\n");
+    }
+
 
     /* Fig.15 - Step 2 + 3
      * Verify UCA Certificate using CA's public key.
@@ -403,7 +411,6 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
      */
     ret = SUpnpVerifyDocument(ca_pk, p_dev);
     sample_verify_ex(ret == SUPNP_E_SUCCESS, cleanup, errorString, "Unable to verify device\n");
-    SampleUtil_Print("Specification document ok\n");
 
     ret = SUPNP_E_INTERNAL_ERROR;
 
@@ -441,7 +448,7 @@ cleanup:
             "ErrorCode",
             retVal);
     }
-    for (int i=0; i<RA_REGISTER_VARCOUNT; ++i) {
+    for (int i=0; i<SUPNP_DOCS_ON_DEVICE; ++i) {
         freeif(hex[i]);
         freeif(docs[i]);
     }

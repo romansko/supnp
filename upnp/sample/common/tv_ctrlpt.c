@@ -55,7 +55,7 @@ const char *DefaultPrivateKeyPathCP = "../../simulation/CP/private_key.pem";
 const char *DefaultPublicKeyPathCP = "../../simulation/CP/public_key.pem";
 
 /*! Relative to upnp/sample */
-const char *RegisterDocsDefaultFilepathCP[RA_REGISTER_VARCOUNT] = {
+const char *RegisterDocsDefaultFilepathCP[SUPNP_DOCS_ON_DEVICE] = {
     "../../simulation/CP/sad.json",
     "../../simulation/CP/certificate.pem",
     "../../simulation/UCA/certificate.pem"

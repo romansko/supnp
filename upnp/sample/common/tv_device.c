@@ -62,7 +62,7 @@ const char *DefaultPrivateKeyPathSD = "../../simulation/SD/private_key.pem";
 const char *DefaultPublicKeyPathSD = "../../simulation/SD/public_key.pem";
 
 /*! Relative to upnp/sample */
-const char *RegisterDocsDefaultFilepathSD[RA_REGISTER_VARCOUNT] = {
+const char *RegisterDocsDefaultFilepathSD[SUPNP_DOCS_ON_DEVICE] = {
     "../../simulation/SD/dsd.json",
     "../../simulation/SD/certificate.pem",
     "../../simulation/UCA/certificate.pem"
@@ -1419,7 +1419,7 @@ int TvDeviceCallbackEventHandler(
 #if ENABLE_SUPNP
 int RegistrationCallbackSD(void *Cookie)
 {
-    RegistrationCallbackParams *params = (RegistrationCallbackParams *)Cookie;
+    RegistrationCallbackParams *params = Cookie;
     int ret = UpnpRegisterRootDevice3(params->desc_doc_url,
         TvDeviceCallbackEventHandler,
         &device_handle,
@@ -1436,6 +1436,7 @@ int RegistrationCallbackSD(void *Cookie)
 cleanup:
     if (ret != UPNP_E_SUCCESS)
         UpnpFinish();
+    freeif(params->desc_doc_url);
     freeif(params);
     return ret;
 }
@@ -1547,7 +1548,7 @@ int TvDeviceStart(char *iface,
 
     params = malloc(sizeof(RegistrationCallbackParams));
     sample_verify(params, cleanup, "Unable to allocate memory for callback params\n");
-    params->desc_doc_url = desc_doc_url;
+    params->desc_doc_url = strdup(desc_doc_url);
     params->address_family = address_family;
 
     ret = SupnpRegisterDevice(DefaultPublicKeyPathSD,
@@ -1557,6 +1558,11 @@ int TvDeviceStart(char *iface,
         10 /* timeout */, RegistrationCallbackSD, params);
     sample_verify(ret == SUPNP_E_SUCCESS, cleanup, "Error registering CP with RA: %d\n", ret);
     return UPNP_E_SUCCESS;
+
+cleanup:
+    freeif(params->desc_doc_url);
+    freeif(params);
+    return ret;
 
 #else
 	ret = UpnpRegisterRootDevice3(desc_doc_url,
@@ -1586,11 +1592,8 @@ int TvDeviceStart(char *iface,
 	    SampleUtil_Print("Advertisements Sent\n");
 	}
     ret = UPNP_E_SUCCESS;
+    return ret;
 #endif
-
-cleanup:
-    freeif(params);
-	return ret;
 }
 
 int TvDeviceStop(void)

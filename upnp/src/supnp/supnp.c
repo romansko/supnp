@@ -185,6 +185,7 @@ int SUpnpVerifyDocument(EVP_PKEY* ca_pkey, supnp_device_t* p_dev)
     /* Done verification for CP */
     if (p_dev->type == DEVICE_TYPE_CP)
     {
+        supnp_log("Control Point's SAD ok.\n");
         ret = SUPNP_E_SUCCESS;
         goto cleanup;
     }
@@ -224,6 +225,8 @@ int SUpnpVerifyDocument(EVP_PKEY* ca_pkey, supnp_device_t* p_dev)
         break;
     }
     supnp_verify(ret == SUPNP_E_SUCCESS, cleanup, "Services verification failed (SD).\n");
+    supnp_log("SD Services ok.\n");
+    supnp_log("Service Device's DSD ok.\n");
 
     /* SD Verification Done */
     ret = SUPNP_E_SUCCESS;
@@ -231,8 +234,11 @@ int SUpnpVerifyDocument(EVP_PKEY* ca_pkey, supnp_device_t* p_dev)
 cleanup:
     freeif(data);
     freeif2(doc_pk, EVP_PKEY_free);
-    if (p_dev && p_dev->type == DEVICE_TYPE_SD)
-        freeServiceTable(&services);  // applicable only for SD
+    if (p_dev && p_dev->type == DEVICE_TYPE_SD) {
+        /* freeServiceTable, with protection */
+        freeif2(services.URLBase, ixmlFreeDOMString)
+        freeif2(services.endServiceList, freeServiceList);
+    }
     return ret;
 }
 
@@ -252,9 +258,9 @@ int SendRAActionRegister(RegistrationParams *params, const char *controlUrl)
     char *pk_hex = NULL; /* Public key hex string */
     IXML_Document *actionNode = NULL;
     IXML_Document *respNode = NULL;
-    char *docs[RA_REGISTER_VARCOUNT] = {NULL};
-    char *docs_hex[RA_REGISTER_VARCOUNT] = {NULL};
-    size_t docs_size[RA_REGISTER_VARCOUNT] = {0};
+    char *docs[SUPNP_DOCS_ON_DEVICE] = {NULL};
+    char *docs_hex[SUPNP_DOCS_ON_DEVICE] = {NULL};
+    size_t docs_size[SUPNP_DOCS_ON_DEVICE] = {0};
     char *response = NULL;
     unsigned char *challenge = NULL;
     unsigned char *nonce = NULL;
@@ -279,7 +285,7 @@ int SendRAActionRegister(RegistrationParams *params, const char *controlUrl)
     freeif(pkb);
     supnp_verify(pk_hex, cleanup, "Error converting public key to hex string.\n");
 
-    for (int i = 0; i < RA_REGISTER_VARCOUNT; ++i) {
+    for (int i = 0; i < SUPNP_DOCS_ON_DEVICE; ++i) {
         docs[i] = read_file(params->RegistrationDocsPath[i], "rb", &docs_size[i]);
         supnp_verify(docs[i] != NULL, cleanup, "Error reading Registration Document ID %d\n", i);
         docs_hex[i] = binary_to_hex_string((unsigned char *)docs[i], docs_size[i]);
@@ -291,6 +297,17 @@ int SendRAActionRegister(RegistrationParams *params, const char *controlUrl)
             docs_hex[i]);
         supnp_verify(rc == UPNP_E_SUCCESS, cleanup, "Error trying to add registration action param\n");
     }
+
+    /* Add Description Document URL, if applicable. */
+    if (params->desc_doc_uri) {
+        rc = UpnpAddToAction(&actionNode,
+            RaRegistrationAction[RA_ACTIONS_REGISTER],
+            RaServiceType[RA_SERVICE_REGISTER],
+            RaRegisterVarName[RA_REGISTER_DESC_DOC_URL],
+            params->desc_doc_uri);
+        supnp_verify(rc == UPNP_E_SUCCESS, cleanup, "Error trying to add de description document url\n");
+    }
+
 
     rc = UpnpSendAction(params->handle,
         controlUrl,
@@ -362,7 +379,7 @@ cleanup:
     freeif(pk_hex);
     freeif2(actionNode, ixmlDocument_free);
     freeif2(respNode, ixmlDocument_free);
-    for (int i = 0; i < RA_REGISTER_VARCOUNT; ++i) {
+    for (int i = 0; i < SUPNP_DOCS_ON_DEVICE; ++i) {
         freeif(docs[i]);
         freeif(docs_hex[i]);
     }
@@ -380,7 +397,7 @@ int RegistrationCallbackEventHandler(Upnp_EventType eventType, const void *event
     service_table services;
     static ERegistrationStatus status = SUPNP_DEVICE_UNREGISTERED;
     int errCode = SUPNP_E_SUCCESS;
-    IXML_Document *desc_doc = NULL;
+    IXML_Document *ra_desc_doc = NULL;
     const UpnpDiscovery *d_event = (UpnpDiscovery *)event;
     const char *location = NULL;
     RegistrationParams *params = cookie;
@@ -398,16 +415,16 @@ int RegistrationCallbackEventHandler(Upnp_EventType eventType, const void *event
     errCode = UpnpDiscovery_get_ErrCode(d_event);
     supnp_verify(errCode == UPNP_E_SUCCESS, cleanup, "Error in Discovery Callback -- %d\n", errCode);
     location = UpnpString_get_String(UpnpDiscovery_get_Location(d_event));
-    errCode = UpnpDownloadXmlDoc(location, &desc_doc);
+    errCode = UpnpDownloadXmlDoc(location, &ra_desc_doc);
     supnp_verify(errCode == UPNP_E_SUCCESS, cleanup, "Error in UpnpDownloadXmlDoc -- %d\n", errCode);
 
     /* Register the device if it is not already registered */
-    errCode = strcmp(GetFirstElementItem((IXML_Element*)desc_doc, "deviceType"), RaDeviceType);
+    errCode = strcmp(GetFirstElementItem((IXML_Element*)ra_desc_doc, "deviceType"), RaDeviceType);
     supnp_verify(errCode == 0, cleanup, "Unexpected device type.\n");
 
     if (status != SUPNP_DEVICE_REGISTERED) {
         /* Extract Services List */
-        errCode = getServiceTable((IXML_Node*)desc_doc, &services, location);
+        errCode = getServiceTable((IXML_Node*)ra_desc_doc, &services, location);
         supnp_verify(errCode, cleanup, "Couldn't fill service table.\n");
 
         /* Iterate Services and parse registration service */
@@ -425,7 +442,7 @@ int RegistrationCallbackEventHandler(Upnp_EventType eventType, const void *event
         }
 
         if (errCode == SUPNP_DEVICE_REGISTERED) {
-            supnp_log("SUPnP Control Point Registered\n");
+            supnp_log("SUPnP Device Registered\n");
             status = SUPNP_DEVICE_REGISTERED;
             UpnpUnRegisterClient(params->handle);
             params->callback(params->callback_cookie);
@@ -435,8 +452,8 @@ int RegistrationCallbackEventHandler(Upnp_EventType eventType, const void *event
     }
 cleanup:
     freeServiceTable(&services);
-    freeif2(desc_doc, ixmlDocument_free);
-    freeif(params);
+    freeif2(ra_desc_doc, ixmlDocument_free);
+    SupnpFreeRegistrationParams(&params);
     return errCode;
 }
 
@@ -464,11 +481,11 @@ int SupnpRegisterDevice(const char *pk_path,
     params->callback_cookie = callback_cookie;
     params->publicKeyPath = pk_path;
     params->privateKeyPath = sk_path;
-    for (int i = 0; i < RA_REGISTER_VARCOUNT; ++i) {
+    for (int i = 0; i < SUPNP_DOCS_ON_DEVICE; ++i) {
         supnp_verify(RegistrationDocsPath[i], cleanup, "NULL %s.\n", RaRegisterVarName[i]);
         params->RegistrationDocsPath[i] = RegistrationDocsPath[i];
     }
-    params->desc_doc_uri = desc_doc_uri;
+    params->desc_doc_uri = desc_doc_uri ? strdup(desc_doc_uri) : NULL;  /* Applicable only for SD, for CP set NULL */
 
     /* Register registration handle with UPnP SDK */
     ret = UpnpRegisterClient(RegistrationCallbackEventHandler, params, &(params->handle));
@@ -481,11 +498,16 @@ int SupnpRegisterDevice(const char *pk_path,
     return SUPNP_E_SUCCESS; /* Success */
 
 cleanup:
-    freeif(params);
+    SupnpFreeRegistrationParams(&params);
     return ret;
 }
 
-
+void SupnpFreeRegistrationParams(RegistrationParams **params)
+{
+    // todo consider strdup instead of const paths
+    freeif((*params)->desc_doc_uri);
+    freeif(*params);
+}
 
 
 #ifdef __cplusplus

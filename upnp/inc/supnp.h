@@ -73,10 +73,16 @@ typedef enum _ERARegisterActionVariables
 	/*! UCA Certificate hex string */
 	RA_REGISTER_CERT_UCA,
 
+	/*! Description document URL, applicable only for SD */
+	RA_REGISTER_DESC_DOC_URL,
+
 	/*! Number of variables. */
 	RA_REGISTER_VARCOUNT
 
 }ERARegisterActionVariables;
+
+/*! Number of documents without desc doc url */
+enum { SUPNP_DOCS_ON_DEVICE = (RA_REGISTER_VARCOUNT - 1) };
 
 /*! Registration service action Chalenge variables. */
 typedef enum _ERAChallengeActionVariables
@@ -99,8 +105,8 @@ typedef struct _RegistrationParams
 	void *callback_cookie;
     const char *publicKeyPath;
     const char *privateKeyPath;
-    const char *RegistrationDocsPath[RA_REGISTER_VARCOUNT];
-	const char *desc_doc_uri;       /* Only for SD */
+    const char *RegistrationDocsPath[SUPNP_DOCS_ON_DEVICE];
+	char *desc_doc_uri;       /* Only for SD */
 }RegistrationParams;
 
 static const char *RaDeviceType = "urn:schemas-upnp-org:device:ra:1";
@@ -114,7 +120,8 @@ static const char *RaRegistrationAction[RA_REGISTER_SERVICE_ACTIONS] = {
 static const char *RaRegisterVarName[RA_REGISTER_VARCOUNT] = {
 	"SpecificationDocument",
 	"CertificateDevice",
-	"CertificateUCA"
+	"CertificateUCA",
+	"DescriptionDocumentURL"
 };
 static const char *RaActionChallengeVarName[CHALLENGE_ACTION_VARCOUNT] = {
 	"ChallengeResponse",
@@ -234,6 +241,8 @@ UPNP_EXPORT_SPEC int SupnpRegisterDevice(const char *pk_path,
     SUpnp_FunPtr callback,
     void *callback_cookie);
 
+
+UPNP_EXPORT_SPEC void SupnpFreeRegistrationParams(RegistrationParams **params);
 
 /* Internal */
 int SendRAActionRegister(RegistrationParams *params, const char *controlUrl);
