@@ -43,9 +43,25 @@
 
 #include "tv_ctrlpt.h"
 
-#include "upnp.h"
+#include <upnp.h>
 
 #include "posix_overwrites.h"
+
+#if ENABLE_SUPNP
+
+#include <file_utils.h>
+
+const char *DefaultPrivateKeyPathCP = "../../simulation/CP/private_key.pem";
+const char *DefaultPublicKeyPathCP = "../../simulation/CP/public_key.pem";
+
+/*! Relative to upnp/sample */
+const char *RegisterDocsDefaultFilepathCP[SUPNP_DOCS_ON_DEVICE] = {
+    "../../simulation/CP/sad.json",
+    "../../simulation/CP/certificate.pem",
+    "../../simulation/UCA/certificate.pem"
+};
+
+#endif
 
 /*!
  * Mutex for protecting the global device list in a multi-threaded,
@@ -55,6 +71,8 @@
 ithread_mutex_t DeviceListMutex;
 
 UpnpClient_Handle ctrlpt_handle = -1;
+
+static const int SEARCH_TIME = 10;
 
 /*! Device type for tv device. */
 const char TvDeviceType[] = "urn:schemas-upnp-org:device:tvdevice:1";
@@ -232,11 +250,12 @@ int TvCtrlPointRefresh(void)
 	int rc;
 
 	TvCtrlPointRemoveAll();
+
 	/* Search for all devices of type tvdevice version 1,
 	 * waiting for up to 5 seconds for the response */
-	rc = UpnpSearchAsync(ctrlpt_handle, 5, TvDeviceType, NULL);
+	rc = UpnpSearchAsync(ctrlpt_handle, SEARCH_TIME, TvDeviceType, NULL);
 	if (UPNP_E_SUCCESS != rc) {
-		SampleUtil_Print("Error sending search request%d\n", rc);
+		SampleUtil_Print("Error sending search request (%d)\n", rc);
 
 		return TV_ERROR;
 	}
@@ -652,8 +671,7 @@ int TvCtrlPointPrintDevice(int devnum)
  *   expires -- The expiration time for this advertisement
  *
  ********************************************************************************/
-void TvCtrlPointAddDevice(
-	IXML_Document *DescDoc, const char *location, int expires)
+void TvCtrlPointAddDevice(IXML_Document *DescDoc, const char *location, int expires)
 {
 	char *deviceType = NULL;
 	char *friendlyName = NULL;
@@ -877,9 +895,7 @@ void TvStateUpdate(
 								" Variable "
 								"Name: %s New "
 								"Value:'%s'\n",
-								TvVarName
-									[Service]
-									[j],
+								TvVarName[Service][j],
 								State[j]);
 						}
 						if (tmpstate)
@@ -1018,6 +1034,7 @@ void TvCtrlPointHandleGetVar(
 	ithread_mutex_unlock(&DeviceListMutex);
 }
 
+
 /********************************************************************************
  * TvCtrlPointCallbackEventHandler
  *
@@ -1032,29 +1049,25 @@ void TvCtrlPointHandleGetVar(
  *   Cookie -- Optional data specified during callback registration
  *
  ********************************************************************************/
-int TvCtrlPointCallbackEventHandler(
-	Upnp_EventType EventType, const void *Event, void *Cookie)
+int TvCtrlPointCallbackEventHandler(Upnp_EventType EventType, const void *Event, void *Cookie)
 {
 	int errCode = 0;
-	(void)Cookie;
+    (void) Cookie;
 
 	SampleUtil_PrintEvent(EventType, Event);
 	switch (EventType) {
 	/* SSDP Stuff */
 	case UPNP_DISCOVERY_ADVERTISEMENT_ALIVE:
 	case UPNP_DISCOVERY_SEARCH_RESULT: {
-		const UpnpDiscovery *d_event = (UpnpDiscovery *)Event;
-		IXML_Document *DescDoc = NULL;
-		const char *location = NULL;
-		int errCode = UpnpDiscovery_get_ErrCode(d_event);
-
-		if (errCode != UPNP_E_SUCCESS) {
-			SampleUtil_Print(
-				"Error in Discovery Callback -- %d\n", errCode);
-		}
-
-		location = UpnpString_get_String(
-			UpnpDiscovery_get_Location(d_event));
+	    const UpnpDiscovery *d_event = (UpnpDiscovery *)Event;
+	    IXML_Document *DescDoc = NULL;
+	    const char *location = NULL;
+	    errCode = UpnpDiscovery_get_ErrCode(d_event);
+	    if (errCode != UPNP_E_SUCCESS) {
+	        SampleUtil_Print("Error in Discovery Callback -- %d\n", errCode);
+	        break;
+	    }
+		location = UpnpString_get_String(UpnpDiscovery_get_Location(d_event));
 		errCode = UpnpDownloadXmlDoc(location, &DescDoc);
 		if (errCode != UPNP_E_SUCCESS) {
 			SampleUtil_Print("Error obtaining device description "
@@ -1062,14 +1075,19 @@ int TvCtrlPointCallbackEventHandler(
 				location,
 				errCode);
 		} else {
-			TvCtrlPointAddDevice(DescDoc,
-				location,
-				UpnpDiscovery_get_Expires(d_event));
+#if ENABLE_SUPNP
+		    if (strcmp(GetFirstElementItem((IXML_Element*)DescDoc, "deviceType"), RaDeviceType) == 0 ) {
+		        freeif2(DescDoc, ixmlDocument_free);
+		        break; /* ignore ra device */
+		    }
+#endif
+			TvCtrlPointAddDevice(DescDoc, location,	UpnpDiscovery_get_Expires(d_event));
 		}
 		if (DescDoc) {
 			ixmlDocument_free(DescDoc);
 		}
 		TvCtrlPointPrintList();
+
 		break;
 	}
 	case UPNP_DISCOVERY_SEARCH_TIMEOUT:
@@ -1077,7 +1095,7 @@ int TvCtrlPointCallbackEventHandler(
 		break;
 	case UPNP_DISCOVERY_ADVERTISEMENT_BYEBYE: {
 		UpnpDiscovery *d_event = (UpnpDiscovery *)Event;
-		int errCode = UpnpDiscovery_get_ErrCode(d_event);
+		errCode = UpnpDiscovery_get_ErrCode(d_event);
 		const char *deviceId = UpnpString_get_String(
 			UpnpDiscovery_get_DeviceID(d_event));
 
@@ -1095,7 +1113,7 @@ int TvCtrlPointCallbackEventHandler(
 	/* SOAP Stuff */
 	case UPNP_CONTROL_ACTION_COMPLETE: {
 		UpnpActionComplete *a_event = (UpnpActionComplete *)Event;
-		int errCode = UpnpActionComplete_get_ErrCode(a_event);
+		errCode = UpnpActionComplete_get_ErrCode(a_event);
 		if (errCode != UPNP_E_SUCCESS) {
 			SampleUtil_Print(
 				"Error in  Action Complete Callback -- %d\n",
@@ -1107,7 +1125,7 @@ int TvCtrlPointCallbackEventHandler(
 	}
 	case UPNP_CONTROL_GET_VAR_COMPLETE: {
 		UpnpStateVarComplete *sv_event = (UpnpStateVarComplete *)Event;
-		int errCode = UpnpStateVarComplete_get_ErrCode(sv_event);
+		errCode = UpnpStateVarComplete_get_ErrCode(sv_event);
 		if (errCode != UPNP_E_SUCCESS) {
 			SampleUtil_Print(
 				"Error in Get Var Complete Callback -- %d\n",
@@ -1260,6 +1278,30 @@ void *TvCtrlPointTimerLoop(void *args)
 	return NULL;
 }
 
+#if ENABLE_SUPNP
+int RegistrationCallbackCP(void *Cookie)
+{
+    ithread_t timer_thread;
+    int rc = UpnpRegisterClient(TvCtrlPointCallbackEventHandler,
+        &ctrlpt_handle,
+        &ctrlpt_handle);
+    if (rc != UPNP_E_SUCCESS) {
+        SampleUtil_Print("Error registering CP: %d\n", rc);
+        UpnpFinish();
+        return TV_ERROR;
+    }
+    SampleUtil_Print("Control Point Registered with UPnP SDK\n");
+
+    TvCtrlPointRefresh();
+
+    /* start a timer thread */
+    ithread_create(&timer_thread, NULL, TvCtrlPointTimerLoop, NULL);
+    ithread_detach(timer_thread);
+
+    return TV_SUCCESS;
+}
+#endif
+
 /*!
  * \brief Call this function to initialize the UPnP library and start the TV
  * Control Point.  This function creates a timer thread and provides a
@@ -1302,7 +1344,22 @@ int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo)
 		UpnpGetServerPort6(),
 		UpnpGetServerUlaGuaIp6Address(),
 		UpnpGetServerUlaGuaPort6());
+
 	SampleUtil_Print("Registering Control Point\n");
+#if ENABLE_SUPNP
+    rc = SupnpRegisterDevice(DefaultPublicKeyPathCP,
+        DefaultPrivateKeyPathCP,
+        RegisterDocsDefaultFilepathCP,
+        NULL,
+        10 /* timeout */, RegistrationCallbackCP, NULL);
+    if (rc != SUPNP_E_SUCCESS) {
+        SampleUtil_Print("Error registering CP with RA: %d\n", rc);
+        UpnpFinish();
+        return TV_ERROR;
+    }
+
+#else
+
 	rc = UpnpRegisterClient(TvCtrlPointCallbackEventHandler,
 		&ctrlpt_handle,
 		&ctrlpt_handle);
@@ -1315,11 +1372,13 @@ int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo)
 
 	SampleUtil_Print("Control Point Registered\n");
 
+
 	TvCtrlPointRefresh();
 
 	/* start a timer thread */
 	ithread_create(&timer_thread, NULL, TvCtrlPointTimerLoop, NULL);
 	ithread_detach(timer_thread);
+#endif
 
 	return TV_SUCCESS;
 }

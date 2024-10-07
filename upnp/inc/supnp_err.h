@@ -14,7 +14,7 @@
 #include "UpnpGlobal.h" /* for UPNP_EXPORT_SPEC */
 #include "upnpconfig.h"
 
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
 
 #ifdef __cplusplus
 extern "C" {

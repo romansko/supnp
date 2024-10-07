@@ -54,6 +54,28 @@
 
 #define DESC_URL_SIZE 200
 
+#if ENABLE_SUPNP
+
+#include <file_utils.h>
+
+const char *DefaultPrivateKeyPathSD = "../../simulation/SD/private_key.pem";
+const char *DefaultPublicKeyPathSD = "../../simulation/SD/public_key.pem";
+
+/*! Relative to upnp/sample */
+const char *RegisterDocsDefaultFilepathSD[SUPNP_DOCS_ON_DEVICE] = {
+    "../../simulation/SD/dsd.json",
+    "../../simulation/SD/certificate.pem",
+    "../../simulation/UCA/certificate.pem"
+};
+
+typedef struct RegistrationCallbackParams_
+{
+    int address_family;
+    char *desc_doc_url;
+}RegistrationCallbackParams;
+
+#endif
+
 /*! Global arrays for storing Tv Control Service variable names, values,
  * and defaults. */
 const char *tvc_varname[] = {"Power", "Channel", "Volume"};
@@ -1394,6 +1416,32 @@ int TvDeviceCallbackEventHandler(
 	return 0;
 }
 
+#if ENABLE_SUPNP
+int RegistrationCallbackSD(void *Cookie)
+{
+    RegistrationCallbackParams *params = Cookie;
+    int ret = UpnpRegisterRootDevice3(params->desc_doc_url,
+        TvDeviceCallbackEventHandler,
+        &device_handle,
+        &device_handle,
+        params->address_family);
+    sample_verify(ret == UPNP_E_SUCCESS, cleanup, "Error registering the rootdevice : %d\n", ret);
+
+    SampleUtil_Print("RootDevice Registered\nInitializing State Table\n");
+    TvDeviceStateTableInit(params->desc_doc_url);
+    SampleUtil_Print("State Table Initialized\n");
+    ret = UpnpSendAdvertisement(device_handle, default_advr_expire);
+    sample_verify(ret == UPNP_E_SUCCESS, cleanup, "Error sending advertisements : %d\n", ret);
+    SampleUtil_Print("Advertisements Sent\n");
+cleanup:
+    if (ret != UPNP_E_SUCCESS)
+        UpnpFinish();
+    freeif(params->desc_doc_url);
+    freeif(params);
+    return ret;
+}
+#endif
+
 int TvDeviceStart(char *iface,
 	unsigned short port,
 	const char *desc_doc_name,
@@ -1406,10 +1454,13 @@ int TvDeviceStart(char *iface,
 	char desc_doc_url[DESC_URL_SIZE];
 	char *ip_address = NULL;
 	int address_family = AF_INET;
+#if ENABLE_SUPNP
+    RegistrationCallbackParams *params = NULL;
+#endif
 
 	ithread_mutex_init(&TVDevMutex, NULL);
 	UpnpSetLogFileNames(NULL, NULL);
-	UpnpSetLogLevel(UPNP_ALL);
+	UpnpSetLogLevel(UPNP_ERROR);
 	UpnpInitLog();
 	SampleUtil_Initialize(pfun);
 	SampleUtil_Print("Initializing UPnP Sdk with\n"
@@ -1492,6 +1543,28 @@ int TvDeviceStart(char *iface,
 	SampleUtil_Print("Registering the RootDevice\n"
 			 "\t with desc_doc_url: %s\n",
 		desc_doc_url);
+
+#if ENABLE_SUPNP
+
+    params = malloc(sizeof(RegistrationCallbackParams));
+    sample_verify(params, cleanup, "Unable to allocate memory for callback params\n");
+    params->desc_doc_url = strdup(desc_doc_url);
+    params->address_family = address_family;
+
+    ret = SupnpRegisterDevice(DefaultPublicKeyPathSD,
+        DefaultPrivateKeyPathSD,
+        RegisterDocsDefaultFilepathSD,
+        desc_doc_url,
+        10 /* timeout */, RegistrationCallbackSD, params);
+    sample_verify(ret == SUPNP_E_SUCCESS, cleanup, "Error registering CP with RA: %d\n", ret);
+    return UPNP_E_SUCCESS;
+
+cleanup:
+    freeif(params->desc_doc_url);
+    freeif(params);
+    return ret;
+
+#else
 	ret = UpnpRegisterRootDevice3(desc_doc_url,
 		TvDeviceCallbackEventHandler,
 		&device_handle,
@@ -1504,22 +1577,23 @@ int TvDeviceStart(char *iface,
 
 		return ret;
 	} else {
-		SampleUtil_Print("RootDevice Registered\n"
-				 "Initializing State Table\n");
-		TvDeviceStateTableInit(desc_doc_url);
-		SampleUtil_Print("State Table Initialized\n");
-		ret = UpnpSendAdvertisement(device_handle, default_advr_expire);
-		if (ret != UPNP_E_SUCCESS) {
-			SampleUtil_Print(
-				"Error sending advertisements : %d\n", ret);
-			UpnpFinish();
+	    SampleUtil_Print("RootDevice Registered\n"
+	        "Initializing State Table\n");
+	    TvDeviceStateTableInit(desc_doc_url);
+	    SampleUtil_Print("State Table Initialized\n");
+	    ret = UpnpSendAdvertisement(device_handle, default_advr_expire);
+	    if (ret != UPNP_E_SUCCESS) {
+	        SampleUtil_Print(
+                "Error sending advertisements : %d\n", ret);
+	        UpnpFinish();
 
-			return ret;
-		}
-		SampleUtil_Print("Advertisements Sent\n");
+	        return ret;
+	    }
+	    SampleUtil_Print("Advertisements Sent\n");
 	}
-
-	return UPNP_E_SUCCESS;
+    ret = UPNP_E_SUCCESS;
+    return ret;
+#endif
 }
 
 int TvDeviceStop(void)

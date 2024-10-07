@@ -43,6 +43,43 @@
 #ifdef INCLUDE_DEVICE_APIS
 
 	#if EXCLUDE_GENA == 0
+
+/* Description Document related */
+const char* STR_SERVICE = "service";
+const char* STR_SERVICE_ID = "serviceId";
+const char* STR_SERVICE_TYPE = "serviceType";
+const char* STR_SERVICE_LIST = "serviceList";
+
+/* https://openconnectivity.org/upnp-specs/UPnP-arch-DeviceArchitecture-v2.0-20200417.pdf#page=52 */
+const char* FORMAT_SERVICE_ID = "urn:upnp-org:serviceId:%s";
+const char* FORMAT_SERVICE_TYPE = "urn:schemas-upnp-org:service:%[^:]:%d";
+
+/************************************************************************
+ *	Function :	CountServices
+ *
+ *	Parameters :
+ *		service_table *table ;	Service Table
+ *
+ *	Description :	Count the number of services in the service table
+ *
+ *	Return : int ;
+ *		number of services in the service table
+ *
+ *	Note :
+ ************************************************************************/
+int CountServices(const service_table *table)
+{
+    size_t count = 0;
+    const service_info *service = table->serviceList;
+
+    while (service) {
+        count++;
+        service = service->next;
+    }
+
+    return count;
+}
+
 /************************************************************************
  *	Function :	copy_subscription
  *

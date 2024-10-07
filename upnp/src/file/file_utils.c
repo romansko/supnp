@@ -1,6 +1,10 @@
 #include "file_utils.h"
 #include <stdlib.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Internal error logging macro
  */
@@ -114,3 +118,8 @@ cleanup:
     macro_file_close(fp);
     return ret;
 }
+
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */

@@ -11,7 +11,7 @@
  */
 #include "upnpconfig.h"
 
-#ifdef UPNP_ENABLE_OPEN_SSL
+#if UPNP_ENABLE_OPEN_SSL
 
 #include "openssl_wrapper.h"
 #include "file_utils.h"
@@ -145,8 +145,8 @@ unsigned char* hex_string_to_binary(const char* hex, size_t* dsize)
     w_verify(hex, cleanup, "NULL hex string provided.\n");
     w_verify(dsize, cleanup, "NULL data size ptr.\n");
     const size_t hex_len = strlen(hex);
+    w_verify((hex_len % 2 == 0) && (hex_len > 0), cleanup, "Invalid hex string length.\n");
     *dsize = hex_len / 2;
-    w_verify((*dsize % 2 == 0) && (*dsize > 0), cleanup, "Invalid hex string length.\n");
     binary = malloc(*dsize);
     w_verify(binary, cleanup, "Error allocating memory for binary data.\n");
     for (size_t i = 0; i < hex_len; i += 2)
@@ -166,19 +166,49 @@ cleanup:
  */
 EVP_PKEY* load_public_key_from_hex(const char* hex)
 {
-    EVP_PKEY* pubkey = NULL;
+    EVP_PKEY* pkey = NULL;
     size_t dsize = 0;
     unsigned char* bin = hex_string_to_binary(hex, &dsize);
     w_verify(bin, cleanup, "Error converting public key hex string.\n");
     const unsigned char* bin_copy = bin;
-    pubkey = d2i_PUBKEY(NULL, &bin_copy, dsize);
-    /* Use SubjectPublicKeyInfo format */
+    pkey = d2i_PUBKEY(NULL, &bin_copy, (long)dsize);
     free(bin);
-    w_verify(pubkey, cleanup, "Error loading public key\n");
+    w_verify(pkey, cleanup, "Error loading public key\n");
 cleanup:
-    return pubkey; /* Remember to EVP_PKEY_free(pubkey); */
+    return pkey; /* Remember to EVP_PKEY_free(pkey); */
 }
 
+
+/**
+ * Load a private key from a hex string.
+ * The caller is responsible for freeing the public key.
+ * @param hex a hex string representing a private key
+ * @return a EVP_PKEY * private key on success, NULL on failure
+ */
+EVP_PKEY* load_private_key_from_hex(const char* hex)
+{
+    EVP_PKEY* pkey = NULL;
+    size_t dsize = 0;
+    unsigned char* bin = hex_string_to_binary(hex, &dsize);
+    w_verify(bin, cleanup, "Error converting public key hex string.\n");
+    const unsigned char* bin_copy = bin;
+    pkey = d2i_PrivateKey(EVP_PKEY_RSA, NULL, &bin_copy, (long)dsize);
+    free(bin);
+    w_verify(pkey, cleanup, "Error loading private key\n");
+    cleanup:
+        return pkey; /* Remember to EVP_PKEY_free(pkey); */
+}
+
+
+/**
+ * Helper function to free a PKEY.
+ * @param key a PKEY
+ */
+void free_key(EVP_PKEY* key)
+{
+    if(key)
+        EVP_PKEY_free(key);
+}
 
 /**
  * Convert a public key to bytes.
@@ -257,6 +287,27 @@ cleanup:
 }
 
 /**
+ * Load a certificate object from string.
+ * The caller is responsible for freeing the certificate.
+ * @param cert_str certificate string
+ * @return a X509 * certificate on success, NULL on failure
+ */
+X509* load_certificate_from_str(const char* cert_str)
+{
+    X509* cert = NULL;
+    BIO *bio = BIO_new_mem_buf((void *)cert_str, -1); // -1 = compute strlen
+    w_verify(bio, cleanup, "Error creating BIO\n");
+    cert = PEM_read_bio_X509(bio, NULL, NULL, NULL); // allocates new X509
+    w_verify(cert, cleanup, "Error reading X509 certificate from string\n");
+
+cleanup:
+    w_freeif(bio, BIO_free);
+    BIO_free(bio); // Clean up BIO
+
+    return cert; /* Remember to X509_free(cert); */
+}
+
+/**
  * Load a certificate from a PEM file.
  * The caller is responsible for freeing the certificate.
  * @param pem_file_path a path to a PEM file
@@ -275,7 +326,8 @@ cleanup:
 }
 
 /**
- * Verify certificate.
+ * Verifies the signature of a certificate using public key.
+ * Only the signature is checked: no other checks (such as certificate chain validity) are performed.
  * @param cert_name Certificate's name
  * @param cert a certificate
  * @param pkey a public key corresponding to the entity that signed the certificate
@@ -284,11 +336,11 @@ cleanup:
 int verify_certificate(const char* cert_name, X509* cert, EVP_PKEY* pkey)
 {
     int ret = OPENSSL_FAILURE;
-    //w_log("Verifying '%s''s certificate..\n", name);  // todo upnp log debug
+    w_log("Verifying '%s''s certificate..\n", cert_name);  // todo upnp log debug
     w_verify(cert_name, cleanup, "Empty certificate name provided.\n");
     w_verify(cert, cleanup, "Empty certificate provided.\n");
     w_verify(pkey, cleanup, "Empty CA public key provided.\n");
-    ret = X509_verify(cert, pkey);  // todo: Should use X509_verify_cert instead of X509_verify ?
+    ret = X509_verify(cert, pkey);
     w_verify(ret == OPENSSL_SUCCESS, cleanup, "'%s' certificate verification error\n", cert_name);
 cleanup:
     return ret;
@@ -307,7 +359,7 @@ int verify_signature(const char* sig_name, EVP_PKEY* pkey, const char* hex_sig, 
 {
     int ret = OPENSSL_FAILURE;
     unsigned char* sig = NULL;
-    EVP_MD_CTX* ctx = NULL;
+    EVP_MD_CTX* mdctx = NULL;
     size_t sig_size = 0;
 
     // Arguments Verification
@@ -317,21 +369,21 @@ int verify_signature(const char* sig_name, EVP_PKEY* pkey, const char* hex_sig, 
     w_verify(dsize > 0, cleanup, "Invalid data size provided.\n");
 
     // Initialize context
-    ctx = EVP_MD_CTX_new();
-    w_verify(ctx, cleanup, "'%s': Error creating EVP_MD_CTX.\n", sig_name);
-    ret = EVP_DigestVerifyInit(ctx, NULL, EVP_sha256(), NULL, pkey);
+    mdctx = EVP_MD_CTX_new();
+    w_verify(mdctx, cleanup, "'%s': Error creating EVP_MD_CTX.\n", sig_name);
+    ret = EVP_DigestVerifyInit(mdctx, NULL, EVP_sha256(), NULL, pkey);
     w_verify(ret == OPENSSL_SUCCESS, cleanup, "'%s':", sig_name);
-    ret = EVP_DigestVerifyUpdate(ctx, data, dsize);
+    ret = EVP_DigestVerifyUpdate(mdctx, data, dsize);
     w_verify(ret == OPENSSL_SUCCESS, cleanup, "'%s':", sig_name);
     sig = hex_string_to_binary(hex_sig, &sig_size);
     w_verify(sig, cleanup, "Failed to convert hex signature to bytes.\n");
 
     // Verify signature
-    ret = EVP_DigestVerifyFinal(ctx, sig, (strlen(hex_sig) / 2));
+    ret = EVP_DigestVerifyFinal(mdctx, sig, sig_size);
     w_verify(ret == OPENSSL_SUCCESS, cleanup, "'%s':", sig_name);
 
 cleanup:
-    w_freeif(ctx, EVP_MD_CTX_free);
+    w_freeif(mdctx, EVP_MD_CTX_free);
     w_freeif(sig, free);
 
     return ret;
@@ -349,7 +401,7 @@ cleanup:
  */
 unsigned char* encrypt_sym(const unsigned char* pkey, int* enc_size, const unsigned char* data, size_t dsize)
 {
-    const unsigned char* _IV = (const unsigned char*)IV; /* Change IV */
+    const unsigned char* iv = (const unsigned char*)IV; /* Change IV */
     unsigned char* encrypted = NULL;
     EVP_CIPHER_CTX* ctx = NULL;
     int final_len = 0; /* Only for final stage encyption */
@@ -361,7 +413,7 @@ unsigned char* encrypt_sym(const unsigned char* pkey, int* enc_size, const unsig
     // Initialize context
     ctx = EVP_CIPHER_CTX_new();
     w_verify(ctx, cleanup, "Error creating EVP_CIPHER_CTX.\n");
-    w_verify( EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, pkey, _IV) == OPENSSL_SUCCESS, cleanup,
+    w_verify( EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, pkey, iv) == OPENSSL_SUCCESS, cleanup,
         "Encryption error.\n");
 
     // Encryption
@@ -395,7 +447,7 @@ cleanup:
  */
 unsigned char* decrypt_sym(const unsigned char* pkey, int* p_dec_size, const unsigned char* encrypted, const size_t enc_size)
 {
-    const unsigned char* _IV = (const unsigned char*)IV; /* Change IV */
+    const unsigned char* iv = (const unsigned char*)IV; /* Change IV */
     int dec_size = 0;
     unsigned char* decrypted = NULL;
     EVP_CIPHER_CTX* ctx = NULL;
@@ -408,7 +460,7 @@ unsigned char* decrypt_sym(const unsigned char* pkey, int* p_dec_size, const uns
     // Initialize context
     ctx = EVP_CIPHER_CTX_new();
     w_verify(ctx, cleanup, "Error creating EVP_CIPHER_CTX.\n");
-    w_verify( EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, pkey, _IV) == OPENSSL_SUCCESS, cleanup,
+    w_verify( EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, pkey, iv) == OPENSSL_SUCCESS, cleanup,
         "Decryption error.\n");
 
     // Decryption
@@ -581,25 +633,42 @@ cleanup:
  * @param pkey private key
  * @param data data to be signed
  * @param dsize size of data
+ * @param signature_len the size of the returned signature
  * @return signed data on success, NULL on failure
  */
-unsigned char* sign(EVP_PKEY* pkey, const unsigned char* data, const size_t dsize)
+unsigned char* sign(EVP_PKEY* pkey, const unsigned char* data, const size_t dsize, size_t *signature_len)
 {
     int ret = OPENSSL_FAILURE;
-    unsigned char hash[SHA256_DIGEST_LENGTH];
-    unsigned char* signed_data = NULL;
+    unsigned char* signature = NULL;
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
 
-    ret = do_sha256(hash, data, dsize);
-    w_verify(ret == OPENSSL_SUCCESS, error, "SHA256 calculation failed\n");
+    // Initialize the context for signing with the private key
+    ret = EVP_DigestSignInit(mdctx, NULL, EVP_sha256(), NULL, pkey);
+    w_verify(ret == OPENSSL_SUCCESS, error, "Error initializing signing context\n");
 
-    signed_data = encrypt_asym(pkey, NULL, hash, SHA256_DIGEST_LENGTH);
-    w_verify(signed_data, error, "Signing Cap Token content failed\n");
+    // Add data to be signed
+    ret = EVP_DigestSignUpdate(mdctx, data, dsize);
+    w_verify(ret == OPENSSL_SUCCESS, error, "Error adding data to be signed\n");
+
+    // Determine the length of the signature
+    ret = EVP_DigestSignFinal(mdctx, NULL, signature_len);
+    w_verify(ret == OPENSSL_SUCCESS, error, "Error determining signature length\n");
+
+    // Allocate memory for the signature
+    signature = malloc(*signature_len);
+    w_verify(signature, error, "Error allocating memory for signature\n");
+
+    // Generate the signature
+    ret = EVP_DigestSignFinal(mdctx, signature, signature_len);
+    w_verify(ret == OPENSSL_SUCCESS, error, "Error generating signature\n");
+
     goto success;
 
 error:
-    w_freeif(signed_data, free);
+    w_freeif(signature, free);
 success:
-    return signed_data;
+    w_freeif(mdctx, EVP_MD_CTX_free);
+    return signature;
 }
 
 #ifdef __cplusplus

@@ -13,7 +13,9 @@
 #include "UpnpGlobal.h" /* for UPNP_EXPORT_SPEC */
 #include "upnpconfig.h"
 
-#ifdef ENABLE_SUPNP
+#include <stddef.h>
+
+#if ENABLE_SUPNP
 
 /* Forward decleration */
 typedef struct evp_pkey_st EVP_PKEY;
@@ -43,7 +45,7 @@ extern "C" {
 
 UPNP_EXPORT_SPEC cJSON* string_to_json_string(char* string);
 
-UPNP_EXPORT_SPEC cJSON* bytes_to_json_string(unsigned char* bytes);
+UPNP_EXPORT_SPEC cJSON* bytes_to_json_string(unsigned char* bytes, size_t size);
 
 UPNP_EXPORT_SPEC cJSON* get_timestamp();
 

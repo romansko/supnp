@@ -1,5 +1,5 @@
 /*!
-* \addtogroup SUPnP
+ * \addtogroup SUPnP
  *
  * \file supnp.h
  *
@@ -16,18 +16,125 @@
 #include "UpnpGlobal.h" /* for UPNP_EXPORT_SPEC */
 #include "upnpconfig.h"
 
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "supnp_device.h"
+
+typedef int (*SUpnp_FunPtr)(
+	/*! [in] .*/
+	void *Cookie);
+
+/*! Registration status */
+typedef enum _ERegistrationStatus
+{
+	SUPNP_DEVICE_UNREGISTERED = 0,
+	SUPNP_DEVICE_REGISTERED
+}ERegistrationStatus;
+
+
+// todo: A participant may request RA certificate
+// todo: Retrieve captoken as a service? or response to registration.
+
+/*! Registration Authority services. */
+typedef enum _ERAServiceType
+{
+	/*! Registration Services. */
+	RA_SERVICE_REGISTER = 0,
+
+	/*! Number of services. */
+	RA_SERVICE_COUNT
+}ERAServiceType;
+
+typedef enum _ERARegisterServiceActions
+{
+	/*! Register action. */
+	RA_ACTIONS_REGISTER = 0,
+
+	/*!< Challenge action. */
+	RA_ACTIONS_CHALLENGE,
+
+	/*! Number of actions. */
+	RA_REGISTER_SERVICE_ACTIONS
+}ERARegisterServiceActions;
+
+/*! Registration service action Register variables. */
+typedef enum _ERARegisterActionVariables
+{
+	/*! Specification Document hex string */
+	RA_REGISTER_SPEC_DOC = 0,
+
+	/*! Device Certificate hex string */
+	RA_REGISTER_CERT_DEVICE,
+
+	/*! UCA Certificate hex string */
+	RA_REGISTER_CERT_UCA,
+
+	/*! Description document URL, applicable only for SD */
+	RA_REGISTER_DESC_DOC_URL,
+
+	/*! Number of variables. */
+	RA_REGISTER_VARCOUNT
+
+}ERARegisterActionVariables;
+
+/*! Number of documents without desc doc url */
+enum { SUPNP_DOCS_ON_DEVICE = (RA_REGISTER_VARCOUNT - 1) };
+
+/*! Registration service action Chalenge variables. */
+typedef enum _ERAChallengeActionVariables
+{
+	/*! Challenge response hex string */
+	CHALLENGE_ACTION_RESPONSE = 0,
+
+	/*! Public key hex string */
+	CHALLENGE_ACTION_PUBLICKEY,
+
+	/*! Number of variables. */
+	CHALLENGE_ACTION_VARCOUNT
+
+}ERAChallengeActionVariables;
+
+typedef struct _RegistrationParams
+{
+	int handle; /* Registration handle */
+	SUpnp_FunPtr callback;  /* To call upon successful registration */
+	void *callback_cookie;
+    const char *publicKeyPath;
+    const char *privateKeyPath;
+    const char *RegistrationDocsPath[SUPNP_DOCS_ON_DEVICE];
+	char *desc_doc_uri;       /* Only for SD */
+}RegistrationParams;
+
+static const char *RaDeviceType = "urn:schemas-upnp-org:device:ra:1";
+static const char *RaServiceType[RA_SERVICE_COUNT] = {
+	"urn:schemas-upnp-org:service:registration:1"
+};
+static const char *RaRegistrationAction[RA_REGISTER_SERVICE_ACTIONS] = {
+	"Register",
+	"Challenge"
+};
+static const char *RaRegisterVarName[RA_REGISTER_VARCOUNT] = {
+	"SpecificationDocument",
+	"CertificateDevice",
+	"CertificateUCA",
+	"DescriptionDocumentURL"
+};
+static const char *RaActionChallengeVarName[CHALLENGE_ACTION_VARCOUNT] = {
+	"ChallengeResponse",
+	"PublicKey"
+};
+static const char *RaResponseVarName = "VerificationResponse";
+static const char *RaResponseSuccess = "1";
 
 
 /* Forward declaration */
 typedef struct evp_pkey_st EVP_PKEY;
 typedef struct x509_st X509;
 typedef struct cJSON cJSON;
-typedef struct _supnp_device_t supnp_device_t;
 typedef struct _IXML_Document IXML_Document;
 typedef struct _IXML_NodeList IXML_NodeList;
 
@@ -36,16 +143,16 @@ typedef struct _IXML_NodeList IXML_NodeList;
  *
  * @{
  */
-#define SUPNP_DOC_TYPE        "TYPE"
-#define SUPNP_DOC_NAME        "NAME"
-#define SUPNP_DOC_PUBLIC_KEY  "PK"
-#define SUPNP_DOC_SERVICES    "SERVICES"
-#define SUPNP_DOC_SIG_OWNER   "SIG-OWNER"
-#define SUPNP_DOC_SIG_UCA     "SIG-UCA"
-#define SUPNP_DOC_SIG_CON     "SIG-VER-CON"   /* Signature Verification Conditions */
-#define SUPNP_DOC_SIGNATURES  "SIGS"
-#define SUPNP_HARDWARE_DESC   "HW"
-#define SUPNP_SOFTWARE_DESC   "SW"
+#define SUPNP_DOC_TYPE "TYPE"
+#define SUPNP_DOC_NAME "NAME"
+#define SUPNP_DOC_PUBLIC_KEY "PK"
+#define SUPNP_DOC_SERVICES "SERVICES"
+#define SUPNP_DOC_SIG_OWNER "SIG-OWNER"
+#define SUPNP_DOC_SIG_UCA "SIG-UCA"
+#define SUPNP_DOC_SIG_CON "SIG-VER-CON" /* Signature Verification Conditions */
+#define SUPNP_DOC_SIGNATURES "SIGS"
+#define SUPNP_HARDWARE_DESC "HW"
+#define SUPNP_SOFTWARE_DESC "SW"
 /* @} SUPnPDocumentkeys */
 
 /*!
@@ -81,8 +188,8 @@ typedef struct _IXML_NodeList IXML_NodeList;
 #define SUPNP_E_INVALID_ARGUMENT (-601)
 
 /*!
- * \brief The filename passed to one of the device registration functions was
- * not found or was not accessible.
+ * \brief The filename passed to one of the device registration functions
+ * was not found or was not accessible.
  */
 #define SUPNP_E_FILE_NOT_FOUND (-602)
 
@@ -103,6 +210,7 @@ typedef struct _IXML_NodeList IXML_NodeList;
 
 /* @} SUPnPErrorCodes */
 
+
 /*!
  * \brief Initialize SUPnP secure layer.
  *
@@ -111,27 +219,34 @@ typedef struct _IXML_NodeList IXML_NodeList;
 UPNP_EXPORT_SPEC int SUpnpInit();
 
 /*!
- * \brief extract service list from DSD / SAD document.
+ * \brief Retrieve the first element item by name.
  *
- * \Note The caller is responsible for freeing the returned list. (ixmlNodeList_free)
- *
- * \return pointer to service list on success, NULL on failure.
+ * \return The element item's value as a string.
  */
-UPNP_EXPORT_SPEC IXML_NodeList* get_xml_service_list(IXML_Document* doc);
+UPNP_EXPORT_SPEC char *GetFirstElementItem(IXML_Element *element, const char *item);
 
 /*!
  * \brief Verify DSD / SAD document.
  *
  * \return SUPNP_E_SUCCESS on success, SUPNP_E_INVALID_CERTIFICATE on failure.
  */
-UPNP_EXPORT_SPEC int verify_supnp_document(EVP_PKEY *ca_pkey, X509 *uca_cert, const supnp_device_t *dev);
+UPNP_EXPORT_SPEC int SUpnpVerifyDocument(EVP_PKEY *ca_pkey, supnp_device_t *dev);
 
-/* Temporary function for testing */
-UPNP_EXPORT_SPEC void test_nonce_encryption(EVP_PKEY* pk, EVP_PKEY* sk);
-UPNP_EXPORT_SPEC void test_captoken_generation(const supnp_device_t* dev, EVP_PKEY* ra_sk);
 
-UPNP_EXPORT_SPEC void SUpnp_test_registration();
-/**/
+UPNP_EXPORT_SPEC int SupnpRegisterDevice(const char *pk_path,
+	const char *sk_path,
+    const char *RegistrationDocsPath[],
+    const char *desc_doc_uri,
+    int timeout,
+    SUpnp_FunPtr callback,
+    void *callback_cookie);
+
+
+UPNP_EXPORT_SPEC void SupnpFreeRegistrationParams(RegistrationParams **params);
+
+/* Internal */
+int SendRAActionRegister(RegistrationParams *params, const char *controlUrl);
+
 
 #ifdef __cplusplus
 }
@@ -139,4 +254,4 @@ UPNP_EXPORT_SPEC void SUpnp_test_registration();
 
 #endif /* ENABLE_SUPNP */
 
-#endif //SUPNP_H
+#endif // SUPNP_H

@@ -40,7 +40,6 @@
 #define SAMPLE_UTIL_C
 
 #include "sample_util.h"
-
 #include <stdarg.h>
 #include <stdio.h>
 

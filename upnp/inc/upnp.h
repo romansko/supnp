@@ -61,11 +61,11 @@
 	/* Other systems ??? */
 #endif
 
-#ifdef UPNP_ENABLE_OPEN_SSL
+#if UPNP_ENABLE_OPEN_SSL
 	#include <openssl/ssl.h>
 #endif
 
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
 	#include "supnp.h"
 #endif
 
@@ -567,7 +567,7 @@ UPNP_EXPORT_SPEC int UpnpInit2(
  *     \li \c UPNP_E_INIT_FAILED: The SDK initialization
  *             failed for an unknown reason.
  */
-#ifdef UPNP_ENABLE_OPEN_SSL
+#if UPNP_ENABLE_OPEN_SSL
 UPNP_EXPORT_SPEC int UpnpInitSslContext(
 	/*! If set to 1 initializes the OpenSSL library. Otherwise the
 	 * application is responsible for initializing it. If set to 1, then

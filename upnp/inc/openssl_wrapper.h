@@ -14,7 +14,7 @@
 #include "upnpconfig.h"
 #include <stddef.h>
 
-#ifdef UPNP_ENABLE_OPEN_SSL
+#if UPNP_ENABLE_OPEN_SSL
 
 #define OPENSSL_API_COMPAT 30000 /* OpenSSL 3.0.0 */
 
@@ -38,6 +38,12 @@ extern "C" {
  * \return OPENSSL_SUCCESS on success, OPENSSL_FAILURE on failure.
  */
 UPNP_EXPORT_SPEC int init_openssl_wrapper();
+
+
+/*!
+ * \brief Helper function to free a PKEY.
+ */
+UPNP_EXPORT_SPEC void free_key(EVP_PKEY* key);
 
 /*!
  * \brief print data as hex.
@@ -65,11 +71,20 @@ UPNP_EXPORT_SPEC unsigned char* hex_string_to_binary(const char* hex, size_t* ds
 /*!
  * \brief Load a public key from hex string.
  *
- * \note Remember to EVP_PKEY_free(loaded_public_key)
+ * \note Remember to EVP_PKEY_free(pkey)
  *
  * \return EVP_PKEY* on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC EVP_PKEY* load_public_key_from_hex(const char* hex);
+
+/*!
+* \brief Load a private key from hex string.
+*
+* \note Remember to EVP_PKEY_free(pkey)
+*
+* \return EVP_PKEY* on success, NULL on failure.
+*/
+UPNP_EXPORT_SPEC EVP_PKEY* load_private_key_from_hex(const char* hex);
 
 /*!
  * \brief Convert public key to bytes.
@@ -107,10 +122,20 @@ UPNP_EXPORT_SPEC EVP_PKEY* load_public_key_from_pem(const char* pem_file_path);
  */
 UPNP_EXPORT_SPEC EVP_PKEY* load_private_key_from_pem(const char* pem_file_path);
 
+
+/*!
+ * \brief Load a certificate from PEM string.
+ *
+ * \note Remember to X509_free(cert)
+ *
+ * \return X509 * certificate on success, NULL on failure.
+ */
+UPNP_EXPORT_SPEC X509* load_certificate_from_str(const char* cert_str);
+
 /*!
  * \brief Load a certificate from PEM file.
  *
- * \note Remember to Remember to X509_free(cert)
+ * \note Remember to X509_free(cert)
  *
  * \return X509 * certificate on success, NULL on failure.
  */
@@ -194,7 +219,7 @@ UPNP_EXPORT_SPEC int do_sha256(unsigned char* hash, const unsigned char* data, s
  *
  * \return pointer to signature on success, NULL on failure.
  */
-UPNP_EXPORT_SPEC unsigned char* sign(EVP_PKEY* pkey, const unsigned char* data, size_t dsize);
+UPNP_EXPORT_SPEC unsigned char* sign(EVP_PKEY* pkey, const unsigned char* data, size_t dsize, size_t *signature_len);
 
 #ifdef __cplusplus
 }

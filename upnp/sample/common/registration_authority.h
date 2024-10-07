@@ -87,17 +87,6 @@ extern "C" {
 #define MAX_CHANNEL 100
 #define MIN_CHANNEL 1
 
-/*! Number of services. */
-#define TV_SERVICE_SERVCOUNT 2
-
-/*! Index of control service */
-#define TV_SERVICE_CONTROL 0
-
-/*! Index of picture service */
-#define TV_SERVICE_PICTURE 1
-
-/*! Number of control variables */
-#define TV_CONTROL_VARCOUNT 3
 
 /*! Index of power variable */
 #define TV_CONTROL_POWER 0
@@ -108,33 +97,19 @@ extern "C" {
 /*! Index of volume variable */
 #define TV_CONTROL_VOLUME 2
 
-/*! Number of picture variables */
-#define TV_PICTURE_VARCOUNT 4
-
-/*! Index of color variable */
-#define TV_PICTURE_COLOR 0
-
-/*! Index of tint variable */
-#define TV_PICTURE_TINT 1
-
-/*! Index of contrast variable */
-#define TV_PICTURE_CONTRAST 2
-
-/*! Index of brightness variable */
-#define TV_PICTURE_BRIGHTNESS 3
-
 /*! Max value length */
-#define TV_MAX_VAL_LEN 5
+#define RA_MAX_VAL_LEN 200
 
 /*! Max actions */
-#define TV_MAXACTIONS 12
+#define RA_MAXACTIONS 12
 
 /*! This should be the maximum VARCOUNT from above */
-#define TV_MAXVARS TV_PICTURE_VARCOUNT
+#define RA_MAXVARS RA_REGISTER_VARCOUNT
 
 #define IP_MODE_IPV4 1
 #define IP_MODE_IPV6_LLA 2
 #define IP_MODE_IPV6_ULA_GUA 3
+
 
 /*!
  * \brief Prototype for all actions. For each action that a service
@@ -155,7 +130,7 @@ typedef int (*upnp_action)(
 	const char **errorString);
 
 /*! Structure for storing Tv Service identifiers and state table. */
-struct TvService
+struct RAService
 {
 	/*! Universally Unique Device Name. */
 	char UDN[NAME_SIZE];
@@ -164,19 +139,19 @@ struct TvService
 	/*! . */
 	char ServiceType[NAME_SIZE];
 	/*! . */
-	const char *VariableName[TV_MAXVARS];
+	const char *VariableName[RA_MAXVARS];
 	/*! . */
-	char *VariableStrVal[TV_MAXVARS];
+	char *VariableStrVal[RA_MAXVARS];
 	/*! . */
-	const char *ActionNames[TV_MAXACTIONS];
+	const char *ActionNames[RA_MAXACTIONS];
 	/*! . */
-	upnp_action actions[TV_MAXACTIONS];
+	upnp_action actions[RA_MAXACTIONS];
 	/*! . */
 	int VariableCount;
 };
 
 /*! Array of service structures */
-extern struct TvService tv_service_table[];
+extern struct RAService ra_service_table[];
 
 /*! Device handle returned from sdk */
 extern UpnpDevice_Handle device_handle;
@@ -185,7 +160,7 @@ extern UpnpDevice_Handle device_handle;
  * in a multi-threaded, asynchronous environment.
  * All functions should lock this mutex before reading
  * or writing the state table data. */
-extern ithread_mutex_t TVDevMutex;
+extern ithread_mutex_t RAMutex;
 
 /*!
  * \brief Initializes the action table for the specified service.
@@ -194,50 +169,40 @@ extern ithread_mutex_t TVDevMutex;
  * Action names are hardcoded.
  */
 int SetActionTable(
-	/*! [in] one of TV_SERVICE_CONTROL or, TV_SERVICE_PICTURE. */
-	int serviceType,
+	/*! [in] RA Service Type. */
+	ERAServiceType serviceType,
 	/*! [in,out] service containing action table to set. */
-	struct TvService *out);
+	struct RAService *out);
 
 /*!
- * \brief Initialize the device state table for this TvDevice, pulling
+ * \brief Initialize the device state table for this RA, pulling
  * identifier info from the description Document.
  *
  * Note that knowledge of the service description is assumed.
  * State table variables and default values are currently hardcoded in
  * this file rather than being read from service description documents.
  */
-int TvDeviceStateTableInit(
+int RAStateTableInit(
 	/*! [in] The description document URL. */
 	char *DescDocURL);
 
 /*!
- * \brief Called during a subscription request callback.
- *
- * If the subscription request is for this device and either its
- * control service or picture service, then accept it.
- */
-int TvDeviceHandleSubscriptionRequest(
-	/*! [in] The subscription request event structure. */
-	const UpnpSubscriptionRequest *sr_event);
-
-/*!
  * \brief Called during a get variable request callback.
  *
- * If the request is for this device and either its control service or
- * picture service, then respond with the variable value.
+ * If the request is for this device and its services,
+ * then respond with the variable value.
  */
-int TvDeviceHandleGetVarRequest(
+int RAHandleGetVarRequest(
 	/*! [in,out] The control get variable request event structure. */
 	UpnpStateVarRequest *cgv_event);
 
 /*!
  * \brief Called during an action request callback.
  *
- * If the request is for this device and either its control service
- * or picture service, then perform the action and respond.
+ * If the request is for this device and its services,
+ * then perform the action and respond.
  */
-int TvDeviceHandleActionRequest(
+int RAHandleActionRequest(
 	/*! [in,out] The control action request event structure. */
 	UpnpActionRequest *ca_event);
 
@@ -252,7 +217,7 @@ int TvDeviceHandleActionRequest(
  *	\li 2) Get Variable requests.
  *	\li 3) Action requests.
  */
-int TvDeviceCallbackEventHandler(
+int RACallbackEventHandler(
 	/*! [in] The type of callback event. */
 	Upnp_EventType,
 	/*! [in] Data structure containing event data. */
@@ -261,20 +226,13 @@ int TvDeviceCallbackEventHandler(
 	void *Cookie);
 
 /*!
- * \brief Update the TvDevice service state table, and notify all subscribed
- * control points of the updated state.
- *
- * Note that since this function blocks on the mutex TVDevMutex,
- * to avoid a hang this function should not be called within any other
- * function that currently has this mutex locked.
+ * \brief Update the RA service state table.
  */
-int TvDeviceSetServiceTableVar(
+int RASetServiceTableVar(
 	/*! [in] The service number (TV_SERVICE_CONTROL or TV_SERVICE_PICTURE).
 	 */
 	unsigned int service,
-	/*! [in] The variable number (TV_CONTROL_POWER, TV_CONTROL_CHANNEL,
-	 * TV_CONTROL_VOLUME, TV_PICTURE_COLOR, TV_PICTURE_TINT,
-	 * TV_PICTURE_CONTRAST, or TV_PICTURE_BRIGHTNESS). */
+	/*! [in] The variable number */
 	int variable,
 	/*! [in] The string representation of the new value. */
 	char *value);
@@ -282,9 +240,9 @@ int TvDeviceSetServiceTableVar(
 /* Control Service Actions */
 
 /*!
- * \brief Turn the power on.
+ * \brief First phase of DSD/SAD verification process.
  */
-int TvDevicePowerOn(
+int RegisterDevice(
 	/*! [in] Document of action request. */
 	IXML_Document *in,
 	/*! [in] Action result. */
@@ -293,224 +251,13 @@ int TvDevicePowerOn(
 	const char **errorString);
 
 /*!
- * \brief Turn the power off.
+ * \brief Second phase of DSD/SAD verification process.
+ *        Verifies the challenge.
  */
-int TvDevicePowerOff(
+int VerifyChallenge(
 	/*! [in] Document of action request. */
 	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*!
- * \brief Change the channel, update the TvDevice control service
- * state table, and notify all subscribed control points of the
- * updated state.
- */
-int TvDeviceSetChannel(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*!
- * \brief Increase the channel.
- */
-int TvDeviceIncreaseChannel(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*!
- * \brief Decrease the channel.
- */
-int TvDeviceDecreaseChannel(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*!
- * \brief Change the volume, update the TvDevice control service
- *       state table, and notify all subscribed control points of the
- *       updated state.
- */
-int TvDeviceSetVolume(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*!
- * \brief Increase the volume.
- */
-int TvDeviceIncreaseVolume(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*!
- * \brief Decrease the volume.
- */
-int TvDeviceDecreaseVolume(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*Picture Service Actions */
-
-/*!
- * \brief Change the color, update the TvDevice picture service
- * state table, and notify all subscribed control points of the
- * updated state.
- */
-int TvDeviceSetColor(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*!
- * \brief Increase the color.
- */
-int TvDeviceIncreaseColor(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*!
- * \brief Decrease the color.
- */
-int TvDeviceDecreaseColor(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*!
- * \brief Change the tint, update the TvDevice picture service
- * state table, and notify all subscribed control points of the
- * updated state.
- */
-int TvDeviceSetTint(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*!
- * \brief Increase tint.
- */
-int TvDeviceIncreaseTint(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*!
- * \brief Decrease tint.
- */
-int TvDeviceDecreaseTint(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*!
- * \brief Change the contrast, update the TvDevice picture service
- * state table, and notify all subscribed control points of the
- * updated state.
- */
-int TvDeviceSetContrast(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*!
- * \brief Increase the contrast.
- */
-int TvDeviceIncreaseContrast(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*!
- * \brief Decrease the contrast.
- */
-int TvDeviceDecreaseContrast(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*!
- * \brief Change the brightness, update the TvDevice picture service
- * state table, and notify all subscribed control points of the
- * updated state.
- */
-int TvDeviceSetBrightness(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*!
- * \brief Increase brightnesss.
- */
-int TvDeviceIncreaseBrightness(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
-	IXML_Document **out,
-	/*! [out] ErrorString in case action was unsuccessful. */
-	const char **errorString);
-
-/*!
- * \brief Decrease brightnesss.
- */
-int TvDeviceDecreaseBrightness(
-	/*! [in] Document of action request. */
-	IXML_Document *in,
-	/*! [in] Action result. */
+	/*! [out] Action result. */
 	IXML_Document **out,
 	/*! [out] ErrorString in case action was unsuccessful. */
 	const char **errorString);
@@ -519,7 +266,7 @@ int TvDeviceDecreaseBrightness(
  * \brief Initializes the UPnP Sdk, registers the device, and sends out
  * advertisements.
  */
-int TvDeviceStart(
+int RAStart(
 	/*! [in] interface to initialize the sdk (may be NULL)
 	 * if null, then the first non null interface is used. */
 	char *iface,
@@ -536,9 +283,7 @@ int TvDeviceStart(
 	 * IP_MODE_IPV6_ULA_GUA. Default is IP_MODE_IPV4. */
 	int ip_mode,
 	/*! [in] print function to use. */
-	print_string pfun,
-	/*! [in] Non-zero if called from the combo application. */
-	int combo);
+	print_string pfun);
 
 /*!
  * \brief Stops the device. Uninitializes the sdk.
@@ -567,7 +312,7 @@ void *RACommandLoop(void *args);
  *	\li \c -webdir web_dir_path
  *	\li \c -help
  */
-int device_main(int argc, char *argv[]);
+int ra_main(int argc, char *argv[]);
 
 #ifdef __cplusplus
 }

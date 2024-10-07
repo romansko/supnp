@@ -52,7 +52,7 @@
 #include "sysdep.h"
 #include "uuid.h"
 
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
 #include "supnp.h"
 #endif
 
@@ -91,7 +91,7 @@
 	#define ifr_netmask ifr_addr
 #endif
 
-#ifdef UPNP_ENABLE_OPEN_SSL
+#if UPNP_ENABLE_OPEN_SSL
 	#include <openssl/ssl.h>
 #endif
 
@@ -242,7 +242,7 @@ Upnp_SID gUpnpSdkNLSuuid;
 /*! Global variable used as to store the OpenSSL context object
  * to be used for all SSL/TLS connections
  */
-#ifdef UPNP_ENABLE_OPEN_SSL
+#if UPNP_ENABLE_OPEN_SSL
 SSL_CTX *gSslCtx = NULL;
 #endif
 
@@ -544,7 +544,7 @@ int UpnpInit2(const char *IfName, unsigned short DestPort)
 {
 	int retVal;
 
-#ifdef ENABLE_SUPNP
+#if ENABLE_SUPNP
 	retVal = SUpnpInit();
 	if (retVal != SUPNP_E_SUCCESS) {
 		return retVal;
@@ -601,7 +601,7 @@ exit_function:
 	return retVal;
 }
 
-#ifdef UPNP_ENABLE_OPEN_SSL
+#if UPNP_ENABLE_OPEN_SSL
 int UpnpInitSslContext(int initOpenSslLib, const SSL_METHOD *sslMethod)
 {
 	if (gSslCtx)
@@ -685,7 +685,7 @@ int UpnpFinish(void)
 	UpnpClient_Handle client_handle;
 #endif
 	struct Handle_Info *temp;
-#ifdef UPNP_ENABLE_OPEN_SSL
+#if UPNP_ENABLE_OPEN_SSL
 	if (gSslCtx) {
 		SSL_CTX_free(gSslCtx);
 		gSslCtx = NULL;

@@ -50,13 +50,60 @@ extern "C" {
 #include "upnp.h" /* for Upnp_EventType */
 #include "upnptools.h"
 
-#include <stdlib.h>
-#include <string.h>
+
+/**
+ * \brief Free a pointer if it is not NULL
+ */
+#define freeif(ptr) { \
+    if (ptr != NULL) { \
+        free(ptr); \
+        ptr = NULL; \
+    } \
+}
+
+/**
+ * Free a ponter if it is not NULL with a given function
+ * @param ptr pointer to free
+ * @param func function to free pointer
+ */
+#define freeif2(ptr, free_func) { \
+    if (ptr != NULL) { \
+        free_func(ptr); \
+        ptr = NULL; \
+    } \
+}
+
+/**
+ * Internal verification macro
+ * @param test condition to check
+ * @param label label to jump to in case of failure
+ */
+#define sample_verify(test, label, ...) { \
+	if (!(test)) { \
+		SampleUtil_Print(__VA_ARGS__); \
+		goto label; \
+	} \
+}
+
+/**
+ * Internal verification macro. USE ONLY WITHOUT FORMATTING.
+ * @param test condition to check
+ * @param label label to jump to in case of failure
+ */
+#define sample_verify_ex(test, label, errorString, errorMessage) { \
+	if (!(test)) { \
+		*errorString = errorMessage; \
+		SampleUtil_Print(errorMessage); \
+		goto label; \
+	} \
+}
 
 #ifdef SAMPLE_UTIL_C
 /*! Service types for tv services. */
-const char *TvServiceType[] = {"urn:schemas-upnp-org:service:tvcontrol:1",
-	"urn:schemas-upnp-org:service:tvpicture:1"};
+const char *TvServiceType[] = {
+	"urn:schemas-upnp-org:service:tvcontrol:1",
+	"urn:schemas-upnp-org:service:tvpicture:1"
+};
 #else  /* SAMPLE_UTIL_C */
 extern const char *TvServiceType[];
 #endif /* SAMPLE_UTIL_C */
