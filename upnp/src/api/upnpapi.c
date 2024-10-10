@@ -546,7 +546,7 @@ int UpnpInit2(const char *IfName, unsigned short DestPort)
 
 #if ENABLE_SUPNP
 	retVal = SUpnpInit();
-	if (retVal != SUPNP_E_SUCCESS) {
+	if (retVal != UPNP_E_SUCCESS) {
 		return retVal;
 	}
 #endif

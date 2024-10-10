@@ -49,6 +49,8 @@
 	#error "Need upnptools.h to compile samples ; try ./configure --enable-tools"
 #endif
 
+#define MAX_URL_SIZE 200
+
 static int initialize_init = 1;
 static int initialize_register = 1;
 
@@ -78,6 +80,29 @@ int SampleUtil_Initialize(print_string print_function)
 	}
 
 	return UPNP_E_SUCCESS;
+}
+
+char *SampleUtil_BuildDeviceUrl(int address_family, const char *ip, uint16_t port)
+{
+    char *url = NULL;
+    switch (address_family) {
+    case AF_INET:
+        url = malloc(MAX_URL_SIZE);
+        sample_verify(url, cleanup, "Memory allocation failed\n");
+        snprintf(url, MAX_URL_SIZE, "http://%s:%d/", ip, port);
+        break;
+    case AF_INET6:
+        url = malloc(MAX_URL_SIZE);
+        sample_verify(url, cleanup, "Memory allocation failed\n");
+        snprintf(url, MAX_URL_SIZE, "http://[%s]:%d/", ip, port);
+        break;
+    default:
+        SampleUtil_Print("Invalid address family\n");
+        break;
+    }
+
+cleanup:
+    return url;
 }
 
 int SampleUtil_RegisterUpdateFunction(state_update update_function)
@@ -190,6 +215,30 @@ static IXML_NodeList *SampleUtil_GetNthServiceList(
 	return ServiceList;
 }
 #endif
+
+char *SampleUtil_GetFirstDocumentItemSilent(IXML_Document *doc, const char *item)
+{
+	IXML_NodeList *nodeList = NULL;
+	IXML_Node *textNode = NULL;
+	IXML_Node *tmpNode = NULL;
+	const char *nodeValue = NULL;
+	char *ret = NULL;
+
+	nodeList = ixmlDocument_getElementsByTagName(doc, (char *)item);
+    if (!nodeList) goto epilogue;
+	tmpNode = ixmlNodeList_item(nodeList, 0);
+    if (!tmpNode) goto epilogue;
+	textNode = ixmlNode_getFirstChild(tmpNode);
+	if (!textNode) goto epilogue;
+	nodeValue = ixmlNode_getNodeValue(textNode);
+	if (!nodeValue) goto epilogue;
+	ret = strdup(nodeValue);
+
+epilogue:
+    freeif2(nodeList, ixmlNodeList_free);
+
+	return ret;
+}
 
 char *SampleUtil_GetFirstDocumentItem(IXML_Document *doc, const char *item)
 {

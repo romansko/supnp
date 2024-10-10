@@ -201,7 +201,8 @@ EVP_PKEY* load_private_key_from_hex(const char* hex)
 
 
 /**
- * Helper function to free a PKEY.
+ * Helper function to free a PKEY object. This bypass the linker error:
+ * undefined reference to symbol 'EVP_PKEY_free@@OPENSSL_3.0.0'
  * @param key a PKEY
  */
 void free_key(EVP_PKEY* key)
@@ -270,6 +271,7 @@ cleanup:
 
 /**
  * Load a private key from a PEM file.
+ * The object will also contain the public key calculated from the private key.
  * The caller is responsible for freeing the private key.
  * @param pem_file_path a path to a PEM file
  * @return a EVP_PKEY * private key on success, NULL on failure

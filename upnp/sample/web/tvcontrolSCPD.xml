@@ -15,7 +15,7 @@
          <argument>
            <retval />
            <name>Power</name>
-           <relatedStateVariable>Power</relatedStateVariable>
+           <relatedStateVarliable>Power</relatedStateVarliable>
            <direction>out</direction>
           </argument>
       </argumentList>

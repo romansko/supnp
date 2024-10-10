@@ -17,6 +17,8 @@
 
 #if ENABLE_SUPNP
 
+typedef struct cJSON captoken_t;
+
 /* Forward decleration */
 typedef struct evp_pkey_st EVP_PKEY;
 typedef struct cJSON cJSON;
@@ -42,14 +44,25 @@ typedef struct _supnp_device_t supnp_device_t;
 extern "C" {
 #endif
 
+UPNP_EXPORT_SPEC cJSON* stringToJsonString(char *string);
 
-UPNP_EXPORT_SPEC cJSON* string_to_json_string(char* string);
+UPNP_EXPORT_SPEC cJSON* bytesToJsonString(unsigned char *bytes, size_t size);
 
-UPNP_EXPORT_SPEC cJSON* bytes_to_json_string(unsigned char* bytes, size_t size);
+UPNP_EXPORT_SPEC cJSON* getTimestamp();
 
-UPNP_EXPORT_SPEC cJSON* get_timestamp();
+UPNP_EXPORT_SPEC captoken_t* generateCapToken(const supnp_device_t *dev, EVP_PKEY *sk_ra);
 
-UPNP_EXPORT_SPEC cJSON* generate_cap_token(const supnp_device_t* dev, EVP_PKEY* sk_ra);
+UPNP_EXPORT_SPEC void freeCapToken(captoken_t **cap_token);
+
+UPNP_EXPORT_SPEC char *capTokenToString(const captoken_t *cap_token);
+
+UPNP_EXPORT_SPEC char *capTokenToHexString(const captoken_t *cap_token);
+
+UPNP_EXPORT_SPEC captoken_t *capTokenFromString(const char *cap_token_str);
+
+UPNP_EXPORT_SPEC captoken_t *capTokenFromHexString(const char *hex);
+
+UPNP_EXPORT_SPEC int storeCapToken(const captoken_t *capToken, const char *filepath);
 
 #ifdef __cplusplus
 }

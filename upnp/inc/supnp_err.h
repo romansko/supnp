@@ -74,6 +74,11 @@ extern "C" {
 #define SUPNP_E_INVALID_DOCUMENT (-605)
 
 /*!
+ * \brief The capability token is invalid.
+ */
+#define SUPNP_E_CAPTOKEN_ERROR (-606)
+
+/*!
  * \brief Test failed
  */
 #define SUPNP_E_TEST_FAIL (-699)

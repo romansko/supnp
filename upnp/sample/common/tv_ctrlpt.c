@@ -60,6 +60,7 @@ const char *RegisterDocsDefaultFilepathCP[SUPNP_DOCS_ON_DEVICE] = {
     "../../simulation/CP/certificate.pem",
     "../../simulation/UCA/certificate.pem"
 };
+const char *CapTokenDefaultFilenameCP = "captoken_cp.json";
 
 #endif
 
@@ -699,7 +700,7 @@ void TvCtrlPointAddDevice(IXML_Document *DescDoc, const char *location, int expi
 	UDN = SampleUtil_GetFirstDocumentItem(DescDoc, "UDN");
 	deviceType = SampleUtil_GetFirstDocumentItem(DescDoc, "deviceType");
 	friendlyName = SampleUtil_GetFirstDocumentItem(DescDoc, "friendlyName");
-	baseURL = SampleUtil_GetFirstDocumentItem(DescDoc, "URLBase");
+	baseURL = SampleUtil_GetFirstDocumentItemSilent(DescDoc, "URLBase"); /* Do not print errors for URLBase search */
 	relURL = SampleUtil_GetFirstDocumentItem(DescDoc, "presentationURL");
 
 	ret = UpnpResolveURL2((baseURL ? baseURL : location), relURL, &presURL);
@@ -1285,12 +1286,11 @@ int RegistrationCallbackCP(void *Cookie)
     int rc = UpnpRegisterClient(TvCtrlPointCallbackEventHandler,
         &ctrlpt_handle,
         &ctrlpt_handle);
-    if (rc != UPNP_E_SUCCESS) {
-        SampleUtil_Print("Error registering CP: %d\n", rc);
-        UpnpFinish();
-        return TV_ERROR;
-    }
+    sample_verify(rc == UPNP_E_SUCCESS, error_handler, "Error registering CP: %d\n", rc);
     SampleUtil_Print("Control Point Registered with UPnP SDK\n");
+
+    rc = UpnpSetWebServerRootDir("./web");  // todo make configurable.
+    sample_verify(rc == UPNP_E_SUCCESS, error_handler, "Error specifying webserver root directory -- %d\n", rc);
 
     TvCtrlPointRefresh();
 
@@ -1299,6 +1299,11 @@ int RegistrationCallbackCP(void *Cookie)
     ithread_detach(timer_thread);
 
     return TV_SUCCESS;
+
+error_handler:
+    UpnpFinish();
+
+    return TV_ERROR;
 }
 #endif
 
@@ -1346,19 +1351,6 @@ int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo)
 		UpnpGetServerUlaGuaPort6());
 
 	SampleUtil_Print("Registering Control Point\n");
-#if ENABLE_SUPNP
-    rc = SupnpRegisterDevice(DefaultPublicKeyPathCP,
-        DefaultPrivateKeyPathCP,
-        RegisterDocsDefaultFilepathCP,
-        NULL,
-        10 /* timeout */, RegistrationCallbackCP, NULL);
-    if (rc != SUPNP_E_SUCCESS) {
-        SampleUtil_Print("Error registering CP with RA: %d\n", rc);
-        UpnpFinish();
-        return TV_ERROR;
-    }
-
-#else
 
 	rc = UpnpRegisterClient(TvCtrlPointCallbackEventHandler,
 		&ctrlpt_handle,
@@ -1370,8 +1362,25 @@ int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo)
 		return TV_ERROR;
 	}
 
-	SampleUtil_Print("Control Point Registered\n");
+#if ENABLE_SUPNP
+    rc = SupnpRegisterDevice(DefaultPublicKeyPathCP,
+        DefaultPrivateKeyPathCP,
+        RegisterDocsDefaultFilepathCP,
+        CapTokenDefaultFilenameCP,
+        SampleUtil_BuildDeviceUrl(AF_INET, UpnpGetServerIpAddress(), UpnpGetServerPort()),
+        NULL, /* Not Applicable */
+        10 /* timeout */,
+        RegistrationCallbackCP,
+        NULL /* No Params for RegistrationCallbackCP */ );
+    if (rc != SUPNP_E_SUCCESS) {
+        SampleUtil_Print("Error registering CP with RA: %d\n", rc);
+        UpnpFinish();
+        return TV_ERROR;
+    }
 
+#else
+
+	SampleUtil_Print("Control Point Registered\n");
 
 	TvCtrlPointRefresh();
 

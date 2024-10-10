@@ -59,52 +59,11 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
-/*! Color constants */
-#define MAX_COLOR 10
-#define MIN_COLOR 1
-
-/*! Brightness constants */
-#define MAX_BRIGHTNESS 10
-#define MIN_BRIGHTNESS 1
-
-/*! Power constants */
-#define POWER_ON 1
-#define POWER_OFF 0
-
-/*! Tint constants */
-#define MAX_TINT 10
-#define MIN_TINT 1
-
-/*! Volume constants */
-#define MAX_VOLUME 10
-#define MIN_VOLUME 1
-
-/*! Contrast constants */
-#define MAX_CONTRAST 10
-#define MIN_CONTRAST 1
-
-/*! Channel constants */
-#define MAX_CHANNEL 100
-#define MIN_CHANNEL 1
-
-
-/*! Index of power variable */
-#define TV_CONTROL_POWER 0
-
-/*! Index of channel variable */
-#define TV_CONTROL_CHANNEL 1
-
-/*! Index of volume variable */
-#define TV_CONTROL_VOLUME 2
-
-/*! Max value length */
-#define RA_MAX_VAL_LEN 200
-
 /*! Max actions */
 #define RA_MAXACTIONS 12
 
-/*! This should be the maximum VARCOUNT from above */
-#define RA_MAXVARS RA_REGISTER_VARCOUNT
+/*! This should be the maximum VARCOUNT from supnp.h varcounts */
+#define RA_MAXVARS eRegisterActionVarCount
 
 #define IP_MODE_IPV4 1
 #define IP_MODE_IPV6_LLA 2
@@ -121,7 +80,7 @@ extern "C" {
  * Each function returns UPNP_E_SUCCESS, on success, and a nonzero
  * error code on failure.
  */
-typedef int (*upnp_action)(
+typedef int (*ra_action)(
 	/*! [in] Document of action request. */
 	IXML_Document *request,
 	/*! [out] Action result. */
@@ -145,7 +104,7 @@ struct RAService
 	/*! . */
 	const char *ActionNames[RA_MAXACTIONS];
 	/*! . */
-	upnp_action actions[RA_MAXACTIONS];
+	ra_action actions[RA_MAXACTIONS];
 	/*! . */
 	int VariableCount;
 };
@@ -224,20 +183,6 @@ int RACallbackEventHandler(
 	const void *Event,
 	/*! [in] Optional data specified during callback registration. */
 	void *Cookie);
-
-/*!
- * \brief Update the RA service state table.
- */
-int RASetServiceTableVar(
-	/*! [in] The service number (TV_SERVICE_CONTROL or TV_SERVICE_PICTURE).
-	 */
-	unsigned int service,
-	/*! [in] The variable number */
-	int variable,
-	/*! [in] The string representation of the new value. */
-	char *value);
-
-/* Control Service Actions */
 
 /*!
  * \brief First phase of DSD/SAD verification process.

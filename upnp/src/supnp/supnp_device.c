@@ -21,8 +21,7 @@
 extern "C" {
 #endif
 
-supnp_device_t *new_supnp_device(
-    const char *spec_doc, const char *cert, const char *uca_cert)
+supnp_device_t *SupnpNewDevice(const char *spec_doc, const char *cert, const char *uca_cert)
 {
     supnp_device_t *p_dev = NULL;
     char *type = NULL;
@@ -60,9 +59,9 @@ supnp_device_t *new_supnp_device(
         cJSON_GetObjectItemCaseSensitive(p_dev->supnp_doc, "TYPE"));
     supnp_verify(type, cleanup, "Unexpected '%s'\n", "TYPE");
     if (!strcmp("CP", type)) {
-        p_dev->type = DEVICE_TYPE_CP;
+        p_dev->type = eDeviceType_CP;
     } else if (!strcmp("SD", type)) {
-        p_dev->type = DEVICE_TYPE_SD;
+        p_dev->type = eDeviceType_SD;
     } else {
         supnp_verify(NULL, cleanup, "Invalid device type '%s'.\n", type);
     }
@@ -76,23 +75,23 @@ supnp_device_t *new_supnp_device(
     return p_dev;
 
 cleanup:
-    supnp_free_device_content(p_dev);
+    SupnpFreeDeviceContent(p_dev);
     return p_dev;
 }
 
-const char *supnp_device_type_str(const EDeviceType type)
+const char *SupnpDeviceTypeStr(const EDeviceType type)
 {
     switch (type) {
-    case DEVICE_TYPE_SD:
+    case eDeviceType_SD:
         return "SD";
-    case DEVICE_TYPE_CP:
+    case eDeviceType_CP:
         return "CP";
     default:
         return "";
     }
 }
 
-void supnp_free_device_content(supnp_device_t *p_dev)
+void SupnpFreeDeviceContent(supnp_device_t *p_dev)
 {
     if (p_dev == NULL)
         return; /* Do Nothing */
@@ -101,14 +100,16 @@ void supnp_free_device_content(supnp_device_t *p_dev)
     freeif2(p_dev->uca_cert, X509_free);
     freeif2(p_dev->dev_pkey, EVP_PKEY_free);
     freeif2(p_dev->uca_pkey, EVP_PKEY_free);
-    freeif(p_dev->desc_uri);
+    freeif(p_dev->device_url);
+    freeif(p_dev->desc_doc_name);
     freeif2(p_dev->desc_doc, ixmlDocument_free);
     freeif2(p_dev->supnp_doc, cJSON_Delete);
-    freeif(p_dev->cap_token_uri);
+    freeif2(p_dev->cap_token, cJSON_Delete);
+    freeif(p_dev->cap_token_name);
     memset(p_dev->nonce, 0, sizeof(p_dev->nonce));
 }
 
-void supnp_free_device(supnp_device_t **pp_dev)
+void SupnpFreeDevice(supnp_device_t **pp_dev)
 {
     if (pp_dev == NULL || *pp_dev == NULL)
         return; /* Do Nothing */
@@ -120,11 +121,11 @@ void supnp_free_device(supnp_device_t **pp_dev)
     if (next) {
         next->prev = prev;
     }
-    supnp_free_device_content(*pp_dev);
+    SupnpFreeDeviceContent(*pp_dev);
     freeif(*pp_dev);
 }
 
-void add_list_device(supnp_device_t **head, supnp_device_t *p_dev)
+void SupnpAddListDevice(supnp_device_t **head, supnp_device_t *p_dev)
 {
     if (head == NULL || p_dev == NULL) /* Nothing can be done */
         return;
@@ -143,17 +144,17 @@ void add_list_device(supnp_device_t **head, supnp_device_t *p_dev)
     }
 }
 
-void remove_list_device(supnp_device_t **head, supnp_device_t *p_dev)
+void SupnpRemoveListDevice(supnp_device_t **head, supnp_device_t *p_dev)
 {
     if (head == NULL || p_dev == NULL) /* Nothing can be done */
         return;
     if (p_dev == *head) {
         *head = p_dev->next; /* new head */
     }
-    supnp_free_device(&p_dev);
+    SupnpFreeDevice(&p_dev);
 }
 
-supnp_device_t *find_device_by_pkey(supnp_device_t *head, const EVP_PKEY *pkey)
+supnp_device_t *SupnpFindDeviceByPublicKey(supnp_device_t *head, const EVP_PKEY *pkey)
 {
     if (head == NULL || pkey == NULL) /* Nothing can be done */
         return NULL;
@@ -168,7 +169,7 @@ supnp_device_t *find_device_by_pkey(supnp_device_t *head, const EVP_PKEY *pkey)
 }
 
 
-void remove_device(supnp_device_t **head, supnp_device_t *p_dev)
+void SupnpRemoveDevice(supnp_device_t **head, supnp_device_t *p_dev)
 {
     if (head == NULL || p_dev == NULL) /* Nothing can be done */
         return;
@@ -184,7 +185,7 @@ void remove_device(supnp_device_t **head, supnp_device_t *p_dev)
             if (itr->next) {
                 itr->next->prev = itr->prev;
             }
-            supnp_free_device(&p_dev);
+            SupnpFreeDevice(&p_dev);
             return;
         }
         itr = itr->next;

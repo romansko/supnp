@@ -120,6 +120,21 @@ typedef enum
 } eventType;
 
 /*!
+ * \brief Given an address family, IP address, and port, this routine
+ * builds a URL string in the form of http://ip:port/.
+ * The string must be freed by the caller using free.
+ *
+ * \return The URL string.
+ */
+char *SampleUtil_BuildDeviceUrl(
+	/*! [in] The address family. */
+	int address_family,
+	/*! [in] The IP address. */
+	const char *ip,
+	/*! [in] The port. */
+	uint16_t port);
+
+/*!
  * \brief Given a DOM node such as <Channel>11</Channel>, this routine
  * extracts the value (e.g., 11) from the node and returns it as
  * a string. The string must be freed by the caller using free.
@@ -142,6 +157,18 @@ char *SampleUtil_GetElementValue(
 IXML_NodeList *SampleUtil_GetFirstServiceList(
 	/*! [in] The DOM node from which to extract the service list. */
 	IXML_Document *doc);
+
+/*!
+ * \brief Given a document node, this routine searches for the first element
+ * named by the input string item, and returns its value as a string.
+ * String must be freed by caller using free.
+ * Silent variation - do not print errors.
+ */
+char *SampleUtil_GetFirstDocumentItemSilent(
+	/*! [in] The DOM document from which to extract the value. */
+	IXML_Document *doc,
+	/*! [in] The item to search for. */
+	const char *item);
 
 /*!
  * \brief Given a document node, this routine searches for the first element

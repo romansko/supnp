@@ -68,11 +68,7 @@ const char *RegisterDocsDefaultFilepathSD[SUPNP_DOCS_ON_DEVICE] = {
     "../../simulation/UCA/certificate.pem"
 };
 
-typedef struct RegistrationCallbackParams_
-{
-    int address_family;
-    char *desc_doc_url;
-}RegistrationCallbackParams;
+const char *CapTokenDefaultFilenameSD = "captoken_sd.json";
 
 #endif
 
@@ -1419,25 +1415,13 @@ int TvDeviceCallbackEventHandler(
 #if ENABLE_SUPNP
 int RegistrationCallbackSD(void *Cookie)
 {
-    RegistrationCallbackParams *params = Cookie;
-    int ret = UpnpRegisterRootDevice3(params->desc_doc_url,
-        TvDeviceCallbackEventHandler,
-        &device_handle,
-        &device_handle,
-        params->address_family);
-    sample_verify(ret == UPNP_E_SUCCESS, cleanup, "Error registering the rootdevice : %d\n", ret);
-
-    SampleUtil_Print("RootDevice Registered\nInitializing State Table\n");
-    TvDeviceStateTableInit(params->desc_doc_url);
-    SampleUtil_Print("State Table Initialized\n");
-    ret = UpnpSendAdvertisement(device_handle, default_advr_expire);
+    SampleUtil_Print("SD registered with RA successfully..\n");
+    int ret = UpnpSendAdvertisement(device_handle, default_advr_expire);
     sample_verify(ret == UPNP_E_SUCCESS, cleanup, "Error sending advertisements : %d\n", ret);
     SampleUtil_Print("Advertisements Sent\n");
 cleanup:
     if (ret != UPNP_E_SUCCESS)
         UpnpFinish();
-    freeif(params->desc_doc_url);
-    freeif(params);
     return ret;
 }
 #endif
@@ -1454,9 +1438,6 @@ int TvDeviceStart(char *iface,
 	char desc_doc_url[DESC_URL_SIZE];
 	char *ip_address = NULL;
 	int address_family = AF_INET;
-#if ENABLE_SUPNP
-    RegistrationCallbackParams *params = NULL;
-#endif
 
 	ithread_mutex_init(&TVDevMutex, NULL);
 	UpnpSetLogFileNames(NULL, NULL);
@@ -1544,27 +1525,6 @@ int TvDeviceStart(char *iface,
 			 "\t with desc_doc_url: %s\n",
 		desc_doc_url);
 
-#if ENABLE_SUPNP
-
-    params = malloc(sizeof(RegistrationCallbackParams));
-    sample_verify(params, cleanup, "Unable to allocate memory for callback params\n");
-    params->desc_doc_url = strdup(desc_doc_url);
-    params->address_family = address_family;
-
-    ret = SupnpRegisterDevice(DefaultPublicKeyPathSD,
-        DefaultPrivateKeyPathSD,
-        RegisterDocsDefaultFilepathSD,
-        desc_doc_url,
-        10 /* timeout */, RegistrationCallbackSD, params);
-    sample_verify(ret == SUPNP_E_SUCCESS, cleanup, "Error registering CP with RA: %d\n", ret);
-    return UPNP_E_SUCCESS;
-
-cleanup:
-    freeif(params->desc_doc_url);
-    freeif(params);
-    return ret;
-
-#else
 	ret = UpnpRegisterRootDevice3(desc_doc_url,
 		TvDeviceCallbackEventHandler,
 		&device_handle,
@@ -1581,6 +1541,27 @@ cleanup:
 	        "Initializing State Table\n");
 	    TvDeviceStateTableInit(desc_doc_url);
 	    SampleUtil_Print("State Table Initialized\n");
+
+#if ENABLE_SUPNP
+	    SampleUtil_Print("Registering SD with RA..\n");
+	    ret = SupnpRegisterDevice(DefaultPublicKeyPathSD,
+            DefaultPrivateKeyPathSD,
+            RegisterDocsDefaultFilepathSD,
+            CapTokenDefaultFilenameSD,
+            SampleUtil_BuildDeviceUrl(address_family, UpnpGetServerIpAddress(), UpnpGetServerPort()),
+            strdup(desc_doc_name),
+            10 /* timeout */,
+            RegistrationCallbackSD,
+            NULL /* No Params for RegistrationCallbackSD */);
+	    sample_verify(ret == SUPNP_E_SUCCESS, cleanup, "Error registering CP with RA: %d\n", ret);
+	    return UPNP_E_SUCCESS;
+
+cleanup:
+
+	    return ret;
+
+#else
+
 	    ret = UpnpSendAdvertisement(device_handle, default_advr_expire);
 	    if (ret != UPNP_E_SUCCESS) {
 	        SampleUtil_Print(
@@ -1590,10 +1571,11 @@ cleanup:
 	        return ret;
 	    }
 	    SampleUtil_Print("Advertisements Sent\n");
+
+#endif
 	}
     ret = UPNP_E_SUCCESS;
     return ret;
-#endif
 }
 
 int TvDeviceStop(void)
@@ -1688,7 +1670,7 @@ int device_main(int argc, char *argv[])
 				"\t\te.g.: 5431\n"
 				"\tdesc_doc_name: name of device description "
 				"document\n"
-				"\t\te.g.: tvdevicedesc.xml\n"
+				"\t\te.g.: tvdevicedesweb_dir_pathc.xml\n"
 				"\tweb_dir_path:  Filesystem path where web "
 				"files"
 				" related to the device are stored\n"

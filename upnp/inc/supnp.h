@@ -22,82 +22,83 @@
 extern "C" {
 #endif
 
+#include "supnp_err.h"
 #include "supnp_device.h"
 
-typedef int (*SUpnp_FunPtr)(
-	/*! [in] .*/
-	void *Cookie);
+/*! Number of common documents on device (CertUCA, CertDevice, SpecDoc) */
+#define SUPNP_DOCS_ON_DEVICE (3)
+
+typedef int (*SUpnp_FunPtr)(void *Cookie);
 
 /*! Registration status */
 typedef enum _ERegistrationStatus
 {
-	SUPNP_DEVICE_UNREGISTERED = 0,
-	SUPNP_DEVICE_REGISTERED
+	eRegistrationStatus_DeviceUnregistered = 0,
+	eRegistrationStatus_DeviceRegistered
 }ERegistrationStatus;
-
-
-// todo: A participant may request RA certificate
-// todo: Retrieve captoken as a service? or response to registration.
 
 /*! Registration Authority services. */
 typedef enum _ERAServiceType
 {
 	/*! Registration Services. */
-	RA_SERVICE_REGISTER = 0,
+	eRegistrationAuthorityService_Register = 0,
 
 	/*! Number of services. */
-	RA_SERVICE_COUNT
+	eRegistrationAuthorityServiceCount
 }ERAServiceType;
 
 typedef enum _ERARegisterServiceActions
 {
 	/*! Register action. */
-	RA_ACTIONS_REGISTER = 0,
+	eRegisterServiceAction_Register = 0,
 
-	/*!< Challenge action. */
-	RA_ACTIONS_CHALLENGE,
+	/*! Challenge action. */
+	eRegisterServiceAction_Challenge,
 
 	/*! Number of actions. */
-	RA_REGISTER_SERVICE_ACTIONS
+	eRegisterServiceActionCount
 }ERARegisterServiceActions;
 
 /*! Registration service action Register variables. */
 typedef enum _ERARegisterActionVariables
 {
 	/*! Specification Document hex string */
-	RA_REGISTER_SPEC_DOC = 0,
+	eRegisterActionVar_SpecDoc = 0,
 
 	/*! Device Certificate hex string */
-	RA_REGISTER_CERT_DEVICE,
+	eRegisterActionVar_CertDevice,
 
 	/*! UCA Certificate hex string */
-	RA_REGISTER_CERT_UCA,
+	eRegisterActionVar_CertUCA,
 
-	/*! Description document URL, applicable only for SD */
-	RA_REGISTER_DESC_DOC_URL,
+	/*! Device URL */
+	eRegisterActionVar_DeviceURL,
+
+	/*! Description document URI, applicable only for SD */
+	eRegisterActionVar_DescDocFileName,
+
+	eRegisterActionVar_CapTokenFilename,
 
 	/*! Number of variables. */
-	RA_REGISTER_VARCOUNT
+	eRegisterActionVarCount
 
 }ERARegisterActionVariables;
 
-/*! Number of documents without desc doc url */
-enum { SUPNP_DOCS_ON_DEVICE = (RA_REGISTER_VARCOUNT - 1) };
-
-/*! Registration service action Chalenge variables. */
+/*! Registration service action Challenge variables. */
 typedef enum _ERAChallengeActionVariables
 {
 	/*! Challenge response hex string */
-	CHALLENGE_ACTION_RESPONSE = 0,
+	eChallengeActionVar_Challenge = 0,
 
 	/*! Public key hex string */
-	CHALLENGE_ACTION_PUBLICKEY,
+	eChallengeActionVar_PublicKey,
 
 	/*! Number of variables. */
-	CHALLENGE_ACTION_VARCOUNT
+	eChallengeActionVarCount
 
 }ERAChallengeActionVariables;
 
+/*! Registration Params */
 typedef struct _RegistrationParams
 {
 	int handle; /* Registration handle */
@@ -106,30 +107,34 @@ typedef struct _RegistrationParams
     const char *publicKeyPath;
     const char *privateKeyPath;
     const char *RegistrationDocsPath[SUPNP_DOCS_ON_DEVICE];
-	char *desc_doc_uri;       /* Only for SD */
+	char *deviceUrl;
+	char *descDocFilename;       /* Only for SD */
+	const char *capTokenFilename;
 }RegistrationParams;
 
 static const char *RaDeviceType = "urn:schemas-upnp-org:device:ra:1";
-static const char *RaServiceType[RA_SERVICE_COUNT] = {
+static const char *RaServiceType[eRegistrationAuthorityServiceCount] = {
 	"urn:schemas-upnp-org:service:registration:1"
 };
-static const char *RaRegistrationAction[RA_REGISTER_SERVICE_ACTIONS] = {
+static const char *RaRegistrationAction[eRegisterServiceActionCount] = {
 	"Register",
 	"Challenge"
 };
-static const char *RaRegisterVarName[RA_REGISTER_VARCOUNT] = {
+static const char *RaRegisterActionVarName[eRegisterActionVarCount] = {
 	"SpecificationDocument",
 	"CertificateDevice",
 	"CertificateUCA",
-	"DescriptionDocumentURL"
+	"DeviceURL",
+	"DescriptionDocumentName", /* Applicable only for SD */
+	"CapTokenFilename"
 };
-static const char *RaActionChallengeVarName[CHALLENGE_ACTION_VARCOUNT] = {
-	"ChallengeResponse",
+static const char *RaChallengeActionVarName[eChallengeActionVarCount] = {
+	"Challenge",
 	"PublicKey"
 };
-static const char *RaResponseVarName = "VerificationResponse";
-static const char *RaResponseSuccess = "1";
-
+static const char *ActionResponseVarName = "ActionResponse";
+static const char *CapTokenResponseVarName = "CapToken";
+static const char *ActionSuccess = "1";
 
 /* Forward declaration */
 typedef struct evp_pkey_st EVP_PKEY;
@@ -155,61 +160,6 @@ typedef struct _IXML_NodeList IXML_NodeList;
 #define SUPNP_SOFTWARE_DESC "SW"
 /* @} SUPnPDocumentkeys */
 
-/*!
- * \name SUPnP Error codes
- *
- * The functions in the SDK API can return a variety of error
- * codes to describe problems encountered during execution.  This section
- * lists the error codes and provides a brief description of what each error
- * code means.  Refer to the documentation for each function for a
- * description of what an error code means in that context.
- *
- * @{
- */
-
-/*!
- * \brief The operation completed successfully.
- *
- * For asynchronous functions, this only means that the packet generated by
- * the operation was successfully transmitted on the network.  The result of
- * the entire operation comes as part of the callback for that operation.
- */
-#define SUPNP_E_SUCCESS (0)
-
-/*!
- * \brief Generic error code for internal conditions not covered by other
- * error codes.
- */
-#define SUPNP_E_INTERNAL_ERROR (-600)
-
-/*!
- * \brief The function was passed an invalid argument.
- */
-#define SUPNP_E_INVALID_ARGUMENT (-601)
-
-/*!
- * \brief The filename passed to one of the device registration functions
- * was not found or was not accessible.
- */
-#define SUPNP_E_FILE_NOT_FOUND (-602)
-
-/*!
- * \brief The certificate is invalid.
- */
-#define SUPNP_E_INVALID_CERTIFICATE (-603)
-
-/*!
- * \brief The certificate is invalid.
- */
-#define SUPNP_E_INVALID_SIGNATURE (-604)
-
-/*!
- * \brief The DSD / SAD document is invalid.
- */
-#define SUPNP_E_INVALID_DOCUMENT (-605)
-
-/* @} SUPnPErrorCodes */
-
 
 /*!
  * \brief Initialize SUPnP secure layer.
@@ -232,20 +182,39 @@ UPNP_EXPORT_SPEC char *GetFirstElementItem(IXML_Element *element, const char *it
  */
 UPNP_EXPORT_SPEC int SUpnpVerifyDocument(EVP_PKEY *ca_pkey, supnp_device_t *dev);
 
-
+/*!
+ * \brief Register device with RA. Handles both Register & Challenge actions.
+ *
+ * \param pk_path Path to the public key file.
+ * \param sk_path Path to the private key file.
+ * \param RegistrationDocsPath Array of paths to the registration documents.
+ * \param capTokenFilename CapToken filename.
+ * \param device_url The device URL.
+ * \param desc_doc_name The description document name.
+ * \param timeout The timeout value.
+ * \param callback The callback function.
+ * \param callback_cookie The callback cookie.
+ *
+ * \return SUPNP_E_SUCCESS on success, SUPNP_E_INTERNAL_ERROR on failure.
+ */
 UPNP_EXPORT_SPEC int SupnpRegisterDevice(const char *pk_path,
 	const char *sk_path,
     const char *RegistrationDocsPath[],
-    const char *desc_doc_uri,
+    const char *capTokenFilename,
+    char *device_url,      /* Expected heap allocated string */
+    char *desc_doc_name,   /* Expected heap allocated string */
     int timeout,
     SUpnp_FunPtr callback,
     void *callback_cookie);
 
+/*! \brief Free registration parameters content. */
+UPNP_EXPORT_SPEC void SupnpFreeRegistrationParamsContent(RegistrationParams *params);
 
+/*! \brief Free registration parameters. */
 UPNP_EXPORT_SPEC void SupnpFreeRegistrationParams(RegistrationParams **params);
 
 /* Internal */
-int SendRAActionRegister(RegistrationParams *params, const char *controlUrl);
+int sendRAActionRegister(RegistrationParams *params, const char *controlUrl);
 
 
 #ifdef __cplusplus

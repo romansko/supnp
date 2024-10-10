@@ -14,10 +14,11 @@
 #include "upnpconfig.h"
 
 #include <openssl_wrapper.h>
+#include <supnp_captoken.h>
 
 #if ENABLE_SUPNP
 
-/* Forward decleration */
+/* Forward declaration */
 typedef struct x509_st X509;
 typedef struct evp_pkey_st EVP_PKEY;
 typedef struct cJSON cJSON;
@@ -30,11 +31,16 @@ extern "C" {
 #define SUPNP_DEV_OK (0)
 #define SUPNP_DEV_ERR (-1)
 
-typedef enum EDeviceType
+typedef enum _EDeviceType
 {
-    DEVICE_TYPE_SD = 0x5D,
-    DEVICE_TYPE_CP = 0xC9
+    eDeviceType_SD = 0,
+    eDeviceType_CP
 } EDeviceType;
+
+static const char *const device_type_str[] = {
+    "SD",
+    "CP",
+};
 
 typedef struct _supnp_device_t
 {
@@ -45,34 +51,36 @@ typedef struct _supnp_device_t
     X509 *uca_cert;          /* UCA Certificate */
     EVP_PKEY *dev_pkey;      /* Device Public Key */
     EVP_PKEY *uca_pkey;      /* UCA Public Key */
-    char *desc_uri;          /* Device Description URI - SD Only */
+    char *device_url;        /* Device URL */
+    char *desc_doc_name;     /* Device Description URI - SD Only */
     IXML_Document *desc_doc; /* Device Description Document - SD Only  */
     cJSON *supnp_doc;
-    char *cap_token_uri;
+    captoken_t *cap_token;
+    char *cap_token_name;
     unsigned char nonce[OPENSSL_CSPRNG_SIZE];
     struct _supnp_device_t *next;
     struct _supnp_device_t *prev;
 } supnp_device_t;
 
-UPNP_EXPORT_SPEC supnp_device_t *new_supnp_device(
+UPNP_EXPORT_SPEC supnp_device_t *SupnpNewDevice(
     const char *spec_doc, const char *cert, const char *uca_cert);
 
-UPNP_EXPORT_SPEC const char *supnp_device_type_str(EDeviceType type);
+UPNP_EXPORT_SPEC const char *SupnpDeviceTypeStr(EDeviceType type);
 
-UPNP_EXPORT_SPEC void supnp_free_device_content(supnp_device_t *p_dev);
+UPNP_EXPORT_SPEC void SupnpFreeDeviceContent(supnp_device_t *p_dev);
 
-UPNP_EXPORT_SPEC void supnp_free_device(supnp_device_t **pp_dev);
+UPNP_EXPORT_SPEC void SupnpFreeDevice(supnp_device_t **pp_dev);
 
-UPNP_EXPORT_SPEC void add_list_device(
+UPNP_EXPORT_SPEC void SupnpAddListDevice(
     supnp_device_t **head, supnp_device_t *p_dev);
 
-UPNP_EXPORT_SPEC void remove_list_device(
+UPNP_EXPORT_SPEC void SupnpRemoveListDevice(
     supnp_device_t **head, supnp_device_t *p_dev);
 
-UPNP_EXPORT_SPEC supnp_device_t *find_device_by_pkey(
+UPNP_EXPORT_SPEC supnp_device_t *SupnpFindDeviceByPublicKey(
     supnp_device_t *head, const EVP_PKEY *pkey);
 
-UPNP_EXPORT_SPEC void remove_device(
+UPNP_EXPORT_SPEC void SupnpRemoveDevice(
     supnp_device_t **head, supnp_device_t *p_dev);
 
 #ifdef __cplusplus
