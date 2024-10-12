@@ -45,7 +45,7 @@ UPNP_EXPORT_SPEC const UpnpListHead *TestClass_get_TheList(const TestClass *p);
 UPNP_EXPORT_SPEC int TestClass_set_TheList(TestClass *p, const UpnpListHead *q);
 /*! TestClass_add_to_list_TheList */
 UPNP_EXPORT_SPEC void TestClass_add_to_list_TheList(
-	TestClass *p, UpnpListHead *head);
+    TestClass *p, UpnpListHead *head);
 
 /*! TestClass_get_TheInteger */
 UPNP_EXPORT_SPEC int TestClass_get_TheInteger(const TestClass *p);
@@ -54,10 +54,10 @@ UPNP_EXPORT_SPEC int TestClass_set_TheInteger(TestClass *p, int n);
 
 /*! TestClass_get_TheUnsignedLong */
 UPNP_EXPORT_SPEC unsigned long TestClass_get_TheUnsignedLong(
-	const TestClass *p);
+    const TestClass *p);
 /*! TestClass_set_TheUnsignedLong */
 UPNP_EXPORT_SPEC int TestClass_set_TheUnsignedLong(
-	TestClass *p, unsigned long n);
+    TestClass *p, unsigned long n);
 
 /*! TestClass_get_TheCharPointer */
 UPNP_EXPORT_SPEC char *TestClass_get_TheCharPointer(const TestClass *p);
@@ -66,19 +66,19 @@ UPNP_EXPORT_SPEC int TestClass_set_TheCharPointer(TestClass *p, char *n);
 
 /*! TestClass_get_TheBuffer */
 UPNP_EXPORT_SPEC const struct TheStruct *TestClass_get_TheBuffer(
-	const TestClass *p);
+    const TestClass *p);
 /*! TestClass_get_TheBuffer */
 UPNP_EXPORT_SPEC int TestClass_set_TheBuffer(
-	TestClass *p, const struct TheStruct *buf);
+    TestClass *p, const struct TheStruct *buf);
 /*! TestClass_get_TheBuffer */
 UPNP_EXPORT_SPEC void TestClass_clear_TheBuffer(TestClass *p);
 
 /*! TestClass_get_TheActionComplete */
 UPNP_EXPORT_SPEC const UpnpActionComplete *TestClass_get_TheActionComplete(
-	const TestClass *p);
+    const TestClass *p);
 /*! TestClass_set_TheActionComplete */
 UPNP_EXPORT_SPEC int TestClass_set_TheActionComplete(
-	TestClass *p, const UpnpActionComplete *n);
+    TestClass *p, const UpnpActionComplete *n);
 
 /*! TestClass_get_TheString */
 UPNP_EXPORT_SPEC const UpnpString *TestClass_get_TheString(const TestClass *p);
@@ -92,7 +92,7 @@ UPNP_EXPORT_SPEC const char *TestClass_get_TheString_cstr(const TestClass *p);
 UPNP_EXPORT_SPEC int TestClass_strcpy_TheString(TestClass *p, const char *s);
 /*! TestClass_strncpy_TheString */
 UPNP_EXPORT_SPEC int TestClass_strncpy_TheString(
-	TestClass *p, const char *s, size_t n);
+    TestClass *p, const char *s, size_t n);
 /*! TestClass_clear_TheString */
 UPNP_EXPORT_SPEC void TestClass_clear_TheString(TestClass *p);
 
@@ -100,10 +100,10 @@ UPNP_EXPORT_SPEC void TestClass_clear_TheString(TestClass *p);
 UPNP_EXPORT_SPEC const DOMString TestClass_get_TheDomString(const TestClass *p);
 /*! TestClass_set_TheDomString */
 UPNP_EXPORT_SPEC int TestClass_set_TheDomString(
-	TestClass *p, const DOMString s);
+    TestClass *p, const DOMString s);
 /*! TestClass_get_TheDomString_cstr */
 UPNP_EXPORT_SPEC const char *TestClass_get_TheDomString_cstr(
-	const TestClass *p);
+    const TestClass *p);
 
 #ifdef __cplusplus
 }

@@ -37,7 +37,7 @@
  *
  * @{
  *
- * \file
+ * \fileMAX_URL
  */
 
 #ifdef __cplusplus
@@ -50,6 +50,8 @@ extern "C" {
 #include "upnp.h" /* for Upnp_EventType */
 #include "upnptools.h"
 
+
+#define MAX_URL_SIZE (LINE_SIZE)
 
 /**
  * \brief Free a pointer if it is not NULL
@@ -133,6 +135,19 @@ char *SampleUtil_BuildDeviceUrl(
 	const char *ip,
 	/*! [in] The port. */
 	uint16_t port);
+
+
+/*!
+ * \brief Given an address family, IP address, port and filename this routine
+ * builds a URL string in the form of http://ip:port/filename.
+ * returns UPNP_E_SUCCESS on success.
+ */
+int SampleUtil_BuildUrl(char *buffer,
+    size_t size,
+    int address_family,
+    const char *ip,
+    uint16_t port,
+    const char *filename);
 
 /*!
  * \brief Given a DOM node such as <Channel>11</Channel>, this routine

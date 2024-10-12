@@ -40,6 +40,12 @@
 
 #include "config.h"
 
+#if ENABLE_SUPNP
+#include <cJSON/cJSON.h>
+#include <supnp_captoken.h>
+#include <supnp_err.h>
+#endif
+
 #ifdef INCLUDE_DEVICE_APIS
 	#if EXCLUDE_SSDP == 0
 
@@ -378,12 +384,13 @@ static int isUrlV6UlaGua(char *descdocUrl)
 	return 0;
 }
 
+#if ENABLE_SUPNP
 /*!
- * \brief Creates a HTTP request packet. Depending on the input parameter,
+ * \brief Creates a SUPnP-HTTP request packet. Depending on the input parameter,
  * it either creates a service advertisement request or service shutdown
  * request etc.
  */
-static void CreateServicePacket(
+static void CreateServicePacketSUPnP(
 	/*! [in] type of the message (Search Reply, Advertisement
 	 * or Shutdown). */
 	int msg_type,
@@ -393,6 +400,8 @@ static void CreateServicePacket(
 	char *usn,
 	/*! [in] Location URL. */
 	char *location,
+    /*! [in] Capability Token Location URL. */
+    char *capTokenLocation,
 	/*! [in] Service duration in sec. */
 	int duration,
 	/*! [out] Output buffer filled with HTTP statement. */
@@ -409,6 +418,472 @@ static void CreateServicePacket(
 	int ret_code;
 	const char *nts;
 	membuffer buf;
+
+    char advSignature[SIGNATURE_SIZE + 1] = {0}; // +1 for null terminator
+    if ((capTokenLocation != NULL) && (strlen(capTokenLocation) > 0)) {
+        char *advSignatureTemp = extractCapTokenFieldValue2(capTokenLocation,
+       eCapTokenSignatureAdvertisement);
+        strncpy(advSignature, advSignatureTemp, SIGNATURE_SIZE);
+        freeif(advSignatureTemp);
+    }
+
+	/* Notf == 0 means service shutdown,
+	 * Notf == 1 means service advertisement,
+	 * Notf == 2 means reply */
+	membuffer_init(&buf);
+	buf.size_inc = (size_t)30;
+	*packet = NULL;
+	if (msg_type == MSGTYPE_REPLY) {
+		if (PowerState > 0) {
+		#ifdef UPNP_HAVE_OPTSSDP
+			ret_code = http_MakeMessage(&buf,
+				1,
+				1,
+				"R"
+				"sdc"
+				"D"
+				"sc"
+				"ssc"
+				"ssc"
+				"ssc"
+				#if ENABLE_SUPNP
+                "ssc"
+                "ssc"
+				#endif
+				"S"
+				"Xc"
+				"ssc"
+				"ssc"
+				"sdc"
+				"sdc"
+				"sdcc",
+				HTTP_OK,
+				"CACHE-CONTROL: max-age=",
+				duration,
+				"EXT:",
+				"LOCATION: ",
+				location,
+				#if ENABLE_SUPNP
+				"CAPTOKEN-LOCATION: ",
+			    capTokenLocation,
+			    "ADVERTISEMENT-SIG: ",
+			    advSignature,
+			    #endif
+				"OPT: ",
+				"\"http://schemas.upnp.org/upnp/1/0/\"; ns=01",
+				"01-NLS: ",
+				gUpnpSdkNLSuuid,
+				X_USER_AGENT,
+				"ST: ",
+				nt,
+				"USN: ",
+				usn,
+				"Powerstate: ",
+				PowerState,
+				"SleepPeriod: ",
+				SleepPeriod,
+				"RegistrationState: ",
+				RegistrationState);
+		#else
+			ret_code = http_MakeMessage(&buf,
+				1,
+				1,
+				"R"
+				"sdc"
+				"D"
+				"sc"
+				"ssc"
+				"S"
+				#if ENABLE_SUPNP
+                "ssc"
+                "ssc"
+                #endif
+				"ssc"
+				"ssc"
+				"sdc"
+				"sdc"
+				"sdcc",
+				HTTP_OK,
+				"CACHE-CONTROL: max-age=",
+				duration,
+				"EXT:",
+				"LOCATION: ",
+				location,
+				#if ENABLE_SUPNP
+				"CAPTOKEN-LOCATION: ",
+			    capTokenLocation,
+			    "ADVERTISEMENT-SIG: ",
+			    advSignature,
+			    #endif
+				"ST: ",
+				nt,
+				"USN: ",
+				usn,
+				"Powerstate: ",
+				PowerState,
+				"SleepPeriod: ",
+				SleepPeriod,
+				"RegistrationState: ",
+				RegistrationState);
+		#endif /* UPNP_HAVE_OPTSSDP */
+		} else {
+		#ifdef UPNP_HAVE_OPTSSDP
+			ret_code = http_MakeMessage(&buf,
+				1,
+				1,
+				"R"
+				"sdc"
+				"D"
+				"sc"
+				"ssc"
+				"ssc"
+				"ssc"
+				#if ENABLE_SUPNP
+                "ssc"
+                "ssc"
+                #endif
+				"S"
+				"Xc"
+				"ssc"
+				"sscc",
+				HTTP_OK,
+				"CACHE-CONTROL: max-age=",
+				duration,
+				"EXT:",
+				"LOCATION: ",
+				location,
+				#if ENABLE_SUPNP
+                "CAPTOKEN-LOCATION: ",
+                capTokenLocation,
+                "ADVERTISEMENT-SIG: ",
+                advSignature,
+                #endif
+				"OPT: ",
+				"\"http://schemas.upnp.org/upnp/1/0/\"; ns=01",
+				"01-NLS: ",
+				gUpnpSdkNLSuuid,
+				X_USER_AGENT,
+				"ST: ",
+				nt,
+				"USN: ",
+				usn);
+		#else
+			ret_code = http_MakeMessage(&buf,
+				1,
+				1,
+				"R"
+				"sdc"
+				"D"
+				"sc"
+				"ssc"
+				"S"
+				#if ENABLE_SUPNP
+                "ssc"
+                "ssc"
+                #endif
+				"ssc"
+				"sscc",
+				HTTP_OK,
+				"CACHE-CONTROL: max-age=",
+				duration,
+				"EXT:",
+				"LOCATION: ",
+				location,
+				#if ENABLE_SUPNP
+                "CAPTOKEN-LOCATION: ",
+                capTokenLocation,
+                "ADVERTISEMENT-SIG: ",
+                advSignature,
+                #endif
+				"ST: ",
+				nt,
+				"USN: ",
+				usn);
+		#endif /* UPNP_HAVE_OPTSSDP */
+		}
+		if (ret_code != 0) {
+			return;
+		}
+	} else if (msg_type == MSGTYPE_ADVERTISEMENT ||
+		   msg_type == MSGTYPE_SHUTDOWN) {
+		const char *host = NULL;
+
+		if (msg_type == MSGTYPE_ADVERTISEMENT)
+			nts = "ssdp:alive";
+		else
+			/* shutdown */
+			nts = "ssdp:byebye";
+		/* NOTE: The CACHE-CONTROL and LOCATION headers are not present
+		 * in
+		 * a shutdown msg, but are present here for MS WinMe interop. */
+		switch (AddressFamily) {
+		case AF_INET:
+			host = SSDP_IP;
+			break;
+		default:
+			if (isUrlV6UlaGua(location))
+				host = "[" SSDP_IPV6_SITELOCAL "]";
+			else
+				host = "[" SSDP_IPV6_LINKLOCAL "]";
+		}
+		if (PowerState > 0) {
+		#ifdef UPNP_HAVE_OPTSSDP
+			ret_code = http_MakeMessage(&buf,
+				1,
+				1,
+				"Q"
+				"sssdc"
+				"sdc"
+				"ssc"
+				"ssc"
+				"ssc"
+				"ssc"
+				"ssc"
+				#if ENABLE_SUPNP
+                "ssc"
+                "ssc"
+                #endif
+				"S"
+				"Xc"
+				"ssc"
+				"sdc"
+				"sdc"
+				"sdcc",
+				HTTPMETHOD_NOTIFY,
+				"*",
+				(size_t)1,
+				"HOST: ",
+				host,
+				":",
+				SSDP_PORT,
+				"CACHE-CONTROL: max-age=",
+				duration,
+				"LOCATION: ",
+				location,
+				#if ENABLE_SUPNP
+                "CAPTOKEN-LOCATION: ",
+                capTokenLocation,
+                "ADVERTISEMENT-SIG: ",
+                advSignature,
+                #endif
+				"OPT: ",
+				"\"http://schemas.upnp.org/upnp/1/0/\"; ns=01",
+				"01-NLS: ",
+				gUpnpSdkNLSuuid,
+				"NT: ",
+				nt,
+				"NTS: ",
+				nts,
+				X_USER_AGENT,
+				"USN: ",
+				usn,
+				"Powerstate: ",
+				PowerState,
+				"SleepPeriod: ",
+				SleepPeriod,
+				"RegistrationState: ",
+				RegistrationState);
+		#else
+			ret_code = http_MakeMessage(&buf,
+				1,
+				1,
+				"Q"
+				"sssdc"
+				"sdc"
+				"ssc"
+				"ssc"
+				"ssc"
+				#if ENABLE_SUPNP
+                "ssc"
+                "ssc"
+                #endif
+				"S"
+				"ssc"
+				"sdc"
+				"sdc"
+				"sdcc",
+				HTTPMETHOD_NOTIFY,
+				"*",
+				(size_t)1,
+				"HOST: ",
+				host,
+				":",
+				SSDP_PORT,
+				"CACHE-CONTROL: max-age=",
+				duration,
+				"LOCATION: ",
+				location,
+				#if ENABLE_SUPNP
+                "CAPTOKEN-LOCATION: ",
+                capTokenLocation,
+                "ADVERTISEMENT-SIG: ",
+                advSignature,
+                #endif
+				"NT: ",
+				nt,
+				"NTS: ",
+				nts,
+				"USN: ",
+				usn,
+				"Powerstate: ",
+				PowerState,
+				"SleepPeriod: ",
+				SleepPeriod,
+				"RegistrationState: ",
+				RegistrationState);
+		#endif /* UPNP_HAVE_OPTSSDP */
+		} else {
+		#ifdef UPNP_HAVE_OPTSSDP
+			ret_code = http_MakeMessage(&buf,
+				1,
+				1,
+				"Q"
+				"sssdc"
+				"sdc"
+				"ssc"
+				"ssc"
+				"ssc"
+				"ssc"
+				"ssc"
+				#if ENABLE_SUPNP
+                "ssc"
+                "ssc"
+                #endif
+				"S"
+				"Xc"
+				"sscc",
+				HTTPMETHOD_NOTIFY,
+				"*",
+				(size_t)1,
+				"HOST: ",
+				host,
+				":",
+				SSDP_PORT,
+				"CACHE-CONTROL: max-age=",
+				duration,
+				"LOCATION: ",
+				location,
+				#if ENABLE_SUPNP
+                "CAPTOKEN-LOCATION: ",
+                capTokenLocation,
+                "ADVERTISEMENT-SIG: ",
+                advSignature,
+                #endif
+				"OPT: ",
+				"\"http://schemas.upnp.org/upnp/1/0/\"; ns=01",
+				"01-NLS: ",
+				gUpnpSdkNLSuuid,
+				"NT: ",
+				nt,
+				"NTS: ",
+				nts,
+				X_USER_AGENT,
+				"USN: ",
+				usn);
+		#else
+			ret_code = http_MakeMessage(&buf,
+				1,
+				1,
+				"Q"
+				"sssdc"
+				"sdc"
+				"ssc"
+				"ssc"
+				"ssc"
+				#if ENABLE_SUPNP
+                "ssc"
+                "ssc"
+                #endif
+				"S"
+				"sscc",
+				HTTPMETHOD_NOTIFY,
+				"*",
+				(size_t)1,
+				"HOST: ",
+				host,
+				":",
+				SSDP_PORT,
+				"CACHE-CONTROL: max-age=",
+				duration,
+				"LOCATION: ",
+				location,
+				#if ENABLE_SUPNP
+                "CAPTOKEN-LOCATION: ",
+                capTokenLocation,
+                "ADVERTISEMENT-SIG: ",
+                advSignature,
+                #endif
+				"NT: ",
+				nt,
+				"NTS: ",
+				nts,
+				"USN: ",
+				usn);
+		#endif /* UPNP_HAVE_OPTSSDP */
+		}
+		if (ret_code)
+			return;
+	} else
+		/* unknown msg */
+		assert(0);
+	/* return msg */
+	*packet = membuffer_detach(&buf);
+	membuffer_destroy(&buf);
+
+	return;
+}
+#endif
+
+/*!
+ * \brief Creates a HTTP request packet. Depending on the input parameter,
+ * it either creates a service advertisement request or service shutdown
+ * request etc.
+ */
+static void CreateServicePacket(
+	/*! [in] type of the message (Search Reply, Advertisement
+	 * or Shutdown). */
+	int msg_type,
+	/*! [in] ssdp type. */
+	const char *nt,
+	/*! [in] unique service name ( go in the HTTP Header). */
+	char *usn,
+	/*! [in] Location URL. */
+	char *location,
+	#if ENABLE_SUPNP
+    /*! [in] Capability Token Location URL. */
+    char *capTokenLocation,
+    #endif
+	/*! [in] Service duration in sec. */
+	int duration,
+	/*! [out] Output buffer filled with HTTP statement. */
+	char **packet,
+	/*! [in] Address family of the HTTP request. */
+	int AddressFamily,
+	/*! [in] PowerState as defined by UPnP Low Power. */
+	int PowerState,
+	/*! [in] SleepPeriod as defined by UPnP Low Power. */
+	int SleepPeriod,
+	/*! [in] RegistrationState as defined by UPnP Low Power. */
+	int RegistrationState)
+{
+	int ret_code;
+	const char *nts;
+	membuffer buf;
+
+    if ((capTokenLocation != NULL) && (strlen(capTokenLocation) > 0)) {
+        CreateServicePacketSUPnP(msg_type,
+            nt,
+            usn,
+            location,
+            capTokenLocation,
+            duration,
+            packet,
+            AddressFamily,
+            PowerState,
+            SleepPeriod,
+            RegistrationState);
+        return;
+    }
 
 	/* Notf == 0 means service shutdown,
 	 * Notf == 1 means service advertisement,
@@ -736,10 +1211,15 @@ static void CreateServicePacket(
 	return;
 }
 
+
+
 int DeviceAdvertisement(char *DevType,
 	int RootDev,
 	char *Udn,
 	char *Location,
+#if ENABLE_SUPNP
+    char *CapTokenLocation,
+#endif
 	int Duration,
 	int AddressFamily,
 	int PowerState,
@@ -797,6 +1277,9 @@ int DeviceAdvertisement(char *DevType,
 			"upnp:rootdevice",
 			Mil_Usn,
 			Location,
+			#if ENABLE_SUPNP
+            CapTokenLocation,
+            #endif
 			Duration,
 			&msgs[0],
 			AddressFamily,
@@ -805,10 +1288,13 @@ int DeviceAdvertisement(char *DevType,
 			RegistrationState);
 	}
 	/* both root and sub-devices need to send these two messages */
-	CreateServicePacket(MSGTYPE_ADVERTISEMENT,
+    CreateServicePacket(MSGTYPE_ADVERTISEMENT,
 		Udn,
 		Udn,
 		Location,
+		#if ENABLE_SUPNP
+        CapTokenLocation,
+        #endif
 		Duration,
 		&msgs[1],
 		AddressFamily,
@@ -818,10 +1304,13 @@ int DeviceAdvertisement(char *DevType,
 	rc = snprintf(Mil_Usn, sizeof(Mil_Usn), "%s::%s", Udn, DevType);
 	if (rc < 0 || (unsigned int)rc >= sizeof(Mil_Usn))
 		goto error_handler;
-	CreateServicePacket(MSGTYPE_ADVERTISEMENT,
+    CreateServicePacket(MSGTYPE_ADVERTISEMENT,
 		DevType,
 		Mil_Usn,
 		Location,
+		#if ENABLE_SUPNP
+        CapTokenLocation,
+        #endif
 		Duration,
 		&msgs[2],
 		AddressFamily,
@@ -859,6 +1348,9 @@ int SendReply(struct sockaddr *DestAddr,
 	int RootDev,
 	char *Udn,
 	char *Location,
+	#if ENABLE_SUPNP
+    char *CapTokenLocation,
+    #endif
 	int Duration,
 	int ByType,
 	int PowerState,
@@ -886,6 +1378,9 @@ int SendReply(struct sockaddr *DestAddr,
 			"upnp:rootdevice",
 			Mil_Usn,
 			Location,
+			#if ENABLE_SUPNP
+            CapTokenLocation,
+            #endif
 			Duration,
 			&msgs[0],
 			(int)DestAddr->sa_family,
@@ -902,6 +1397,9 @@ int SendReply(struct sockaddr *DestAddr,
 				Udn,
 				Udn,
 				Location,
+				#if ENABLE_SUPNP
+				CapTokenLocation,
+                #endif
 				Duration,
 				&msgs[0],
 				(int)DestAddr->sa_family,
@@ -920,6 +1418,9 @@ int SendReply(struct sockaddr *DestAddr,
 				DevType,
 				Mil_Usn,
 				Location,
+				#if ENABLE_SUPNP
+                CapTokenLocation,
+                #endif
 				Duration,
 				&msgs[0],
 				(int)DestAddr->sa_family,
@@ -951,6 +1452,9 @@ int DeviceReply(struct sockaddr *DestAddr,
 	int RootDev,
 	char *Udn,
 	char *Location,
+	#if ENABLE_SUPNP
+    char *CapTokenLocation,
+    #endif
 	int Duration,
 	int PowerState,
 	int SleepPeriod,
@@ -976,6 +1480,9 @@ int DeviceReply(struct sockaddr *DestAddr,
 			Mil_Nt,
 			Mil_Usn,
 			Location,
+			#if ENABLE_SUPNP
+            CapTokenLocation,
+            #endif
 			Duration,
 			&szReq[0],
 			(int)DestAddr->sa_family,
@@ -993,6 +1500,9 @@ int DeviceReply(struct sockaddr *DestAddr,
 		Mil_Nt,
 		Mil_Usn,
 		Location,
+		#if ENABLE_SUPNP
+        CapTokenLocation,
+        #endif
 		Duration,
 		&szReq[1],
 		(int)DestAddr->sa_family,
@@ -1009,6 +1519,9 @@ int DeviceReply(struct sockaddr *DestAddr,
 		Mil_Nt,
 		Mil_Usn,
 		Location,
+		#if ENABLE_SUPNP
+        CapTokenLocation,
+        #endif
 		Duration,
 		&szReq[2],
 		(int)DestAddr->sa_family,
@@ -1039,6 +1552,9 @@ error_handler:
 int ServiceAdvertisement(char *Udn,
 	char *ServType,
 	char *Location,
+#if ENABLE_SUPNP
+    char *CapTokenLocation,
+#endif
 	int Duration,
 	int AddressFamily,
 	int PowerState,
@@ -1086,6 +1602,9 @@ int ServiceAdvertisement(char *Udn,
 		ServType,
 		Mil_Usn,
 		Location,
+		#if ENABLE_SUPNP
+        CapTokenLocation,
+        #endif
 		Duration,
 		&szReq[0],
 		AddressFamily,
@@ -1107,6 +1626,9 @@ int ServiceReply(struct sockaddr *DestAddr,
 	char *ServType,
 	char *Udn,
 	char *Location,
+	#if ENABLE_SUPNP
+    char *CapTokenLocation,
+    #endif
 	int Duration,
 	int PowerState,
 	int SleepPeriod,
@@ -1125,6 +1647,9 @@ int ServiceReply(struct sockaddr *DestAddr,
 		ServType,
 		Mil_Usn,
 		Location,
+		#if ENABLE_SUPNP
+        CapTokenLocation,
+        #endif
 		Duration,
 		&szReq[0],
 		(int)DestAddr->sa_family,
@@ -1192,6 +1717,7 @@ int ServiceShutdown(char *Udn,
 		ServType,
 		Mil_Usn,
 		Location,
+		NULL,
 		Duration,
 		&szReq[0],
 		AddressFamily,
@@ -1262,6 +1788,7 @@ int DeviceShutdown(char *DevType,
 			"upnp:rootdevice",
 			Mil_Usn,
 			Location,
+			NULL,
 			Duration,
 			&msgs[0],
 			AddressFamily,
@@ -1279,6 +1806,7 @@ int DeviceShutdown(char *DevType,
 		Udn,
 		Udn,
 		Location,
+		NULL,
 		Duration,
 		&msgs[1],
 		AddressFamily,
@@ -1292,6 +1820,7 @@ int DeviceShutdown(char *DevType,
 		DevType,
 		Mil_Usn,
 		Location,
+		NULL,
 		Duration,
 		&msgs[2],
 		AddressFamily,

@@ -24,21 +24,22 @@ typedef struct evp_pkey_st EVP_PKEY;
 typedef struct cJSON cJSON;
 typedef struct _supnp_device_t supnp_device_t;
 
-/* Cap Token related */
-#define ID_SIZE       11  /* As presented by the paper */
-#define SD_TYPE_STR   "SERVICE-DEVICE"
-#define CP_TYPE_STR   "CONTROL-POINT"
-#define CT_ID         "ID"
-#define CT_TIMESTAMP  "ISSUER-INSTANT"
-#define RA_PK         "RA-PK"
-#define SD_PK         "SD-PK"
-#define CP_PK         "CP-PK"
-#define RA_SIG        "RA-SIG"
-#define CT_TYPE       "TYPE"
-#define CT_ADV_SIG    "ADVERTISEMENT-SIG"
-#define CT_DESC_SIG   "DESCRIPTION-SIG"
-#define CT_SERVICES   "SERVICES"
-#define CT_URI_SIG    "LOCATION-SIG"
+typedef enum ECapTokenFieldType
+{
+    eCapTokenID = 0,
+    eCapTokenDeviceType,
+    eCapTokenIssuerInstant,
+    eCapTokenPublicKeyRA,
+    eCapTokenPublicKeySD,
+    eCapTokenPublicKeyCP,
+    eCapTokenSignatureRA,
+    eCapTokenSignatureAdvertisement,
+    eCapTokenSignatureDescription,
+    eCapTokenSignatureLocation,
+    eCapTokenServices,
+
+    eCatTokenFieldTypesCount
+}ECapTokenFieldType;
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,6 +64,10 @@ UPNP_EXPORT_SPEC captoken_t *capTokenFromString(const char *cap_token_str);
 UPNP_EXPORT_SPEC captoken_t *capTokenFromHexString(const char *hex);
 
 UPNP_EXPORT_SPEC int storeCapToken(const captoken_t *capToken, const char *filepath);
+
+UPNP_EXPORT_SPEC char *extractCapTokenFieldValue(const captoken_t *cap_token, ECapTokenFieldType type);
+
+UPNP_EXPORT_SPEC char *extractCapTokenFieldValue2(const char *capTokenUrl, ECapTokenFieldType type);
 
 #ifdef __cplusplus
 }

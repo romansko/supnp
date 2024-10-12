@@ -39,7 +39,7 @@ extern "C" {
  * the operation was successfully transmitted on the network.  The result of
  * the entire operation comes as part of the callback for that operation.
  */
-#define SUPNP_E_SUCCESS (0)
+#define SUPNP_E_SUCCESS (UPNP_E_SUCCESS)
 
 /*!
  * \brief Generic error code for internal conditions not covered by other

@@ -88,6 +88,12 @@ struct Handle_Info
 	char LowerDescURL[LINE_SIZE];
 	/*! XML file path for device description. */
 	char DescXML[LINE_SIZE];
+#ifdef ENABLE_SUPNP
+	/*! CapToken URL for SUPnP Algorithms. */
+	char CapTokenUrl[LINE_SIZE];
+	/*! Advertisement Signature for Service Advertisement. */
+	char AdvertisementSignature[SIGNATURE_SIZE];
+#endif
 	/* Advertisement timeout */
 	int MaxAge;
 	/* Power State as defined by UPnP Low Power. */

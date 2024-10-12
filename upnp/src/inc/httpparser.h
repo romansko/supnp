@@ -133,7 +133,7 @@ typedef enum
 #define HDR_USN 23
 #define HDR_USER_AGENT 24
 
-/* Adding new header difinition */
+/* Adding new header definition */
 #define HDR_ACCEPT 25
 #define HDR_ACCEPT_ENCODING 26
 #define HDR_ACCEPT_CHARSET 27
@@ -146,6 +146,11 @@ typedef enum
 #define HDR_IF_RANGE 34
 #define HDR_RANGE 35
 #define HDR_TE 36
+
+#ifdef ENABLE_SUPNP
+#define HDR_CAPTOKEN_LOCATION 37
+#define HDR_ADVERTISEMENT_SIGNATURE 38
+#endif
 
 /*! status of parsing */
 typedef enum

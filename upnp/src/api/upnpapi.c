@@ -899,6 +899,9 @@ static int FreeHandle(
 
 #ifdef INCLUDE_DEVICE_APIS
 int UpnpRegisterRootDevice(const char *DescUrl,
+#if ENABLE_SUPNP
+	const char *CapTokenUrl,
+#endif /* ENABLE_SUPNP */
 	Upnp_FunPtr Fun,
 	const void *Cookie,
 	UpnpDevice_Handle *Hnd)
@@ -951,6 +954,10 @@ int UpnpRegisterRootDevice(const char *DescUrl,
 
 	HInfo->aliasInstalled = 0;
 	HInfo->HType = HND_DEVICE;
+#if ENABLE_SUPNP
+    if (CapTokenUrl) /* Not Applicable for RA */
+        strncpy(HInfo->CapTokenUrl, CapTokenUrl, sizeof(HInfo->CapTokenUrl) - 1);
+#endif
 	strncpy(HInfo->DescURL, DescUrl, sizeof(HInfo->DescURL) - 1);
 	strncpy(HInfo->LowerDescURL, DescUrl, sizeof(HInfo->LowerDescURL) - 1);
 	UpnpPrintf(UPNP_ALL,
@@ -1090,6 +1097,7 @@ static int GetDescDocumentAndURL(
 	/* [out] . */
 	char descURL[LINE_SIZE]);
 
+#if ENABLE_SUPNP == 0       /* Not Implemented for SUPnP */
 #ifdef INCLUDE_DEVICE_APIS
 int UpnpRegisterRootDevice2(Upnp_DescType descriptionType,
 	const char *description_const,
@@ -1261,9 +1269,13 @@ exit_function:
 	return retVal;
 }
 #endif /* INCLUDE_DEVICE_APIS */
+#endif /* ENABLE_SUPNP == 0 */
 
 #ifdef INCLUDE_DEVICE_APIS
 int UpnpRegisterRootDevice3(const char *DescUrl,
+#if ENABLE_SUPNP
+	const char *CapTokenUrl,
+#endif /* ENABLE_SUPNP */
 	Upnp_FunPtr Fun,
 	const void *Cookie,
 	UpnpDevice_Handle *Hnd,
@@ -1274,13 +1286,21 @@ int UpnpRegisterRootDevice3(const char *DescUrl,
 		__FILE__,
 		__LINE__,
 		"Inside UpnpRegisterRootDevice3\n");
+#if ENABLE_SUPNP
+    return UpnpRegisterRootDevice4(
+        DescUrl, CapTokenUrl, Fun, Cookie, Hnd, AddressFamily, NULL);
+#else
 	return UpnpRegisterRootDevice4(
 		DescUrl, Fun, Cookie, Hnd, AddressFamily, NULL);
+#endif
 }
 #endif /* INCLUDE_DEVICE_APIS */
 
 #ifdef INCLUDE_DEVICE_APIS
 int UpnpRegisterRootDevice4(const char *DescUrl,
+#if ENABLE_SUPNP
+	const char *CapTokenUrl,
+#endif /* ENABLE_SUPNP */
 	Upnp_FunPtr Fun,
 	const void *Cookie,
 	UpnpDevice_Handle *Hnd,
@@ -1330,6 +1350,10 @@ int UpnpRegisterRootDevice4(const char *DescUrl,
 		DescUrl);
 	HInfo->aliasInstalled = 0;
 	HInfo->HType = HND_DEVICE;
+#if ENABLE_SUPNP
+    if (CapTokenUrl) /* Not Applicable for RA */
+        strncpy(HInfo->CapTokenUrl, CapTokenUrl, sizeof(HInfo->CapTokenUrl) - 1);
+    #endif
 	strncpy(HInfo->DescURL, DescUrl, sizeof(HInfo->DescURL) - 1);
 	if (LowerDescUrl == NULL)
 		strncpy(HInfo->LowerDescURL,

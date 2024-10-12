@@ -39,7 +39,7 @@ UPNP_EXPORT_SPEC void UpnpFileInfo_delete(UpnpFileInfo *p);
 UPNP_EXPORT_SPEC UpnpFileInfo *UpnpFileInfo_dup(const UpnpFileInfo *p);
 /*! Assignment operator */
 UPNP_EXPORT_SPEC int UpnpFileInfo_assign(
-	UpnpFileInfo *p, const UpnpFileInfo *q);
+    UpnpFileInfo *p, const UpnpFileInfo *q);
 
 /*! UpnpFileInfo_get_FileLength */
 UPNP_EXPORT_SPEC off_t UpnpFileInfo_get_FileLength(const UpnpFileInfo *p);
@@ -63,30 +63,30 @@ UPNP_EXPORT_SPEC int UpnpFileInfo_set_IsReadable(UpnpFileInfo *p, int n);
 
 /*! UpnpFileInfo_get_ContentType */
 UPNP_EXPORT_SPEC const DOMString UpnpFileInfo_get_ContentType(
-	const UpnpFileInfo *p);
+    const UpnpFileInfo *p);
 /*! UpnpFileInfo_set_ContentType */
 UPNP_EXPORT_SPEC int UpnpFileInfo_set_ContentType(
-	UpnpFileInfo *p, const DOMString s);
+    UpnpFileInfo *p, const DOMString s);
 /*! UpnpFileInfo_get_ContentType_cstr */
 UPNP_EXPORT_SPEC const char *UpnpFileInfo_get_ContentType_cstr(
-	const UpnpFileInfo *p);
+    const UpnpFileInfo *p);
 
 /*! UpnpFileInfo_get_ExtraHeadersList */
 UPNP_EXPORT_SPEC const UpnpListHead *UpnpFileInfo_get_ExtraHeadersList(
-	const UpnpFileInfo *p);
+    const UpnpFileInfo *p);
 /*! UpnpFileInfo_set_ExtraHeadersList */
 UPNP_EXPORT_SPEC int UpnpFileInfo_set_ExtraHeadersList(
-	UpnpFileInfo *p, const UpnpListHead *q);
+    UpnpFileInfo *p, const UpnpListHead *q);
 /*! UpnpFileInfo_add_to_list_ExtraHeadersList */
 UPNP_EXPORT_SPEC void UpnpFileInfo_add_to_list_ExtraHeadersList(
-	UpnpFileInfo *p, UpnpListHead *head);
+    UpnpFileInfo *p, UpnpListHead *head);
 
 /*! UpnpFileInfo_get_CtrlPtIPAddr */
 UPNP_EXPORT_SPEC const struct sockaddr_storage *UpnpFileInfo_get_CtrlPtIPAddr(
-	const UpnpFileInfo *p);
+    const UpnpFileInfo *p);
 /*! UpnpFileInfo_get_CtrlPtIPAddr */
 UPNP_EXPORT_SPEC int UpnpFileInfo_set_CtrlPtIPAddr(
-	UpnpFileInfo *p, const struct sockaddr_storage *buf);
+    UpnpFileInfo *p, const struct sockaddr_storage *buf);
 /*! UpnpFileInfo_get_CtrlPtIPAddr */
 UPNP_EXPORT_SPEC void UpnpFileInfo_clear_CtrlPtIPAddr(UpnpFileInfo *p);
 
@@ -102,7 +102,7 @@ UPNP_EXPORT_SPEC const char *UpnpFileInfo_get_Os_cstr(const UpnpFileInfo *p);
 UPNP_EXPORT_SPEC int UpnpFileInfo_strcpy_Os(UpnpFileInfo *p, const char *s);
 /*! UpnpFileInfo_strncpy_Os */
 UPNP_EXPORT_SPEC int UpnpFileInfo_strncpy_Os(
-	UpnpFileInfo *p, const char *s, size_t n);
+    UpnpFileInfo *p, const char *s, size_t n);
 /*! UpnpFileInfo_clear_Os */
 UPNP_EXPORT_SPEC void UpnpFileInfo_clear_Os(UpnpFileInfo *p);
 

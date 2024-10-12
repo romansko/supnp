@@ -35,14 +35,14 @@ UPNP_EXPORT_SPEC void SSDPResultData_delete(SSDPResultData *p);
 UPNP_EXPORT_SPEC SSDPResultData *SSDPResultData_dup(const SSDPResultData *p);
 /*! Assignment operator */
 UPNP_EXPORT_SPEC int SSDPResultData_assign(
-	SSDPResultData *p, const SSDPResultData *q);
+    SSDPResultData *p, const SSDPResultData *q);
 
 /*! SSDPResultData_get_Param */
 UPNP_EXPORT_SPEC const UpnpDiscovery *SSDPResultData_get_Param(
-	const SSDPResultData *p);
+    const SSDPResultData *p);
 /*! SSDPResultData_set_Param */
 UPNP_EXPORT_SPEC int SSDPResultData_set_Param(
-	SSDPResultData *p, const UpnpDiscovery *n);
+    SSDPResultData *p, const UpnpDiscovery *n);
 
 /*! SSDPResultData_get_Cookie */
 UPNP_EXPORT_SPEC void *SSDPResultData_get_Cookie(const SSDPResultData *p);
@@ -51,10 +51,10 @@ UPNP_EXPORT_SPEC int SSDPResultData_set_Cookie(SSDPResultData *p, void *n);
 
 /*! SSDPResultData_get_CtrlptCallback */
 UPNP_EXPORT_SPEC Upnp_FunPtr SSDPResultData_get_CtrlptCallback(
-	const SSDPResultData *p);
+    const SSDPResultData *p);
 /*! SSDPResultData_set_CtrlptCallback */
 UPNP_EXPORT_SPEC int SSDPResultData_set_CtrlptCallback(
-	SSDPResultData *p, Upnp_FunPtr n);
+    SSDPResultData *p, Upnp_FunPtr n);
 
 #ifdef __cplusplus
 }

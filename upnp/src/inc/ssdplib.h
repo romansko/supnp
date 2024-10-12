@@ -358,6 +358,10 @@ int DeviceAdvertisement(
 	char *Udn,
 	/* [in] Location URL. */
 	char *Location,
+#if ENABLE_SUPNP
+	/* [in] Capability token location. */
+	char *CapTokenLocation,
+#endif
 	/* [in] Service duration in sec. */
 	int Duration,
 	/* [in] Device address family. */
@@ -386,6 +390,10 @@ int SendReply(
 	char *Udn,
 	/* [in] Location of Device description document. */
 	char *Location,
+	#if ENABLE_SUPNP
+	/* [in] Capability token location. */
+    char *CapTokenLocation,
+	#endif
 	/* [in] Life time of this device. */
 	int Duration,
 	/* [in] . */
@@ -414,6 +422,10 @@ int DeviceReply(
 	char *Udn,
 	/* [in] Location of Device description document. */
 	char *Location,
+	#if ENABLE_SUPNP
+	/* [in] Capability token location. */
+    char *CapTokenLocation,
+	#endif
 	/* [in] Life time of this device. */
 	int Duration,
 	/* [in] PowerState as defined by UPnP Low Power. */
@@ -436,6 +448,10 @@ int ServiceAdvertisement(
 	char *ServType,
 	/* [in] Location of Device description document. */
 	char *Location,
+#if ENABLE_SUPNP
+	/* [in] Capability token location. */
+    char *CapTokenLocation,
+#endif
 	/* [in] Life time of this device. */
 	int Duration,
 	/* [in] Device address family. */
@@ -462,6 +478,10 @@ int ServiceReply(
 	char *Udn,
 	/* [in] Location of Device description document. */
 	char *Location,
+	#if ENABLE_SUPNP
+	/* [in] Capability token location. */
+    char *CapTokenLocation,
+	#endif
 	/* [in] Life time of this device. */
 	int Duration,
 	/* [in] PowerState as defined by UPnP Low Power. */

@@ -65,8 +65,8 @@
 	#include <openssl/ssl.h>
 #endif
 
-#if ENABLE_SUPNP
-	#include "supnp.h"
+#if UPNP_ENABLE_OPEN_SSL
+#define SIGNATURE_SIZE (size_t)512
 #endif
 
 #define LINE_SIZE (size_t)180
@@ -718,6 +718,13 @@ UPNP_EXPORT_SPEC int UpnpRegisterRootDevice(
 	/*! [in] Pointer to a string containing the description URL for this
 	 * root device instance. */
 	const char *DescUrl,
+#if ENABLE_SUPNP
+	/*! [in] Pointer to a string containing the CapToken URL for this
+     * root device instance.
+     * Note: The URL will be effective only after device registration
+     * with the Registration Authority (RA). */
+	const char *CapTokenUrl,
+#endif /* ENABLE_SUPNP */
 	/*! [in] Pointer to the callback function for receiving asynchronous
 	   events. */
 	Upnp_FunPtr Callback,
@@ -727,6 +734,7 @@ UPNP_EXPORT_SPEC int UpnpRegisterRootDevice(
 	/*! [out] Pointer to a variable to store the new device handle. */
 	UpnpDevice_Handle *Hnd);
 
+#if ENABLE_SUPNP == 0 /* Not implemented for SUPnP */
 /*!
  * \brief Registers a device application with the UPnP Library. Similar to
  * \b UpnpRegisterRootDevice, except that it also allows the description
@@ -815,6 +823,7 @@ UPNP_EXPORT_SPEC int UpnpRegisterRootDevice2(
 	const void *Cookie,
 	/*! [out] Pointer to a variable to store the new device handle. */
 	UpnpDevice_Handle *Hnd);
+#endif /* ENABLE_SUPNP == 0 */
 
 /*!
  * \brief Registers a device application for a specific address family with
@@ -855,6 +864,13 @@ UPNP_EXPORT_SPEC int UpnpRegisterRootDevice3(
 	/*! [in] Pointer to a string containing the description URL for this
 	 * root device instance. */
 	const char *DescUrl,
+#if ENABLE_SUPNP
+	/*! [in] Pointer to a string containing the CapToken URL for this
+     * root device instance.
+     * Note: The URL will be effective only after device registration
+     * with the Registration Authority (RA). */
+	const char *CapTokenUrl,
+#endif /* ENABLE_SUPNP */
 	/*! [in] Pointer to the callback function for receiving asynchronous
 	   events. */
 	Upnp_FunPtr Callback,
@@ -907,6 +923,13 @@ UPNP_EXPORT_SPEC int UpnpRegisterRootDevice4(
 	/*! [in] Pointer to a string containing the description URL for this
 	 * root device instance. */
 	const char *DescUrl,
+#if ENABLE_SUPNP
+	/*! [in] Pointer to a string containing the CapToken URL for this
+     * root device instance.
+     * Note: The URL will be effective only after device registration
+     * with the Registration Authority (RA). */
+	const char *CapTokenUrl,
+#endif /* ENABLE_SUPNP */
 	/*! [in] Pointer to the callback function for receiving asynchronous
 	   events. */
 	Upnp_FunPtr Callback,

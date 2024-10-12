@@ -352,11 +352,11 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
     /* Step 1 - Receive and Load DSD/SAD, Device Certificate, UCA Certificate */
     for (int i=0; i<SUPNP_DOCS_ON_DEVICE; ++i) {
         hex[i] = SampleUtil_GetFirstDocumentItem(in, RaRegisterActionVarName[i]);
-        docs[i] = (char * )hex_string_to_binary(hex[i], &doc_size[i]);
+        docs[i] = (char * )OpenSslHexStringToBinary(hex[i], &doc_size[i]);
         sample_verify_ex(docs[i], cleanup, errorString, "Invalid Registration parameters.\n");
     }
 
-    ca_pk = load_public_key_from_pem(CA_PK_DEF_PATH);
+    ca_pk = OpenSslLoadPublicKeyFromPEM(CA_PK_DEF_PATH);
     sample_verify_ex(ca_pk, cleanup, errorString, "Error loading CA Public Key.\n");
 
     p_dev = SupnpNewDevice(docs[eRegisterActionVar_SpecDoc],
@@ -392,16 +392,16 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
     ret = SUPNP_E_INTERNAL_ERROR;
 
     /* Fig. 15 - step 4 - Generates nonce  */
-    nonce = generate_nonce(OPENSSL_CSPRNG_SIZE);
+    nonce = OpenSslGenerateNonce(OPENSSL_CSPRNG_SIZE);
     sample_verify_ex(nonce, cleanup, errorString, "Error generating nonce.\n");
 
     /* Save nonce for later */
     memcpy(p_dev->nonce, nonce, OPENSSL_CSPRNG_SIZE);
 
     /* Fig. 15 - step 5 - Encrypt and send the challenge. */
-    enc_nonce = encrypt_asym(p_dev->dev_pkey, &enc_len, nonce, OPENSSL_CSPRNG_SIZE);
+    enc_nonce = OpenSslAsymmetricEncryption(p_dev->dev_pkey, &enc_len, nonce, OPENSSL_CSPRNG_SIZE);
     sample_verify_ex(enc_nonce, cleanup, errorString, "Error encrypting nonce challenge.\n");
-    challenge_str = binary_to_hex_string(enc_nonce, enc_len);
+    challenge_str = OpenSslBinaryToHexString(enc_nonce, enc_len);
     sample_verify_ex(challenge_str, cleanup, errorString, "Error converting challenge to hex string.\n");
     ret = UpnpAddToActionResponse(out,
             RaRegistrationAction[eRegisterServiceAction_Register],
@@ -433,7 +433,7 @@ cleanup:
     freeif(challenge_str);
     freeif(nonce);
     freeif(enc_nonce);
-    free_key(ca_pk);
+    OpenSslFreePKey(ca_pk);
     ithread_mutex_unlock(&RAMutex);
     return ret;
 }
@@ -460,7 +460,7 @@ int VerifyChallenge(IXML_Document *in, IXML_Document **out, const char **errorSt
 
     /* Extract public key */
     hex = SampleUtil_GetFirstDocumentItem(in, RaChallengeActionVarName[eChallengeActionVar_PublicKey]);
-    pkey = load_public_key_from_hex(hex);
+    pkey = OpenSslLoadPublicKeyFromHex(hex);
     sample_verify_ex(pkey, cleanup, errorString, "Unable to load Public Key.\n");
 
     /* Search for the device by the given public key */
@@ -476,7 +476,7 @@ int VerifyChallenge(IXML_Document *in, IXML_Document **out, const char **errorSt
     response = SampleUtil_GetFirstDocumentItem(in, RaChallengeActionVarName[eChallengeActionVar_Challenge]);
 
     /* Verify Signature  */
-    ret = verify_signature("nonce challenge", pkey, response, p_dev->nonce, OPENSSL_CSPRNG_SIZE);
+    ret = OpenSslVerifySignature("nonce challenge", pkey, response, p_dev->nonce, OPENSSL_CSPRNG_SIZE);
     sample_verify_ex(ret == OPENSSL_SUCCESS, cleanup, errorString, "Error verifying nonce challenge signature.\n");
 
     /* Verification successful */
@@ -522,7 +522,7 @@ cleanup:
 
     freeif(hex);
     freeif(response);
-    free_key(pkey);
+    OpenSslFreePKey(pkey);
     freeif(capToken);
     ithread_mutex_unlock(&RAMutex);
     return ret;
@@ -590,7 +590,7 @@ int RAStart(char *iface,
     sample_verify(ret == UPNP_E_SUCCESS, error_handler, "Error with UpnpInit2 -- %d\n", ret);
 
     /* Load RA Private Key */
-    RaPrivateKey = load_private_key_from_pem(RA_SK_DEF_PATH);
+    RaPrivateKey = OpenSslLoadPrivateKeyFromPEM(RA_SK_DEF_PATH);
     sample_verify(RaPrivateKey, error_handler, "Error loading RA Private Key.\n");
 
 	switch (ip_mode) {
@@ -640,6 +640,7 @@ int RAStart(char *iface,
 	SampleUtil_Print("Registering the RootDevice\n"
 			 "\t with desc_doc_url: %s\n",	desc_doc_url);
 	ret = UpnpRegisterRootDevice3(desc_doc_url,
+	    NULL, /* RA Has no CapToken */
 		RACallbackEventHandler,
 		&device_handle,
 		&device_handle,
@@ -668,7 +669,7 @@ int RAStop(void)
 	UpnpFinish();
 	SampleUtil_Finish();
 	ithread_mutex_destroy(&RAMutex);
-    free_key(RaPrivateKey);
+    OpenSslFreePKey(RaPrivateKey);
 
 	return UPNP_E_SUCCESS;
 }

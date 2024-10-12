@@ -156,9 +156,17 @@ void ssdp_handle_ctrlpt_msg(
 	}
 	/* LOCATION */
 	if (httpmsg_find_hdr(hmsg, HDR_LOCATION, &hdr_value) != NULL) {
-		UpnpDiscovery_strncpy_Location(
-			param, hdr_value.buf, hdr_value.length);
+		UpnpDiscovery_strncpy_Location(param, hdr_value.buf, hdr_value.length);
 	}
+    #if ENABLE_SUPNP
+    /* Cap Token URL */
+    if (httpmsg_find_hdr(hmsg, HDR_CAPTOKEN_LOCATION, &hdr_value) != NULL) {
+        UpnpDiscovery_strncpy_CapTokenUrl(param, hdr_value.buf, hdr_value.length);
+    }
+    if (httpmsg_find_hdr(hmsg, HDR_ADVERTISEMENT_SIGNATURE, &hdr_value) != NULL) {
+        UpnpDiscovery_strncpy_AdvSignature(param, hdr_value.buf, hdr_value.length);
+    }
+    #endif
 	/* SERVER / USER-AGENT */
 	if (httpmsg_find_hdr(hmsg, HDR_SERVER, &hdr_value) != NULL ||
 		httpmsg_find_hdr(hmsg, HDR_USER_AGENT, &hdr_value) != NULL) {

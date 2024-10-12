@@ -43,10 +43,10 @@ UPNP_EXPORT_SPEC int UpnpEvent_set_EventKey(UpnpEvent *p, int n);
 
 /*! UpnpEvent_get_ChangedVariables */
 UPNP_EXPORT_SPEC IXML_Document *UpnpEvent_get_ChangedVariables(
-	const UpnpEvent *p);
+    const UpnpEvent *p);
 /*! UpnpEvent_set_ChangedVariables */
 UPNP_EXPORT_SPEC int UpnpEvent_set_ChangedVariables(
-	UpnpEvent *p, IXML_Document *n);
+    UpnpEvent *p, IXML_Document *n);
 
 /*! UpnpEvent_get_SID */
 UPNP_EXPORT_SPEC const UpnpString *UpnpEvent_get_SID(const UpnpEvent *p);
@@ -60,7 +60,7 @@ UPNP_EXPORT_SPEC const char *UpnpEvent_get_SID_cstr(const UpnpEvent *p);
 UPNP_EXPORT_SPEC int UpnpEvent_strcpy_SID(UpnpEvent *p, const char *s);
 /*! UpnpEvent_strncpy_SID */
 UPNP_EXPORT_SPEC int UpnpEvent_strncpy_SID(
-	UpnpEvent *p, const char *s, size_t n);
+    UpnpEvent *p, const char *s, size_t n);
 /*! UpnpEvent_clear_SID */
 UPNP_EXPORT_SPEC void UpnpEvent_clear_SID(UpnpEvent *p);
 

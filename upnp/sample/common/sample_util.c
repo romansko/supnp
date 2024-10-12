@@ -42,14 +42,12 @@
 #include "sample_util.h"
 #include <stdarg.h>
 #include <stdio.h>
-
+#include <string.h>
 #include "posix_overwrites.h"
 
 #if !UPNP_HAVE_TOOLS
 	#error "Need upnptools.h to compile samples ; try ./configure --enable-tools"
 #endif
-
-#define MAX_URL_SIZE 200
 
 static int initialize_init = 1;
 static int initialize_register = 1;
@@ -103,6 +101,39 @@ char *SampleUtil_BuildDeviceUrl(int address_family, const char *ip, uint16_t por
 
 cleanup:
     return url;
+}
+
+
+int SampleUtil_BuildUrl(char *buffer,
+    const size_t size,
+    const int address_family,
+    const char *ip,
+    const uint16_t port,
+    const char *filename)
+{
+    int ret = UPNP_E_INVALID_ARGUMENT;
+
+    sample_verify(buffer, cleanup, "NULL buffer\n");
+    sample_verify(size <= MAX_URL_SIZE, cleanup, "Buffer size too big. MAX_URL_SIZE: (%lu)\n", MAX_URL_SIZE);
+    sample_verify(ip, cleanup, "NULL ip\n");
+    sample_verify(filename, cleanup, "NULL filename\n");
+
+    switch (address_family) {
+    case AF_INET:
+        snprintf(buffer, MAX_URL_SIZE, "http://%s:%d/%s", ip, port, filename);
+        ret = UPNP_E_SUCCESS;
+        break;
+    case AF_INET6:
+        snprintf(buffer, MAX_URL_SIZE, "http://[%s]:%d/%s", ip, port, filename);
+        ret = UPNP_E_SUCCESS;
+        break;
+    default:
+        SampleUtil_Print("Invalid address family\n");
+        break;
+    }
+
+    cleanup:
+        return ret;
 }
 
 int SampleUtil_RegisterUpdateFunction(state_update update_function)
@@ -407,28 +438,31 @@ int SampleUtil_PrintEvent(Upnp_EventType EventType, const void *Event)
 	case UPNP_DISCOVERY_ADVERTISEMENT_BYEBYE:
 	case UPNP_DISCOVERY_SEARCH_RESULT: {
 		UpnpDiscovery *d_event = (UpnpDiscovery *)Event;
-		SampleUtil_Print("ErrCode     =  %d\n"
-				 "Expires     =  %d\n"
-				 "DeviceId    =  %s\n"
-				 "DeviceType  =  %s\n"
-				 "ServiceType =  %s\n"
-				 "ServiceVer  =  %s\n"
-				 "Location    =  %s\n"
-				 "OS          =  %s\n"
-				 "Date        =  %s\n"
-				 "Ext         =  %s\n",
+		SampleUtil_Print("ErrCode      =  %d\n"
+				 "Expires      =  %d\n"
+				 "DeviceId     =  %s\n"
+				 "DeviceType   =  %s\n"
+				 "ServiceType  =  %s\n"
+				 "ServiceVer   =  %s\n"
+				 "Location     =  %s\n"
+				 #if ENABLE_SUPNP
+				 "CapTokenUrl  =  %s\n"
+				 "AdvSignature =  %s\n"
+				 #endif
+				 "OS           =  %s\n"
+				 "Date         =  %s\n"
+				 "Ext          =  %s\n",
 			UpnpDiscovery_get_ErrCode(d_event),
 			UpnpDiscovery_get_Expires(d_event),
-			UpnpString_get_String(
-				UpnpDiscovery_get_DeviceID(d_event)),
-			UpnpString_get_String(
-				UpnpDiscovery_get_DeviceType(d_event)),
-			UpnpString_get_String(
-				UpnpDiscovery_get_ServiceType(d_event)),
-			UpnpString_get_String(
-				UpnpDiscovery_get_ServiceVer(d_event)),
-			UpnpString_get_String(
-				UpnpDiscovery_get_Location(d_event)),
+			UpnpString_get_String(UpnpDiscovery_get_DeviceID(d_event)),
+			UpnpString_get_String(UpnpDiscovery_get_DeviceType(d_event)),
+			UpnpString_get_String(UpnpDiscovery_get_ServiceType(d_event)),
+			UpnpString_get_String(UpnpDiscovery_get_ServiceVer(d_event)),
+			UpnpString_get_String(UpnpDiscovery_get_Location(d_event)),
+			#if ENABLE_SUPNP
+			UpnpString_get_String(UpnpDiscovery_get_CapTokenUrl(d_event)),
+			UpnpString_get_String(UpnpDiscovery_get_AdvSignature(d_event)),
+			#endif
 			UpnpString_get_String(UpnpDiscovery_get_Os(d_event)),
 			UpnpString_get_String(UpnpDiscovery_get_Date(d_event)),
 			UpnpString_get_String(UpnpDiscovery_get_Ext(d_event)));

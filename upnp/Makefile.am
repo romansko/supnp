@@ -79,8 +79,18 @@ libupnp_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(srcdir)/src/inc
 
 libupnp_la_LDFLAGS = \
 	-version-info $(LT_VERSION_UPNP) \
-	-export-symbols-regex '^S?Upnp.*' \
 	$(top_builddir)/ixml/libixml.la
+
+
+if UPNP_ENABLE_OPEN_SSL
+	if ENABLE_SUPNP
+		libupnp_la_LDFLAGS += -export-symbols-regex '^(S?Upnp.|OpenSsl)*'
+	else
+		libupnp_la_LDFLAGS += -export-symbols-regex '^(Upnp.|OpenSsl)*'
+	endif
+else
+	libupnp_la_LDFLAGS += -export-symbols-regex '^Upnp.*'
+endif
 
 if WIN32
 libupnp_la_LDFLAGS += \

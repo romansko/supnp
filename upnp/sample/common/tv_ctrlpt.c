@@ -42,17 +42,18 @@
  */
 
 #include "tv_ctrlpt.h"
-
 #include <upnp.h>
-
+#include <string.h>
 #include "posix_overwrites.h"
 
 #if ENABLE_SUPNP
 
+#include <supnp.h>
 #include <file_utils.h>
 
 const char *DefaultPrivateKeyPathCP = "../../simulation/CP/private_key.pem";
 const char *DefaultPublicKeyPathCP = "../../simulation/CP/public_key.pem";
+const char *DefaultPublicKeyPathRA = "../../simulation/RA/public_key.pem";
 
 /*! Relative to upnp/sample */
 const char *RegisterDocsDefaultFilepathCP[SUPNP_DOCS_ON_DEVICE] = {
@@ -1076,13 +1077,29 @@ int TvCtrlPointCallbackEventHandler(Upnp_EventType EventType, const void *Event,
 				location,
 				errCode);
 		} else {
-#if ENABLE_SUPNP
-		    if (strcmp(GetFirstElementItem((IXML_Element*)DescDoc, "deviceType"), RaDeviceType) == 0 ) {
+            #if ENABLE_SUPNP
+		    SampleUtil_Print("Verifying Advertisement Signature..\n");
+		    if (strcmp(SUpnpGetFirstElementItem((IXML_Element*)DescDoc, "deviceType"), RaDeviceType) == 0 ) {
 		        freeif2(DescDoc, ixmlDocument_free);
 		        break; /* ignore ra device */
 		    }
-#endif
-			TvCtrlPointAddDevice(DescDoc, location,	UpnpDiscovery_get_Expires(d_event));
+		    /* Secure Advertisement Verification (Fig17). */
+		    const char *capTokenUrl =
+		        UpnpString_get_String(UpnpDiscovery_get_CapTokenUrl(d_event));
+		    const char *advSignature =
+                UpnpString_get_String(UpnpDiscovery_get_AdvSignature(d_event));
+            const int sig_ok = SUpnpVerifyAdvertisementSignature(advSignature,
+                location, capTokenUrl, DefaultPublicKeyPathRA);
+		    if (sig_ok != SUPNP_E_SUCCESS) {
+                SampleUtil_Print("Received Advertisement Signature invalid. EventType (%d).\n", EventType);
+                freeif2(DescDoc, ixmlDocument_free);
+                break;
+            }
+		    SampleUtil_Print("Continuing to Secure Device Description..\n");
+		    // todo: Secure Device Description (Fig17).
+		    #endif
+
+		    TvCtrlPointAddDevice(DescDoc, location,	UpnpDiscovery_get_Expires(d_event));
 		}
 		if (DescDoc) {
 			ixmlDocument_free(DescDoc);
@@ -1283,13 +1300,9 @@ void *TvCtrlPointTimerLoop(void *args)
 int RegistrationCallbackCP(void *Cookie)
 {
     ithread_t timer_thread;
-    int rc = UpnpRegisterClient(TvCtrlPointCallbackEventHandler,
-        &ctrlpt_handle,
-        &ctrlpt_handle);
-    sample_verify(rc == UPNP_E_SUCCESS, error_handler, "Error registering CP: %d\n", rc);
-    SampleUtil_Print("Control Point Registered with UPnP SDK\n");
+    SampleUtil_Print("Control Point Registered with RA\n");
 
-    rc = UpnpSetWebServerRootDir("./web");  // todo make configurable.
+    int rc = UpnpSetWebServerRootDir("./web");  // todo make configurable.
     sample_verify(rc == UPNP_E_SUCCESS, error_handler, "Error specifying webserver root directory -- %d\n", rc);
 
     TvCtrlPointRefresh();
@@ -1350,20 +1363,19 @@ int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo)
 		UpnpGetServerUlaGuaIp6Address(),
 		UpnpGetServerUlaGuaPort6());
 
-	SampleUtil_Print("Registering Control Point\n");
+	SampleUtil_Print("Registering Control Point..\n");
+    rc = UpnpRegisterClient(TvCtrlPointCallbackEventHandler,
+    &ctrlpt_handle,
+    &ctrlpt_handle);
+    if (rc != UPNP_E_SUCCESS) {
+        SampleUtil_Print("Error registering CP: %d\n", rc);
+        UpnpFinish();
 
-	rc = UpnpRegisterClient(TvCtrlPointCallbackEventHandler,
-		&ctrlpt_handle,
-		&ctrlpt_handle);
-	if (rc != UPNP_E_SUCCESS) {
-		SampleUtil_Print("Error registering CP: %d\n", rc);
-		UpnpFinish();
-
-		return TV_ERROR;
-	}
+        return TV_ERROR;
+    }
 
 #if ENABLE_SUPNP
-    rc = SupnpRegisterDevice(DefaultPublicKeyPathCP,
+    rc = SUpnpRegisterDevice(DefaultPublicKeyPathCP,
         DefaultPrivateKeyPathCP,
         RegisterDocsDefaultFilepathCP,
         CapTokenDefaultFilenameCP,
@@ -1387,6 +1399,7 @@ int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo)
 	/* start a timer thread */
 	ithread_create(&timer_thread, NULL, TvCtrlPointTimerLoop, NULL);
 	ithread_detach(timer_thread);
+
 #endif
 
 	return TV_SUCCESS;

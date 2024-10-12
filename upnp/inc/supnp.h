@@ -173,7 +173,7 @@ UPNP_EXPORT_SPEC int SUpnpInit();
  *
  * \return The element item's value as a string.
  */
-UPNP_EXPORT_SPEC char *GetFirstElementItem(IXML_Element *element, const char *item);
+UPNP_EXPORT_SPEC char *SUpnpGetFirstElementItem(IXML_Element *element, const char *item);
 
 /*!
  * \brief Verify DSD / SAD document.
@@ -197,7 +197,7 @@ UPNP_EXPORT_SPEC int SUpnpVerifyDocument(EVP_PKEY *ca_pkey, supnp_device_t *dev)
  *
  * \return SUPNP_E_SUCCESS on success, SUPNP_E_INTERNAL_ERROR on failure.
  */
-UPNP_EXPORT_SPEC int SupnpRegisterDevice(const char *pk_path,
+UPNP_EXPORT_SPEC int SUpnpRegisterDevice(const char *pk_path,
 	const char *sk_path,
     const char *RegistrationDocsPath[],
     const char *capTokenFilename,
@@ -208,10 +208,31 @@ UPNP_EXPORT_SPEC int SupnpRegisterDevice(const char *pk_path,
     void *callback_cookie);
 
 /*! \brief Free registration parameters content. */
-UPNP_EXPORT_SPEC void SupnpFreeRegistrationParamsContent(RegistrationParams *params);
+UPNP_EXPORT_SPEC void SUpnpFreeRegistrationParamsContent(RegistrationParams *params);
 
 /*! \brief Free registration parameters. */
-UPNP_EXPORT_SPEC void SupnpFreeRegistrationParams(RegistrationParams **params);
+UPNP_EXPORT_SPEC void SUpnpFreeRegistrationParams(RegistrationParams **params);
+
+/*!
+ * \brief Verify advertisement signature.
+ *
+ * \param hexSignature The signature to verify.
+ * \param descDocUrl The description document URL.
+ * \param capTokenUrl The CapToken URL.
+ * \param raPublicKeyFilepath The RA public key file path.
+ *
+ * \return SUPNP_E_SUCCESS on success, SUPNP_E_INVALID_SIGNATURE on failure.
+ */
+UPNP_EXPORT_SPEC int SUpnpVerifyAdvertisementSignature(
+	/* [in] Advertisement signature in hex format */
+	const char *hexSignature,
+	/* [in] Description document URL */
+	const char *descDocUrl,
+	/* [in] CapToken URL */
+	const char *capTokenUrl,
+	/* [in] RA public key file path */
+	const char *raPublicKeyFilepath);
+
 
 /* Internal */
 int sendRAActionRegister(RegistrationParams *params, const char *controlUrl);

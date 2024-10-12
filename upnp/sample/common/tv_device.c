@@ -42,20 +42,17 @@
  */
 
 #include "tv_device.h"
-
-#include "upnp.h"
-#include "upnpdebug.h"
-
+#include <upnp.h>
+#include <upnpdebug.h>
+#include <string.h>
 #include <assert.h>
 
 #include "posix_overwrites.h"
 
 #define DEFAULT_WEB_DIR "./web"
 
-#define DESC_URL_SIZE 200
-
 #if ENABLE_SUPNP
-
+#include <supnp.h>
 #include <file_utils.h>
 
 const char *DefaultPrivateKeyPathSD = "../../simulation/SD/private_key.pem";
@@ -1380,8 +1377,7 @@ int TvDeviceCallbackEventHandler(
 	(void)Cookie;
 	switch (EventType) {
 	case UPNP_EVENT_SUBSCRIPTION_REQUEST:
-		TvDeviceHandleSubscriptionRequest(
-			(UpnpSubscriptionRequest *)Event);
+		TvDeviceHandleSubscriptionRequest((UpnpSubscriptionRequest *)Event);
 		break;
 	case UPNP_CONTROL_GET_VAR_REQUEST:
 		TvDeviceHandleGetVarRequest((UpnpStateVarRequest *)Event);
@@ -1415,7 +1411,7 @@ int TvDeviceCallbackEventHandler(
 #if ENABLE_SUPNP
 int RegistrationCallbackSD(void *Cookie)
 {
-    SampleUtil_Print("SD registered with RA successfully..\n");
+    SampleUtil_Print("SD registered with RA successfully. Sending Advertisements..\n");
     int ret = UpnpSendAdvertisement(device_handle, default_advr_expire);
     sample_verify(ret == UPNP_E_SUCCESS, cleanup, "Error sending advertisements : %d\n", ret);
     SampleUtil_Print("Advertisements Sent\n");
@@ -1429,13 +1425,17 @@ cleanup:
 int TvDeviceStart(char *iface,
 	unsigned short port,
 	const char *desc_doc_name,
+#if ENABLE_SUPNP
+	const char *cap_token_name,
+#endif
 	const char *web_dir_path,
 	int ip_mode,
 	print_string pfun,
 	int combo)
 {
 	int ret = UPNP_E_SUCCESS;
-	char desc_doc_url[DESC_URL_SIZE];
+	char desc_doc_url[MAX_URL_SIZE];
+    char cap_token_url[MAX_URL_SIZE];
 	char *ip_address = NULL;
 	int address_family = AF_INET;
 
@@ -1486,29 +1486,34 @@ int TvDeviceStart(char *iface,
 			desc_doc_name = "tvdevicedesc.xml";
 		}
 	}
+	#if ENABLE_SUPNP
+    if (!cap_token_name) {
+        cap_token_name = CapTokenDefaultFilenameSD;
+    }
+	#endif
 	if (!web_dir_path) {
 		web_dir_path = DEFAULT_WEB_DIR;
 	}
-	switch (address_family) {
-	case AF_INET:
-		snprintf(desc_doc_url,
-			DESC_URL_SIZE,
-			"http://%s:%d/%s",
-			ip_address,
-			port,
-			desc_doc_name);
-		break;
-	case AF_INET6:
-		snprintf(desc_doc_url,
-			DESC_URL_SIZE,
-			"http://[%s]:%d/%s",
-			ip_address,
-			port,
-			desc_doc_name);
-		break;
-	default:
-		return UPNP_E_INTERNAL_ERROR;
-	}
+
+    ret = SampleUtil_BuildUrl(desc_doc_url,
+        MAX_URL_SIZE,
+        address_family,
+        ip_address,
+        port,
+        desc_doc_name);
+    sample_verify(ret == UPNP_E_SUCCESS, cleanup,
+        "Error building desc_doc_url\n");
+
+	#if ENABLE_SUPNP
+    ret = SampleUtil_BuildUrl(cap_token_url,
+        MAX_URL_SIZE,
+        address_family,
+        ip_address,
+        port,
+        cap_token_name);
+    sample_verify(ret == UPNP_E_SUCCESS, cleanup, "Error building cap_token_url\n");
+	#endif
+
 	SampleUtil_Print("Specifying the webserver root directory -- %s\n",
 		web_dir_path);
 	ret = UpnpSetWebServerRootDir(web_dir_path);
@@ -1521,11 +1526,21 @@ int TvDeviceStart(char *iface,
 
 		return ret;
 	}
+#if ENABLE_SUPNP
 	SampleUtil_Print("Registering the RootDevice\n"
-			 "\t with desc_doc_url: %s\n",
-		desc_doc_url);
+			 "\t with desc_doc_url: %s\n"
+			 "\t with cap_token_url: %s\n",
+		desc_doc_url, cap_token_url);
+#else
+    SampleUtil_Print("Registering the RootDevice\n"
+         "\t with desc_doc_url: %s\n"
+    desc_doc_url);
+#endif
 
 	ret = UpnpRegisterRootDevice3(desc_doc_url,
+#if ENABLE_SUPNP
+        cap_token_url,
+#endif
 		TvDeviceCallbackEventHandler,
 		&device_handle,
 		&device_handle,
@@ -1544,7 +1559,7 @@ int TvDeviceStart(char *iface,
 
 #if ENABLE_SUPNP
 	    SampleUtil_Print("Registering SD with RA..\n");
-	    ret = SupnpRegisterDevice(DefaultPublicKeyPathSD,
+	    ret = SUpnpRegisterDevice(DefaultPublicKeyPathSD,
             DefaultPrivateKeyPathSD,
             RegisterDocsDefaultFilepathSD,
             CapTokenDefaultFilenameSD,
@@ -1555,10 +1570,6 @@ int TvDeviceStart(char *iface,
             NULL /* No Params for RegistrationCallbackSD */);
 	    sample_verify(ret == SUPNP_E_SUCCESS, cleanup, "Error registering CP with RA: %d\n", ret);
 	    return UPNP_E_SUCCESS;
-
-cleanup:
-
-	    return ret;
 
 #else
 
@@ -1575,6 +1586,8 @@ cleanup:
 #endif
 	}
     ret = UPNP_E_SUCCESS;
+
+cleanup:
     return ret;
 }
 
@@ -1627,6 +1640,9 @@ int device_main(int argc, char *argv[])
 	unsigned int portTemp = 0;
 	char *iface = NULL;
 	char *desc_doc_name = NULL;
+#if ENABLE_SUPNP
+    char *cap_token_name = NULL;
+#endif
 	char *web_dir_path = NULL;
 	unsigned short port = 0;
 	int ip_mode = IP_MODE_IPV4;
@@ -1645,6 +1661,10 @@ int device_main(int argc, char *argv[])
 #endif
 		} else if (strcmp(argv[i], "-desc") == 0) {
 			desc_doc_name = argv[++i];
+#if ENABLE_SUPNP
+        } else if (strcmp(argv[i], "-cap") == 0) {
+            cap_token_name = argv[++i];
+#endif
 		} else if (strcmp(argv[i], "-webdir") == 0) {
 			web_dir_path = argv[++i];
 		} else if (strcmp(argv[i], "-m") == 0) {
@@ -1684,6 +1704,9 @@ int device_main(int argc, char *argv[])
 	return TvDeviceStart(iface,
 		port,
 		desc_doc_name,
+	#if ENABLE_SUPNP
+		cap_token_name,
+	#endif
 		web_dir_path,
 		ip_mode,
 		linux_print,

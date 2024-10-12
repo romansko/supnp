@@ -6,6 +6,8 @@
  */
 #include "generator.h"
 
+#include "../inc/upnpconfig.h"
+
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,6 +47,10 @@ static struct s_Member UpnpDiscovery_members[] = {
 	INIT_MEMBER(ServiceType, TYPE_STRING, 0, 0),
 	INIT_MEMBER(ServiceVer, TYPE_STRING, 0, 0),
 	INIT_MEMBER(Location, TYPE_STRING, 0, 0),
+#if ENABLE_SUPNP
+    INIT_MEMBER(CapTokenUrl, TYPE_STRING, 0, 0),
+    INIT_MEMBER(AdvSignature, TYPE_STRING, 0, 0),
+#endif
 	INIT_MEMBER(Os, TYPE_STRING, 0, 0),
 	INIT_MEMBER(Date, TYPE_STRING, 0, 0),
 	INIT_MEMBER(Ext, TYPE_STRING, 0, 0),

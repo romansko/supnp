@@ -39,7 +39,7 @@ supnp_device_t *SupnpNewDevice(const char *spec_doc, const char *cert, const cha
     supnp_verify(
         p_dev->supnp_doc, cleanup, "cJSON Error parsing spec document.\n");
 
-    p_dev->dev_cert = load_certificate_from_str(cert);
+    p_dev->dev_cert = OpenSslLoadCertificateFromString(cert);
     supnp_verify(
         p_dev->dev_cert, cleanup, "Error loading device certificate.\n");
 
@@ -47,7 +47,7 @@ supnp_device_t *SupnpNewDevice(const char *spec_doc, const char *cert, const cha
     supnp_verify(
         p_dev->dev_pkey, cleanup, "Error extracting device public key.\n");
 
-    p_dev->uca_cert = load_certificate_from_str(uca_cert);
+    p_dev->uca_cert = OpenSslLoadCertificateFromString(uca_cert);
     supnp_verify(uca_cert, cleanup, "Error loading UCA certificate.\n");
 
     p_dev->uca_pkey = X509_get_pubkey(p_dev->uca_cert);

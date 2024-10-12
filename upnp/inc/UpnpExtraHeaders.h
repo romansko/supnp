@@ -34,72 +34,72 @@ UPNP_EXPORT_SPEC UpnpExtraHeaders *UpnpExtraHeaders_new();
 UPNP_EXPORT_SPEC void UpnpExtraHeaders_delete(UpnpExtraHeaders *p);
 /*! Copy Constructor */
 UPNP_EXPORT_SPEC UpnpExtraHeaders *UpnpExtraHeaders_dup(
-	const UpnpExtraHeaders *p);
+    const UpnpExtraHeaders *p);
 /*! Assignment operator */
 UPNP_EXPORT_SPEC int UpnpExtraHeaders_assign(
-	UpnpExtraHeaders *p, const UpnpExtraHeaders *q);
+    UpnpExtraHeaders *p, const UpnpExtraHeaders *q);
 
 /*! UpnpExtraHeaders_get_node */
 UPNP_EXPORT_SPEC const UpnpListHead *UpnpExtraHeaders_get_node(
-	const UpnpExtraHeaders *p);
+    const UpnpExtraHeaders *p);
 /*! UpnpExtraHeaders_set_node */
 UPNP_EXPORT_SPEC int UpnpExtraHeaders_set_node(
-	UpnpExtraHeaders *p, const UpnpListHead *q);
+    UpnpExtraHeaders *p, const UpnpListHead *q);
 /*! UpnpExtraHeaders_add_to_list_node */
 UPNP_EXPORT_SPEC void UpnpExtraHeaders_add_to_list_node(
-	UpnpExtraHeaders *p, UpnpListHead *head);
+    UpnpExtraHeaders *p, UpnpListHead *head);
 
 /*! UpnpExtraHeaders_get_name */
 UPNP_EXPORT_SPEC const UpnpString *UpnpExtraHeaders_get_name(
-	const UpnpExtraHeaders *p);
+    const UpnpExtraHeaders *p);
 /*! UpnpExtraHeaders_set_name */
 UPNP_EXPORT_SPEC int UpnpExtraHeaders_set_name(
-	UpnpExtraHeaders *p, const UpnpString *s);
+    UpnpExtraHeaders *p, const UpnpString *s);
 /*! UpnpExtraHeaders_get_name_Length */
 UPNP_EXPORT_SPEC size_t UpnpExtraHeaders_get_name_Length(
-	const UpnpExtraHeaders *p);
+    const UpnpExtraHeaders *p);
 /*! UpnpExtraHeaders_get_name_cstr */
 UPNP_EXPORT_SPEC const char *UpnpExtraHeaders_get_name_cstr(
-	const UpnpExtraHeaders *p);
+    const UpnpExtraHeaders *p);
 /*! UpnpExtraHeaders_strcpy_name */
 UPNP_EXPORT_SPEC int UpnpExtraHeaders_strcpy_name(
-	UpnpExtraHeaders *p, const char *s);
+    UpnpExtraHeaders *p, const char *s);
 /*! UpnpExtraHeaders_strncpy_name */
 UPNP_EXPORT_SPEC int UpnpExtraHeaders_strncpy_name(
-	UpnpExtraHeaders *p, const char *s, size_t n);
+    UpnpExtraHeaders *p, const char *s, size_t n);
 /*! UpnpExtraHeaders_clear_name */
 UPNP_EXPORT_SPEC void UpnpExtraHeaders_clear_name(UpnpExtraHeaders *p);
 
 /*! UpnpExtraHeaders_get_value */
 UPNP_EXPORT_SPEC const UpnpString *UpnpExtraHeaders_get_value(
-	const UpnpExtraHeaders *p);
+    const UpnpExtraHeaders *p);
 /*! UpnpExtraHeaders_set_value */
 UPNP_EXPORT_SPEC int UpnpExtraHeaders_set_value(
-	UpnpExtraHeaders *p, const UpnpString *s);
+    UpnpExtraHeaders *p, const UpnpString *s);
 /*! UpnpExtraHeaders_get_value_Length */
 UPNP_EXPORT_SPEC size_t UpnpExtraHeaders_get_value_Length(
-	const UpnpExtraHeaders *p);
+    const UpnpExtraHeaders *p);
 /*! UpnpExtraHeaders_get_value_cstr */
 UPNP_EXPORT_SPEC const char *UpnpExtraHeaders_get_value_cstr(
-	const UpnpExtraHeaders *p);
+    const UpnpExtraHeaders *p);
 /*! UpnpExtraHeaders_strcpy_value */
 UPNP_EXPORT_SPEC int UpnpExtraHeaders_strcpy_value(
-	UpnpExtraHeaders *p, const char *s);
+    UpnpExtraHeaders *p, const char *s);
 /*! UpnpExtraHeaders_strncpy_value */
 UPNP_EXPORT_SPEC int UpnpExtraHeaders_strncpy_value(
-	UpnpExtraHeaders *p, const char *s, size_t n);
+    UpnpExtraHeaders *p, const char *s, size_t n);
 /*! UpnpExtraHeaders_clear_value */
 UPNP_EXPORT_SPEC void UpnpExtraHeaders_clear_value(UpnpExtraHeaders *p);
 
 /*! UpnpExtraHeaders_get_resp */
 UPNP_EXPORT_SPEC const DOMString UpnpExtraHeaders_get_resp(
-	const UpnpExtraHeaders *p);
+    const UpnpExtraHeaders *p);
 /*! UpnpExtraHeaders_set_resp */
 UPNP_EXPORT_SPEC int UpnpExtraHeaders_set_resp(
-	UpnpExtraHeaders *p, const DOMString s);
+    UpnpExtraHeaders *p, const DOMString s);
 /*! UpnpExtraHeaders_get_resp_cstr */
 UPNP_EXPORT_SPEC const char *UpnpExtraHeaders_get_resp_cstr(
-	const UpnpExtraHeaders *p);
+    const UpnpExtraHeaders *p);
 
 #ifdef __cplusplus
 }

@@ -4,25 +4,23 @@ ENTITIES := CA CP RA SD UCA
 
 # Fully automate venv installation & artifacts generation using libupnp sample.
 .PHONY: sample
-sample: clear | venv
+sample: venv
+	@echo [*] Generating Artifacts from libupnp sample..
+	rm -rf $(ENTITIES)
 	./venv/bin/python3 ./device_enrollment.py ../upnp/sample/web/tvdevicedesc.xml
-	@echo [*] Artifacts: 
-	@tree $(ENTITIES)
 
 # Create python venv with its requirements.
 venv:
+	@echo [*] Initializing python venv for UCA Simulation..
 	python3 -m venv venv
 	venv/bin/pip install -r requirements.txt
 
 # Clean venv and artifacts.
 .PHONY: clean
-clean: clear
-	rm -rf venv __pycache__
+clean:
+	rm -rf venv __pycache__ $(ENTITIES)
 
-
-# Clean artifacts only.
-.PHONY: clear
-clear:
-	clear
-	rm -rf $(ENTITIES)
-
+# List Artifacts
+.PHONY: tree
+tree:
+	@tree $(ENTITIES)

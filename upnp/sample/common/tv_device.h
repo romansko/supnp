@@ -529,6 +529,11 @@ int TvDeviceStart(
 	/*! [in] name of description document.
 	 * may be NULL. Default is tvdevicedesc.xml. */
 	const char *desc_doc_name,
+#if ENABLE_SUPNP
+	/*! [in] capability token name.
+	 * may be NULL. Default is captoken_cp.json for CP, captoken_sd.json for SD */
+	const char *cap_token_name,
+#endif
 	/*! [in] path of web directory.
 	 * may be NULL. Default is ./web (for Linux) or ../tvdevice/web. */
 	const char *web_dir_path,
