@@ -72,6 +72,11 @@ const char *CapTokenFields[eCatTokenFieldTypesCount] = {
     dst += size; \
 }
 
+captoken_t *loadCapTokenString(const char *capTokenStr)
+{
+    return cJSON_Parse(capTokenStr);
+}
+
 /**
  * Helper function to convert string to cJSON.
  * @note the function free the input string.
@@ -398,6 +403,28 @@ int storeCapToken(const captoken_t *capToken, const char *filepath)
 }
 
 /**
+ * Download CapToken from url
+ * @param capTokenUrl CapToken URL
+ * @param ppCapToken CapToken to store
+ * @return SUPNP_E_SUCCESS on success, SUPNP_E_ERROR on failure
+ */
+int downloadCapToken(const char *capTokenUrl, captoken_t **ppCapToken)
+{
+    int ret = UPNP_E_INVALID_PARAM;
+    char content_type[LINE_SIZE] = {0};
+    char *capTokenBuf = NULL;
+    *ppCapToken = NULL;
+    ret = UpnpDownloadUrlItem(capTokenUrl, &capTokenBuf, content_type);
+    supnp_verify(ret == SUPNP_E_SUCCESS, cleanup, "Error downloading CapToken\n");
+    *ppCapToken = cJSON_Parse(capTokenBuf);
+    supnp_verify(*ppCapToken, cleanup, "Error parsing CapToken\n");
+    ret = SUPNP_E_SUCCESS;
+cleanup:
+    freeif(capTokenBuf);
+    return ret;
+}
+
+/**
  * Extract Field Value from CapToken. User is responsible to free the returned value.
  * @cap_token CapToken to extract from
  * @type Field type to extract
@@ -425,22 +452,93 @@ error_handle:
  */
 char *extractCapTokenFieldValue2(const char *capTokenUrl, const ECapTokenFieldType type)
 {
+    int ret = SUPNP_E_INVALID_ARGUMENT;
     char *fieldValue = NULL;
-    char content_type[LINE_SIZE];
-    char *capTokenBuf = NULL;
+    captoken_t *capToken = NULL;
     supnp_verify(capTokenUrl != NULL, cleanup, "NULL capTokenUrl\n");
     supnp_verify((uint)type < eCatTokenFieldTypesCount, cleanup, "Invalid field type\n");
-    const int ret = UpnpDownloadUrlItem(capTokenUrl, &capTokenBuf, content_type);
-    supnp_verify(ret == SUPNP_E_SUCCESS, cleanup, "Error downloading CapToken\n");
-    captoken_t *capToken = cJSON_Parse(capTokenBuf);
-    supnp_verify(capToken, cleanup, "Error parsing CapToken\n");
+    ret = downloadCapToken(capTokenUrl, &capToken);
+    supnp_verify(ret == SUPNP_E_SUCCESS, cleanup, "Error Retrieving CapToken\n");
     fieldValue = extractCapTokenFieldValue(capToken, type);
 cleanup:
-    free(capTokenBuf);
     freeif2(capToken, cJSON_Delete);
     return fieldValue;
 }
 
+/**
+ * Verify CapToken as part of Secure Device Description.
+ * @param cap_token CapToken to verify
+ * @param ra_pk RA Public Key
+ * @param desc_doc_content Device Description Document
+ * @return SUPNP_E_SUCCESS on success, SUPNP_E_ERROR on failure
+ */
+int verifyCapToken(const captoken_t *cap_token, EVP_PKEY *ra_pk, const char *desc_doc_content)
+{
+    int ret = SUPNP_E_INVALID_ARGUMENT;
+    char *ra_pk_hex = NULL;
+    EVP_PKEY *ra_pk_cpy = NULL;
+    char *ra_sig = NULL;
+    captoken_t *cap_token_cpy = NULL;
+    char *cap_token_content = NULL;
+    char *desc_sig = NULL;
+
+    supnp_log("Verifying Cap Token..\n");
+
+    supnp_verify(cap_token != NULL, cleanup, "NULL CapToken\n");
+    supnp_verify(ra_pk != NULL, cleanup, "NULL RA Public Key\n");
+    supnp_verify(desc_doc_content != NULL, cleanup, "NULL Description Document\n");
+
+
+    /* Verify RA Public Key is the same */
+    ra_pk_hex = extractCapTokenFieldValue(cap_token, eCapTokenPublicKeyRA);
+    supnp_verify(ra_pk_hex, cleanup, "Error extracting RA Public Key from CapToken.\n");
+    ra_pk_cpy = OpenSslLoadPublicKeyFromHex(ra_pk_hex);
+    supnp_verify(ra_pk_cpy, cleanup, "Error loading RA Public Key from hex string.\n");
+    ret = EVP_PKEY_eq(ra_pk, ra_pk_cpy);
+    supnp_verify(ret == OPENSSL_SUCCESS, cleanup, "RA Public Key mismatch.\n");
+
+    /* Verify RA-SIG */
+    supnp_log("Verifying RA Signature..\n");
+    ra_sig = extractCapTokenFieldValue(cap_token, eCapTokenSignatureRA);
+    supnp_verify(ra_sig, cleanup, "Error extracting RA Signature from CapToken.\n");
+    cap_token_cpy = cJSON_Duplicate(cap_token, 1);
+    supnp_verify(cap_token_cpy, cleanup, "Error duplicating CapToken.\n");
+    cJSON_DeleteItemFromObject(cap_token_cpy, CT_RA_SIG);
+    cap_token_content = cJSON_PrintUnformatted(cap_token_cpy);
+    ret = OpenSslVerifySignature(CT_RA_SIG,
+        ra_pk,
+        ra_sig,
+        (unsigned char*)cap_token_content,
+        strlen(cap_token_content));
+    supnp_verify(ret == OPENSSL_SUCCESS, cleanup,
+        "RA Signature verification failed.\n");
+    supnp_log("RA Signature verified successfully.\n");
+
+
+    /* Verify DESCRIPTION-SIG */
+    supnp_log("Verifying Description Signature..\n");
+    desc_sig = extractCapTokenFieldValue(cap_token, eCapTokenSignatureDescription);
+    OpenSslVerifySignature(CT_DESC_SIG,
+        ra_pk,
+        desc_sig,
+        (unsigned char*)desc_doc_content,
+        strlen(desc_doc_content));
+    supnp_verify(ret == OPENSSL_SUCCESS, cleanup,
+        "Description Signature verification failed.\n");
+    supnp_log("Description Signature verified successfully.\n");
+
+    ret = SUPNP_E_SUCCESS;
+
+cleanup:
+    freeif(desc_sig);
+    freeif(cap_token_content);
+    freeCapToken(&cap_token_cpy);
+    freeif(ra_sig);
+    freeif2(ra_pk_cpy, EVP_PKEY_free);
+    freeif(ra_pk_hex);
+
+    return ret;
+}
 
 #ifdef __cplusplus
 }

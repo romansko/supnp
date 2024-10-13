@@ -215,23 +215,18 @@ UPNP_EXPORT_SPEC void SUpnpFreeRegistrationParams(RegistrationParams **params);
 
 /*!
  * \brief Verify advertisement signature.
- *
- * \param hexSignature The signature to verify.
- * \param descDocUrl The description document URL.
- * \param capTokenUrl The CapToken URL.
- * \param raPublicKeyFilepath The RA public key file path.
- *
+
  * \return SUPNP_E_SUCCESS on success, SUPNP_E_INVALID_SIGNATURE on failure.
  */
-UPNP_EXPORT_SPEC int SUpnpVerifyAdvertisementSignature(
+UPNP_EXPORT_SPEC int SUpnpSecureServiceAdvertisement(
 	/* [in] Advertisement signature in hex format */
 	const char *hexSignature,
 	/* [in] Description document URL */
 	const char *descDocUrl,
-	/* [in] CapToken URL */
+	/* [in] Target Device (SD) CapToken URL */
 	const char *capTokenUrl,
-	/* [in] RA public key file path */
-	const char *raPublicKeyFilepath);
+	/* [in] Current Device (CP) Cap Token */
+    const char *deviceCapTokenString);
 
 
 /* Internal */

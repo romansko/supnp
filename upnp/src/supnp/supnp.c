@@ -243,7 +243,6 @@ cleanup:
 
 
 
-
 /**
 * @brief Send a RA Action Register request to the RA service.
 * The logics correspond to figure 15 in the SUPnP paper.
@@ -586,26 +585,38 @@ void SUpnpFreeRegistrationParams(RegistrationParams **params)
 }
 
 /**
- * Verify the Advertisement Signature.
+ * Handles Secure Service Advertisement verifications. Fig 17, SUPnP paper.
+ * This function should be called by a Control Point.
  * @param hexSignature The Advertisement signature in hex string format.
  * @param descDocUrl The description document URL.
- * @param capTokenUrl The CapToken URL.
- * @param raPublicKeyFilepath The RA's public key file path.
+ * @param capTokenUrl Target Device CapToken URL.
+ * @param deviceCapTokenString Current Device CapToken.
  * @return SUPNP_E_SUCCESS on success. Error code otherwise.
  */
-int SUpnpVerifyAdvertisementSignature(const char *hexSignature, const char *descDocUrl, const char *capTokenUrl, const char *raPublicKeyFilepath)
+int SUpnpSecureServiceAdvertisement(const char *hexSignature,
+    const char *descDocUrl,
+    const char *capTokenUrl,
+    const char *deviceCapTokenString)
 {
     int ret = SUPNP_E_INVALID_ARGUMENT;
     char *concatenate_url = NULL;
+    char *ra_pk_hex = NULL;
     EVP_PKEY *ra_pk = NULL;
+    IXML_Document *pDescDoc = NULL;
+    captoken_t *pDeviceCapToken = NULL;
+    captoken_t *pTargetCapToken = NULL;
+    char *desc_doc_content = NULL;
 
     supnp_verify(hexSignature != NULL, cleanup, "NULL hexSignature\n");
     supnp_verify(descDocUrl != NULL, cleanup, "NULL descDocUrl\n");
     supnp_verify(capTokenUrl != NULL, cleanup, "NULL capTokenUrl\n");
-    supnp_verify(raPublicKeyFilepath != NULL, cleanup, "NULL raPublicKeyFilepath\n");
+    supnp_verify(deviceCapTokenString != NULL, cleanup, "NULL deviceCapTokenString\n");
 
-    /* Load RA Public Key from device file system */
-    ra_pk = OpenSslLoadPublicKeyFromPEM(raPublicKeyFilepath);
+    /* Load RA Public Key from current Device Cap Token */
+    pDeviceCapToken = loadCapTokenString(deviceCapTokenString);
+    supnp_verify(pDeviceCapToken, cleanup, "Error converting Device CapToken from string.\n");
+    ra_pk_hex = extractCapTokenFieldValue(pDeviceCapToken, eCapTokenPublicKeyRA);
+    ra_pk = OpenSslLoadPublicKeyFromHex(ra_pk_hex);
     supnp_verify(ra_pk, cleanup, "Error loading RA Public Key\n");
 
     /* Concatenate (description url || cap token url) */
@@ -614,15 +625,36 @@ int SUpnpVerifyAdvertisementSignature(const char *hexSignature, const char *desc
     strcpy(concatenate_url, descDocUrl);
     strcat(concatenate_url, capTokenUrl);
 
-    /* Verify the Advertisement Signature */
+    /* Verify the Advertisement Signature (Fig 17 - Secure Advertisement) */
+    supnp_log("Verifying Secure Service Advertisement..\n");
     ret = OpenSslVerifySignature("Advertisement Signature", ra_pk, hexSignature, (const unsigned char*)concatenate_url, strlen(concatenate_url));
     supnp_verify(ret == OPENSSL_SUCCESS, cleanup, "!!! Advertisement signature is forged !!!\n");
     supnp_log("Advertisement Signature verified successfully.\n");
+
+    /* Download Description Document */
+    ret = UpnpDownloadXmlDoc(descDocUrl, &pDescDoc);
+    supnp_verify(ret == UPNP_E_SUCCESS, cleanup, "Error in UpnpDownloadXmlDoc -- %d\n", ret);
+
+    /* Download CapToken */
+    ret = downloadCapToken(capTokenUrl, &pTargetCapToken);
+    supnp_verify(ret == UPNP_E_SUCCESS, cleanup, "Error in downloadCapToken -- %d\n", ret);
+
+    /* Secure Device Description - Fig17, SUPnP paper. */
+    desc_doc_content = ixmlDocumenttoString(pDescDoc);
+    ret = verifyCapToken(pTargetCapToken, ra_pk, desc_doc_content);
+    supnp_verify(ret == SUPNP_E_SUCCESS, cleanup, "!!! Secure Device Description failed !!! Error in verifyCapToken -- %d\n", ret);
+    supnp_log("Secure Device Description successful.\n");
+
     ret = SUPNP_E_SUCCESS;
 
 cleanup:
+    freeif(ra_pk_hex);
+    freeif(desc_doc_content);
     freeif(concatenate_url);
     freeif2(ra_pk, EVP_PKEY_free);
+    freeif2(pDescDoc, ixmlDocument_free);
+    freeCapToken(&pTargetCapToken);
+    freeCapToken(&pDeviceCapToken);
     return ret;
 }
 

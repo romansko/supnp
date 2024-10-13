@@ -67,6 +67,8 @@ const char *RegisterDocsDefaultFilepathSD[SUPNP_DOCS_ON_DEVICE] = {
 
 const char *CapTokenDefaultFilenameSD = "captoken_sd.json";
 
+char *CapTokenSD = NULL;  // todo free on UpnpFinish or make static..
+
 #endif
 
 /*! Global arrays for storing Tv Control Service variable names, values,
@@ -1411,7 +1413,16 @@ int TvDeviceCallbackEventHandler(
 #if ENABLE_SUPNP
 int RegistrationCallbackSD(void *Cookie)
 {
+    char filepath[256];
+    size_t size;
+
     SampleUtil_Print("SD registered with RA successfully. Sending Advertisements..\n");
+
+    /* Read the capability token from the file stored */
+    sprintf(filepath, "web/%s",CapTokenDefaultFilenameSD); // todo: configure filepath in SUPnP init
+    CapTokenSD = read_file(filepath, "r", &size);
+    sample_verify(CapTokenSD != NULL, cleanup, "Error reading capability token\n");
+
     int ret = UpnpSendAdvertisement(device_handle, default_advr_expire);
     sample_verify(ret == UPNP_E_SUCCESS, cleanup, "Error sending advertisements : %d\n", ret);
     SampleUtil_Print("Advertisements Sent\n");

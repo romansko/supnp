@@ -45,6 +45,8 @@ typedef enum ECapTokenFieldType
 extern "C" {
 #endif
 
+UPNP_EXPORT_SPEC captoken_t *loadCapTokenString(const char *capTokenStr);
+
 UPNP_EXPORT_SPEC cJSON* stringToJsonString(char *string);
 
 UPNP_EXPORT_SPEC cJSON* bytesToJsonString(unsigned char *bytes, size_t size);
@@ -65,9 +67,13 @@ UPNP_EXPORT_SPEC captoken_t *capTokenFromHexString(const char *hex);
 
 UPNP_EXPORT_SPEC int storeCapToken(const captoken_t *capToken, const char *filepath);
 
+UPNP_EXPORT_SPEC int downloadCapToken(const char *capTokenUrl, captoken_t **ppCapToken);
+
 UPNP_EXPORT_SPEC char *extractCapTokenFieldValue(const captoken_t *cap_token, ECapTokenFieldType type);
 
 UPNP_EXPORT_SPEC char *extractCapTokenFieldValue2(const char *capTokenUrl, ECapTokenFieldType type);
+
+UPNP_EXPORT_SPEC int verifyCapToken(const captoken_t *cap_token, EVP_PKEY *ra_pk, const char *desc_doc_content);
 
 #ifdef __cplusplus
 }

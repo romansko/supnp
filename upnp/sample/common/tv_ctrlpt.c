@@ -42,9 +42,9 @@
  */
 
 #include "tv_ctrlpt.h"
-#include <upnp.h>
-#include <string.h>
 #include "posix_overwrites.h"
+#include <string.h>
+#include <upnp.h>
 
 #if ENABLE_SUPNP
 
@@ -62,6 +62,8 @@ const char *RegisterDocsDefaultFilepathCP[SUPNP_DOCS_ON_DEVICE] = {
     "../../simulation/UCA/certificate.pem"
 };
 const char *CapTokenDefaultFilenameCP = "captoken_cp.json";
+
+char *CapTokenCP = NULL;  // todo free on UpnpFinish or make static..
 
 #endif
 
@@ -1078,25 +1080,23 @@ int TvCtrlPointCallbackEventHandler(Upnp_EventType EventType, const void *Event,
 				errCode);
 		} else {
             #if ENABLE_SUPNP
-		    SampleUtil_Print("Verifying Advertisement Signature..\n");
 		    if (strcmp(SUpnpGetFirstElementItem((IXML_Element*)DescDoc, "deviceType"), RaDeviceType) == 0 ) {
 		        freeif2(DescDoc, ixmlDocument_free);
 		        break; /* ignore ra device */
 		    }
 		    /* Secure Advertisement Verification (Fig17). */
+		    SampleUtil_Print("Handling Secure Service Advertisement..\n");
 		    const char *capTokenUrl =
 		        UpnpString_get_String(UpnpDiscovery_get_CapTokenUrl(d_event));
 		    const char *advSignature =
                 UpnpString_get_String(UpnpDiscovery_get_AdvSignature(d_event));
-            const int sig_ok = SUpnpVerifyAdvertisementSignature(advSignature,
-                location, capTokenUrl, DefaultPublicKeyPathRA);
+            const int sig_ok = SUpnpSecureServiceAdvertisement(advSignature,
+                location, capTokenUrl, CapTokenCP);
 		    if (sig_ok != SUPNP_E_SUCCESS) {
-                SampleUtil_Print("Received Advertisement Signature invalid. EventType (%d).\n", EventType);
+                SampleUtil_Print("Secure Service Advertisement verifications failed. EventType (%d).\n", EventType);
                 freeif2(DescDoc, ixmlDocument_free);
                 break;
             }
-		    SampleUtil_Print("Continuing to Secure Device Description..\n");
-		    // todo: Secure Device Description (Fig17).
 		    #endif
 
 		    TvCtrlPointAddDevice(DescDoc, location,	UpnpDiscovery_get_Expires(d_event));
@@ -1300,9 +1300,18 @@ void *TvCtrlPointTimerLoop(void *args)
 int RegistrationCallbackCP(void *Cookie)
 {
     ithread_t timer_thread;
+    char filepath[256];
+    size_t size;
+
     SampleUtil_Print("Control Point Registered with RA\n");
 
-    int rc = UpnpSetWebServerRootDir("./web");  // todo make configurable.
+    /* Read the capability token from the file stored */
+    sprintf(filepath, "web/%s",CapTokenDefaultFilenameCP); // todo: configure filepath in SUPnP init
+    CapTokenCP = read_file(filepath, "r", &size);
+    sample_verify(CapTokenCP != NULL, error_handler, "Error reading capability token\n");
+
+    /* Set Web Directory */
+    const int rc = UpnpSetWebServerRootDir("./web");  // todo make configurable.
     sample_verify(rc == UPNP_E_SUCCESS, error_handler, "Error specifying webserver root directory -- %d\n", rc);
 
     TvCtrlPointRefresh();
