@@ -69,7 +69,7 @@ endif
 # SUPnP
 if ENABLE_SUPNP
 upnpinclude_HEADERS += \
-	inc/supnp_error.h \
+	inc/supnp_common.h \
 	inc/supnp_captoken.h \
 	inc/supnp_device.h \
 	inc/supnp.h

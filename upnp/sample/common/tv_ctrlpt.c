@@ -51,9 +51,8 @@
 #include <supnp.h>
 #include <file_utils.h>
 
+/* Will be used to load private & public key pair */
 const char *DefaultPrivateKeyPathCP = "../../simulation/CP/private_key.pem";
-const char *DefaultPublicKeyPathCP = "../../simulation/CP/public_key.pem";
-const char *DefaultPublicKeyPathRA = "../../simulation/RA/public_key.pem";
 
 /*! Relative to upnp/sample */
 const char *RegisterDocsDefaultFilepathCP[SUPNP_DOCS_ON_DEVICE] = {
@@ -61,9 +60,13 @@ const char *RegisterDocsDefaultFilepathCP[SUPNP_DOCS_ON_DEVICE] = {
     "../../simulation/CP/certificate.pem",
     "../../simulation/UCA/certificate.pem"
 };
-const char *CapTokenDefaultFilenameCP = "captoken_cp.json";
 
-char *CapTokenCP = NULL;  // todo free on UpnpFinish or make static..
+const char *CapTokenDefaultFilenameCP = "captoken_cp.json";
+const char *CapTokenDefaultRelLocationCP = "web/captoken_cp.json"; // todo: configure filepath in SUPnP init
+
+// todo free on UpnpFinish or make static..
+char *CapTokenCP = NULL;
+char *DeviceUrlCP = NULL;
 
 #endif
 
@@ -255,9 +258,18 @@ int TvCtrlPointRefresh(void)
 
 	TvCtrlPointRemoveAll();
 
-	/* Search for all devices of type tvdevice version 1,
+    /* Search for all devices of type tvdevice version 1,
 	 * waiting for up to 5 seconds for the response */
-	rc = UpnpSearchAsync(ctrlpt_handle, SEARCH_TIME, TvDeviceType, NULL);
+    #if ENABLE_SUPNP
+    char capTokenLocation[MAX_URL_SIZE] = {0};
+    snprintf(capTokenLocation, MAX_URL_SIZE, "%s%s", DeviceUrlCP,
+        CapTokenDefaultRelLocationCP);
+    rc = SUpnpSecureServiceDiscoverySend(ctrlpt_handle, SEARCH_TIME, TvDeviceType,
+        CapTokenCP,
+        capTokenLocation);
+    #else
+    rc = UpnpSearchAsync(ctrlpt_handle, SEARCH_TIME, TvDeviceType, NULL);
+    #endif
 	if (UPNP_E_SUCCESS != rc) {
 		SampleUtil_Print("Error sending search request (%d)\n", rc);
 
@@ -1087,10 +1099,10 @@ int TvCtrlPointCallbackEventHandler(Upnp_EventType EventType, const void *Event,
 		    /* Secure Advertisement Verification (Fig17). */
 		    SampleUtil_Print("Handling Secure Service Advertisement..\n");
 		    const char *capTokenUrl =
-		        UpnpString_get_String(UpnpDiscovery_get_CapTokenUrl(d_event));
+		        UpnpString_get_String(UpnpDiscovery_get_CapTokenLocation(d_event));
 		    const char *advSignature =
                 UpnpString_get_String(UpnpDiscovery_get_AdvSignature(d_event));
-            const int sig_ok = SUpnpSecureServiceAdvertisement(advSignature,
+            const int sig_ok = SUpnpSecureServiceAdvertisementVerify(advSignature,
                 location, capTokenUrl, CapTokenCP);
 		    if (sig_ok != SUPNP_E_SUCCESS) {
                 SampleUtil_Print("Secure Service Advertisement verifications failed. EventType (%d).\n", EventType);
@@ -1257,10 +1269,18 @@ void TvCtrlPointVerifyTimeouts(int incr)
 				/* This advertisement is about to expire, so
 				 * send out a search request for this device
 				 * UDN to try to renew */
+			    #if ENABLE_SUPNP
+			    ret = SUpnpSecureServiceDiscoverySend(ctrlpt_handle,
+			        incr,
+			        curdevnode->device.UDN,
+			        CapTokenCP,
+			        CapTokenDefaultRelLocationCP);
+			    #else
 				ret = UpnpSearchAsync(ctrlpt_handle,
 					incr,
 					curdevnode->device.UDN,
 					NULL);
+			    #endif
 				if (ret != UPNP_E_SUCCESS)
 					SampleUtil_Print(
 						"Error sending search request "
@@ -1300,14 +1320,12 @@ void *TvCtrlPointTimerLoop(void *args)
 int RegistrationCallbackCP(void *Cookie)
 {
     ithread_t timer_thread;
-    char filepath[256];
     size_t size;
 
     SampleUtil_Print("Control Point Registered with RA\n");
 
     /* Read the capability token from the file stored */
-    sprintf(filepath, "web/%s",CapTokenDefaultFilenameCP); // todo: configure filepath in SUPnP init
-    CapTokenCP = read_file(filepath, "r", &size);
+    CapTokenCP = read_file(CapTokenDefaultRelLocationCP, "r", &size);
     sample_verify(CapTokenCP != NULL, error_handler, "Error reading capability token\n");
 
     /* Set Web Directory */
@@ -1323,7 +1341,7 @@ int RegistrationCallbackCP(void *Cookie)
     return TV_SUCCESS;
 
 error_handler:
-    UpnpFinish();
+    SUpnpFinish();
 
     return TV_ERROR;
 }
@@ -1351,12 +1369,19 @@ int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo)
 		iface ? iface : "{NULL}",
 		port);
 
-	rc = UpnpInit2(iface, port);
+    #if ENABLE_SUPNP
+	rc = SUpnpInit(iface, port, DefaultPrivateKeyPathCP);
+    #else
+    rc = UpnpInit2(iface, port);
+    #endif
 	if (rc != UPNP_E_SUCCESS) {
 		SampleUtil_Print("WinCEStart: UpnpInit2() Error: %d\n", rc);
 		if (!combo) {
-			UpnpFinish();
-
+		    #if ENABLE_SUPNP
+			SUpnpFinish();
+		    #else
+		    UpnpFinish();
+		    #endif
 			return TV_ERROR;
 		}
 	}
@@ -1378,24 +1403,27 @@ int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo)
     &ctrlpt_handle);
     if (rc != UPNP_E_SUCCESS) {
         SampleUtil_Print("Error registering CP: %d\n", rc);
+        #if ENABLE_SUPNP
+        SUpnpFinish();
+        #else
         UpnpFinish();
+        #endif
 
         return TV_ERROR;
     }
 
 #if ENABLE_SUPNP
-    rc = SUpnpRegisterDevice(DefaultPublicKeyPathCP,
-        DefaultPrivateKeyPathCP,
-        RegisterDocsDefaultFilepathCP,
+    DeviceUrlCP = SampleUtil_BuildDeviceUrl(AF_INET, UpnpGetServerIpAddress(), UpnpGetServerPort());
+    rc = SUpnpRegisterDevice(RegisterDocsDefaultFilepathCP,
         CapTokenDefaultFilenameCP,
-        SampleUtil_BuildDeviceUrl(AF_INET, UpnpGetServerIpAddress(), UpnpGetServerPort()),
+        DeviceUrlCP,
         NULL, /* Not Applicable */
         10 /* timeout */,
         RegistrationCallbackCP,
         NULL /* No Params for RegistrationCallbackCP */ );
     if (rc != SUPNP_E_SUCCESS) {
         SampleUtil_Print("Error registering CP with RA: %d\n", rc);
-        UpnpFinish();
+        SUpnpFinish();
         return TV_ERROR;
     }
 
@@ -1419,7 +1447,11 @@ int TvCtrlPointStop(void)
 	TvCtrlPointTimerLoopRun = 0;
 	TvCtrlPointRemoveAll();
 	UpnpUnRegisterClient(ctrlpt_handle);
-	UpnpFinish();
+    #if ENABLE_SUPNP
+    SUpnpFinish();
+    #else
+    UpnpFinish();
+    #endif
 	SampleUtil_Finish();
 
 	return TV_SUCCESS;

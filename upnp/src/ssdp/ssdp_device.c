@@ -40,11 +40,18 @@
 
 #include "config.h"
 
+#include <openssl_error.h>
+#include <openssl_nonce.h>
+#include <openssl_wrapper.h>
+
 #if ENABLE_SUPNP
 #include <cJSON/cJSON.h>
-#include <supnp_captoken.h>
-#include <supnp_error.h>
+#include "supnp_captoken.h"
+#include "supnp_common.h"
+#include "supnp.h"
 #endif
+
+
 
 #ifdef INCLUDE_DEVICE_APIS
 	#if EXCLUDE_SSDP == 0
@@ -83,7 +90,7 @@ void advertiseAndReplyThread(void *data)
 	free(arg);
 }
 
-		#ifdef INCLUDE_DEVICE_APIS
+            #ifdef INCLUDE_DEVICE_APIS
 void ssdp_handle_device_request(
 	http_message_t *hmsg, struct sockaddr_storage *dest_addr)
 {
@@ -122,6 +129,40 @@ void ssdp_handle_device_request(
 	if (ret_code == -1)
 		/* bad ST header. */
 		return;
+
+#if ENABLE_SUPNP
+    /* Ignore RA device type */
+    if (memptr_cmp(&hdr_value, RaDeviceType) != 0) {
+        memptr capTokenLocation;
+        memptr capTokenSignature;
+        memptr hex_nonce;
+        memptr discoverySignature;
+        if(httpmsg_find_hdr(hmsg, HDR_CAPTOKEN_LOCATION,
+            &capTokenLocation) == NULL) {
+            return; /* Ignore packet */
+        }
+        if(httpmsg_find_hdr(hmsg, HDR_CAPTOKEN_LOCATION_SIGNATURE,
+            &capTokenSignature) == NULL) {
+            return; /* Ignore packet */
+        }
+        if(httpmsg_find_hdr(hmsg,
+            HDR_NONCE, &hex_nonce) == NULL) {
+            return; /* Ignore packet */
+        }
+        if(httpmsg_find_hdr(hmsg, HDR_DISCOVERY_SIGNATURE,
+            &discoverySignature) == NULL) {
+            return; /* Ignore packet */
+        }
+        ret_code = SUpnpSecureServiceDiscoveryVerify(
+            capTokenLocation.buf,
+            capTokenSignature.buf,
+            hex_nonce.buf,
+            discoverySignature.buf);
+        if (ret_code != SUPNP_E_SUCCESS) {
+            return;  /* Ignore packet */
+        }
+    }
+#endif
 
 	start = 0;
 	for (;;) {

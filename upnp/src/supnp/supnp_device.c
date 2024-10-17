@@ -9,7 +9,7 @@
  */
 #include "supnp_device.h"
 #include "openssl_wrapper.h"
-#include "supnp_error.h"
+#include "supnp_common.h"
 #include <cJSON/cJSON.h>
 #include <ixml.h>
 #include <openssl/evp.h>

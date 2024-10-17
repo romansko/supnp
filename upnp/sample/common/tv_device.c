@@ -55,8 +55,8 @@
 #include <supnp.h>
 #include <file_utils.h>
 
+/* Will be used to load private & public key pair */
 const char *DefaultPrivateKeyPathSD = "../../simulation/SD/private_key.pem";
-const char *DefaultPublicKeyPathSD = "../../simulation/SD/public_key.pem";
 
 /*! Relative to upnp/sample */
 const char *RegisterDocsDefaultFilepathSD[SUPNP_DOCS_ON_DEVICE] = {
@@ -1427,8 +1427,9 @@ int RegistrationCallbackSD(void *Cookie)
     sample_verify(ret == UPNP_E_SUCCESS, cleanup, "Error sending advertisements : %d\n", ret);
     SampleUtil_Print("Advertisements Sent\n");
 cleanup:
-    if (ret != UPNP_E_SUCCESS)
-        UpnpFinish();
+    if (ret != UPNP_E_SUCCESS) {
+        SUpnpFinish();
+    }
     return ret;
 }
 #endif
@@ -1459,10 +1460,18 @@ int TvDeviceStart(char *iface,
 			 "\tinterface = %s port = %u\n",
 		iface ? iface : "{NULL}",
 		port);
-	ret = UpnpInit2(iface, port);
+    #if ENABLE_SUPNP
+	ret = SUpnpInit(iface, port, DefaultPrivateKeyPathSD);
+    #else
+    ret = UpnpInit2(iface, port);
+    #endif
 	if (ret != UPNP_E_SUCCESS) {
 		SampleUtil_Print("Error with UpnpInit2 -- %d\n", ret);
-		UpnpFinish();
+	    #if ENABLE_SUPNP
+	    SUpnpFinish();
+	    #else
+	    UpnpFinish();
+	    #endif
 
 		return ret;
 	}
@@ -1533,7 +1542,11 @@ int TvDeviceStart(char *iface,
 			"Error specifying webserver root directory -- %s: %d\n",
 			web_dir_path,
 			ret);
-		UpnpFinish();
+	    #if ENABLE_SUPNP
+	    SUpnpFinish();
+	    #else
+	    UpnpFinish();
+	    #endif
 
 		return ret;
 	}
@@ -1557,9 +1570,12 @@ int TvDeviceStart(char *iface,
 		&device_handle,
 		address_family);
 	if (ret != UPNP_E_SUCCESS) {
-		SampleUtil_Print(
-			"Error registering the rootdevice : %d\n", ret);
-		UpnpFinish();
+		SampleUtil_Print("Error registering the rootdevice : %d\n", ret);
+	    #if ENABLE_SUPNP
+	    SUpnpFinish();
+	    #else
+	    UpnpFinish();
+	    #endif
 
 		return ret;
 	} else {
@@ -1570,9 +1586,7 @@ int TvDeviceStart(char *iface,
 
 #if ENABLE_SUPNP
 	    SampleUtil_Print("Registering SD with RA..\n");
-	    ret = SUpnpRegisterDevice(DefaultPublicKeyPathSD,
-            DefaultPrivateKeyPathSD,
-            RegisterDocsDefaultFilepathSD,
+	    ret = SUpnpRegisterDevice(RegisterDocsDefaultFilepathSD,
             CapTokenDefaultFilenameSD,
             SampleUtil_BuildDeviceUrl(address_family, UpnpGetServerIpAddress(), UpnpGetServerPort()),
             strdup(desc_doc_name),
@@ -1605,7 +1619,11 @@ cleanup:
 int TvDeviceStop(void)
 {
 	UpnpUnRegisterRootDevice(device_handle);
-	UpnpFinish();
+    #if ENABLE_SUPNP
+    SUpnpFinish();
+    #else
+    UpnpFinish();
+    #endif
 	SampleUtil_Finish();
 	ithread_mutex_destroy(&TVDevMutex);
 

@@ -460,7 +460,7 @@ int SampleUtil_PrintEvent(Upnp_EventType EventType, const void *Event)
 			UpnpString_get_String(UpnpDiscovery_get_ServiceVer(d_event)),
 			UpnpString_get_String(UpnpDiscovery_get_Location(d_event)),
 			#if ENABLE_SUPNP
-			UpnpString_get_String(UpnpDiscovery_get_CapTokenUrl(d_event)),
+			UpnpString_get_String(UpnpDiscovery_get_CapTokenLocation(d_event)),
 			UpnpString_get_String(UpnpDiscovery_get_AdvSignature(d_event)),
 			#endif
 			UpnpString_get_String(UpnpDiscovery_get_Os(d_event)),

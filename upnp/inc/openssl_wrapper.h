@@ -40,7 +40,7 @@ UPNP_EXPORT_SPEC int OpenSslInitializeWrapper();
  */
 UPNP_EXPORT_SPEC void OpenSslFreePKey(
     /*! [in] PKEY to free */
-    EVP_PKEY *pKey);
+    EVP_PKEY **pKey);
 
 /*!
  * \brief convert binary data to hex string.

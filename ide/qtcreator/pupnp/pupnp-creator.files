@@ -118,8 +118,8 @@ upnp/inc/openssl_nonce.h
 upnp/inc/openssl_wrapper.h
 upnp/inc/supnp.h
 upnp/inc/supnp_captoken.h
+upnp/inc/supnp_common.h
 upnp/inc/supnp_device.h
-upnp/inc/supnp_error.h
 upnp/inc/upnp.h
 upnp/inc/upnpconfig.h.cm
 upnp/inc/upnpconfig.h.in

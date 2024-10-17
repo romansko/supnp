@@ -141,10 +141,9 @@ cleanup:
  * undefined reference to symbol 'EVP_PKEY_free@@OPENSSL_3.0.0'
  * @param pKey a PKEY
  */
-void OpenSslFreePKey(EVP_PKEY *pKey)
+void OpenSslFreePKey(EVP_PKEY **pKey)
 {
-    if (pKey)
-        EVP_PKEY_free(pKey);
+    w_freeif(*pKey, EVP_PKEY_free);
 }
 
 /**

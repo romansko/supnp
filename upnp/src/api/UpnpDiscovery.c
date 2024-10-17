@@ -24,7 +24,7 @@ struct s_UpnpDiscovery
     UpnpString *m_ServiceType;
     UpnpString *m_ServiceVer;
     UpnpString *m_Location;
-    UpnpString *m_CapTokenUrl;
+    UpnpString *m_CapTokenLocation;
     UpnpString *m_AdvSignature;
     UpnpString *m_Os;
     UpnpString *m_Date;
@@ -46,7 +46,7 @@ UpnpDiscovery *UpnpDiscovery_new()
     p->m_ServiceType = UpnpString_new();
     p->m_ServiceVer = UpnpString_new();
     p->m_Location = UpnpString_new();
-    p->m_CapTokenUrl = UpnpString_new();
+    p->m_CapTokenLocation = UpnpString_new();
     p->m_AdvSignature = UpnpString_new();
     p->m_Os = UpnpString_new();
     p->m_Date = UpnpString_new();
@@ -72,8 +72,8 @@ void UpnpDiscovery_delete(UpnpDiscovery *q)
     p->m_Os = 0;
     UpnpString_delete(p->m_AdvSignature);
     p->m_AdvSignature = 0;
-    UpnpString_delete(p->m_CapTokenUrl);
-    p->m_CapTokenUrl = 0;
+    UpnpString_delete(p->m_CapTokenLocation);
+    p->m_CapTokenLocation = 0;
     UpnpString_delete(p->m_Location);
     p->m_Location = 0;
     UpnpString_delete(p->m_ServiceVer);
@@ -105,8 +105,8 @@ int UpnpDiscovery_assign(UpnpDiscovery *p, const UpnpDiscovery *q)
         ok = ok &&
              UpnpDiscovery_set_ServiceVer(p, UpnpDiscovery_get_ServiceVer(q));
         ok = ok && UpnpDiscovery_set_Location(p, UpnpDiscovery_get_Location(q));
-        ok = ok &&
-             UpnpDiscovery_set_CapTokenUrl(p, UpnpDiscovery_get_CapTokenUrl(q));
+        ok = ok && UpnpDiscovery_set_CapTokenLocation(
+                       p, UpnpDiscovery_get_CapTokenLocation(q));
         ok = ok && UpnpDiscovery_set_AdvSignature(
                        p, UpnpDiscovery_get_AdvSignature(q));
         ok = ok && UpnpDiscovery_set_Os(p, UpnpDiscovery_get_Os(q));
@@ -333,41 +333,42 @@ void UpnpDiscovery_clear_Location(UpnpDiscovery *p)
     UpnpString_clear(p->m_Location);
 }
 
-const UpnpString *UpnpDiscovery_get_CapTokenUrl(const UpnpDiscovery *p)
+const UpnpString *UpnpDiscovery_get_CapTokenLocation(const UpnpDiscovery *p)
 {
-    return p->m_CapTokenUrl;
+    return p->m_CapTokenLocation;
 }
 
-int UpnpDiscovery_set_CapTokenUrl(UpnpDiscovery *p, const UpnpString *s)
+int UpnpDiscovery_set_CapTokenLocation(UpnpDiscovery *p, const UpnpString *s)
 {
     const char *q = UpnpString_get_String(s);
 
-    return UpnpString_set_String(p->m_CapTokenUrl, q);
+    return UpnpString_set_String(p->m_CapTokenLocation, q);
 }
 
-size_t UpnpDiscovery_get_CapTokenUrl_Length(const UpnpDiscovery *p)
+size_t UpnpDiscovery_get_CapTokenLocation_Length(const UpnpDiscovery *p)
 {
-    return UpnpString_get_Length(UpnpDiscovery_get_CapTokenUrl(p));
+    return UpnpString_get_Length(UpnpDiscovery_get_CapTokenLocation(p));
 }
 
-const char *UpnpDiscovery_get_CapTokenUrl_cstr(const UpnpDiscovery *p)
+const char *UpnpDiscovery_get_CapTokenLocation_cstr(const UpnpDiscovery *p)
 {
-    return UpnpString_get_String(UpnpDiscovery_get_CapTokenUrl(p));
+    return UpnpString_get_String(UpnpDiscovery_get_CapTokenLocation(p));
 }
 
-int UpnpDiscovery_strcpy_CapTokenUrl(UpnpDiscovery *p, const char *s)
+int UpnpDiscovery_strcpy_CapTokenLocation(UpnpDiscovery *p, const char *s)
 {
-    return UpnpString_set_String(p->m_CapTokenUrl, s);
+    return UpnpString_set_String(p->m_CapTokenLocation, s);
 }
 
-int UpnpDiscovery_strncpy_CapTokenUrl(UpnpDiscovery *p, const char *s, size_t n)
+int UpnpDiscovery_strncpy_CapTokenLocation(
+    UpnpDiscovery *p, const char *s, size_t n)
 {
-    return UpnpString_set_StringN(p->m_CapTokenUrl, s, n);
+    return UpnpString_set_StringN(p->m_CapTokenLocation, s, n);
 }
 
-void UpnpDiscovery_clear_CapTokenUrl(UpnpDiscovery *p)
+void UpnpDiscovery_clear_CapTokenLocation(UpnpDiscovery *p)
 {
-    UpnpString_clear(p->m_CapTokenUrl);
+    UpnpString_clear(p->m_CapTokenLocation);
 }
 
 const UpnpString *UpnpDiscovery_get_AdvSignature(const UpnpDiscovery *p)

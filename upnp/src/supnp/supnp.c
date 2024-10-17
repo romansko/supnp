@@ -10,7 +10,6 @@
  *
  * \author Roman Koifman
  */
-#include "stdio.h"
 #include "upnpconfig.h"
 
 #if ENABLE_SUPNP
@@ -23,19 +22,59 @@
 #include <ixml.h>
 #include "supnp.h"
 #include "supnp_device.h"
-#include "supnp_error.h"
+#include "supnp_common.h"
 #include "openssl_error.h"
+#include "stdio.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/* Globals */
+ithread_mutex_t gSUpnpMutex = PTHREAD_MUTEX_INITIALIZER;
+EVP_PKEY *gDevicePKey = NULL;  /* Device's private & public key pair */
+EVP_PKEY *gRAPublicKey = NULL; /* Registration Authority Public Key */
+/**/
 
 #define supnp_extract_json_string(doc, key, value, label) \
 { \
     value = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(doc, key)); \
     supnp_verify(value, label, "Unexpected '%s'\n", key); \
 }
+
+
+int SUpnpInit(const char *IfName, unsigned short DestPort, const char *privateKeyPath)
+{
+    ithread_mutex_lock(&gSUpnpMutex);
+    supnp_log("Initializing SUPnP secure layer..\n");
+
+    /* Initialize OpenSSL Wrapper */
+    // todo maybe UpnpInitSslContext ?
+    supnp_verify(OpenSslInitializeWrapper() == OPENSSL_SUCCESS, cleanup,
+        "Error initializing OpenSSL.\n");
+
+    /* Load key pair (public key is generated from private key) */
+    gDevicePKey = OpenSslLoadPrivateKeyFromPEM(privateKeyPath);
+    supnp_verify(gDevicePKey, cleanup, "Error loading private key from '%s'.\n",
+        privateKeyPath);
+
+    ithread_mutex_unlock(&gSUpnpMutex);
+    return UpnpInit2(IfName, DestPort);
+
+cleanup:
+    ithread_mutex_unlock(&gSUpnpMutex);
+    return SUPNP_E_INTERNAL_ERROR;
+}
+
+int SUpnpFinish()
+{
+    ithread_mutex_lock(&gSUpnpMutex);
+    freeif(gDevicePKey);
+    freeif(gRAPublicKey);
+    ithread_mutex_unlock(&gSUpnpMutex);
+    return UpnpFinish();
+}
+
 
 char *SUpnpGetFirstElementItem(IXML_Element *element, const char *item)
 {
@@ -57,20 +96,6 @@ char *SUpnpGetFirstElementItem(IXML_Element *element, const char *item)
 cleanup:
     freeif2(nodeList, ixmlNodeList_free);
 	return ret;
-}
-
-/**
- * Initialize SUPnP secure layer.
- * @return SUPNP_E_SUCCESS on success, SUPNP_E_INTERNAL_ERROR on failure.
- */
-int SUpnpInit()
-{
-    supnp_log("Initializing SUPnP secure layer..\n");
-    supnp_verify(OpenSslInitializeWrapper() == OPENSSL_SUCCESS, cleanup, "Error initializing OpenSSL.\n");
-
-    return SUPNP_E_SUCCESS;
-cleanup:
-    return SUPNP_E_INTERNAL_ERROR;
 }
 
 /**
@@ -252,8 +277,6 @@ cleanup:
 int sendRAActionRegister(RegistrationParams *params, const char *controlUrl)
 {
     int rc = SUPNP_E_INTERNAL_ERROR;
-    EVP_PKEY *sk = NULL; /* Private key */
-    EVP_PKEY *pk = NULL; /* Public key */
     char *pk_hex = NULL; /* Public key hex string */
     IXML_Document *actionNode = NULL;
     IXML_Document *respNode = NULL;
@@ -269,18 +292,15 @@ int sendRAActionRegister(RegistrationParams *params, const char *controlUrl)
     size_t nonce_len = 0;
     size_t sig_len = 0;
     cJSON *capToken = NULL;
+    char *ra_pk = NULL;
+
+    ithread_mutex_lock(&gSUpnpMutex);
 
     supnp_verify(params, cleanup, "NULL Registration Params.\n");
     supnp_verify(controlUrl, cleanup, "NULL Control URL.\n");
 
-    pk = OpenSslLoadPublicKeyFromPEM(params->publicKeyPath);
-    supnp_verify(pk, cleanup, "Error loading public key.\n");
-
-    sk = OpenSslLoadPrivateKeyFromPEM(params->privateKeyPath);
-    supnp_verify(sk, cleanup, "Error loading private key.\n");
-
-    size_t pkb_size;
-    unsigned char * pkb = OpenSslPublicKeyToBytes(pk, &pkb_size);
+    size_t pkb_size;     /* Public key bytes size */
+    unsigned char * pkb = OpenSslPublicKeyToBytes(gDevicePKey, &pkb_size);
     pk_hex = OpenSslBinaryToHexString(pkb, pkb_size);
     freeif(pkb);
     supnp_verify(pk_hex, cleanup, "Error converting public key to hex string.\n");
@@ -343,12 +363,12 @@ int sendRAActionRegister(RegistrationParams *params, const char *controlUrl)
     supnp_verify(challenge, cleanup, "Error extracting challenge.\n");
 
     /* Decrypt the challenge using the participant's private key */
-    nonce = OpenSslAsymmetricDecryption(sk, &nonce_len, challenge, size);
+    nonce = OpenSslAsymmetricDecryption(gDevicePKey, &nonce_len, challenge, size);
     supnp_verify(nonce, cleanup, "Error decrypting nonce.\n");
     supnp_verify(nonce_len == SHA256_DIGEST_LENGTH, cleanup, "Unexpected nonce length.\n");
 
     /* Signature = E(sk, H(nonce)) */
-    signature = OpenSslSign(sk, nonce, nonce_len, &sig_len);
+    signature = OpenSslSign(gDevicePKey, nonce, nonce_len, &sig_len);
     supnp_verify(signature, cleanup, "Error signing nonce E(sk, H(nonce)).\n");
 
     /* To Hex String */
@@ -401,11 +421,18 @@ int sendRAActionRegister(RegistrationParams *params, const char *controlUrl)
     sprintf(filepath, "web/%s", params->capTokenFilename); // todo: configure filepath in SUPnP init
     supnp_verify(storeCapToken(capToken, filepath) == FILE_OP_OK, cleanup, "Error storing CapToken.\n");
 
+    /* Load RA Public Key */
+    supnp_verify(ra_pk == NULL, cleanup, "RA Public Key already loaded! "
+        "Registering should be performed only once.\n");
+    ra_pk = extractCapTokenFieldValue(capToken, eCapTokenPublicKeyRA);
+    supnp_verify(ra_pk, cleanup, "Error extracting RA Public Key.\n");
+    gRAPublicKey = OpenSslLoadPublicKeyFromHex(ra_pk);
+    supnp_verify(gRAPublicKey, cleanup, "Error loading RA Public Key.\n");
+
     rc = eRegistrationStatus_DeviceRegistered;
 
 cleanup:
-    OpenSslFreePKey(sk);
-    OpenSslFreePKey(pk);
+    freeif(ra_pk);
     freeif(pk_hex);
     freeif2(actionNode, ixmlDocument_free);
     freeif2(respNode, ixmlDocument_free);
@@ -419,6 +446,7 @@ cleanup:
     freeif(signature);
     freeif(hex_sig);
 
+    ithread_mutex_unlock(&gSUpnpMutex);
     return rc;
 }
 
@@ -490,8 +518,6 @@ cleanup:
 
 /**
  * Register a device with RA. Handles Register & Challenge actions.
- * @param pk_path Path to the device's public key.
- * @param sk_path Path to the device's private key.
  * @param RegistrationDocsPath Array of paths to the device's registration documents.
  * @param capTokenFilename CapToken filename.
  * @param device_url The device's URL.
@@ -501,8 +527,7 @@ cleanup:
  * @param callback_cookie The cookie to be passed to the callback function.
  * @return SUPNP_E_SUCCESS on success. Error code otherwise.
  */
-int SUpnpRegisterDevice(const char *pk_path,
-    const char *sk_path,
+int SUpnpRegisterDevice(
     const char *RegistrationDocsPath[],
     const char *capTokenFilename,
     char *device_url,     /* Expected heap allocated string */
@@ -514,8 +539,6 @@ int SUpnpRegisterDevice(const char *pk_path,
     int ret = SUPNP_E_SUCCESS;
 
     /* Verify Params */
-    supnp_verify(pk_path, cleanup, "NULL public key path.\n");
-    supnp_verify(sk_path, cleanup, "NULL private key path.\n");
     supnp_verify(RegistrationDocsPath, cleanup, "NULL Registration Docs Paths.\n");
     supnp_verify(capTokenFilename, cleanup, "NULL CapToken Filename.\n");
     supnp_verify(device_url, cleanup, "NULL device URL.\n");
@@ -526,8 +549,6 @@ int SUpnpRegisterDevice(const char *pk_path,
     params->handle = -1;
     params->callback = callback;
     params->callback_cookie = callback_cookie;
-    params->publicKeyPath = pk_path;
-    params->privateKeyPath = sk_path;
     for (int i = 0; i < SUPNP_DOCS_ON_DEVICE; ++i) {
         supnp_verify(RegistrationDocsPath[i], cleanup, "NULL %s.\n", RaRegisterActionVarName[i]);
         params->RegistrationDocsPath[i] = RegistrationDocsPath[i];
@@ -543,7 +564,9 @@ int SUpnpRegisterDevice(const char *pk_path,
     supnp_verify(ret == UPNP_E_SUCCESS, cleanup, "Error registering registration handle with sdk: %d\n", ret);
 
     /* Send RA Discovery Message */
-    ret = UpnpSearchAsync(params->handle, timeout, RaDeviceType, params);
+    ret = UpnpSearchAsync(params->handle, timeout, RaDeviceType,
+        NULL, NULL, NULL, NULL, /* Secure Discovery Not Applicable */
+        params);
     supnp_verify(ret == UPNP_E_SUCCESS, cleanup, "Error sending RA discovery message (%d)\n", ret);
 
     return SUPNP_E_SUCCESS; /* Success */
@@ -594,7 +617,7 @@ void SUpnpFreeRegistrationParams(RegistrationParams **params)
  * @param deviceCapTokenString Current Device CapToken.
  * @return SUPNP_E_SUCCESS on success. Error code otherwise.
  */
-int SUpnpSecureServiceAdvertisement(const char *hexSignature,
+int SUpnpSecureServiceAdvertisementVerify(const char *hexSignature,
     const char *descDocUrl,
     const char *capTokenUrl,
     const char *deviceCapTokenString)
@@ -607,6 +630,9 @@ int SUpnpSecureServiceAdvertisement(const char *hexSignature,
     captoken_t *pDeviceCapToken = NULL;
     captoken_t *pTargetCapToken = NULL;
     char *desc_doc_content = NULL;
+
+    if (deviceCapTokenString == NULL)
+        printf("blah\n");
 
     supnp_verify(hexSignature != NULL, cleanup, "NULL hexSignature\n");
     supnp_verify(descDocUrl != NULL, cleanup, "NULL descDocUrl\n");
@@ -659,6 +685,141 @@ cleanup:
     return ret;
 }
 
+/* Fig 18 - CP Side */
+int SUpnpSecureServiceDiscoverySend(const int handle,
+    const int searchTime,
+    const char *target,
+    const char *capTokenString,
+    const char *capTokenLocation)
+{
+    unsigned char *nonce = NULL;
+    char *nonce_hex = NULL;
+    captoken_t *cap_token = NULL;
+    char *capTokenLocationSig = NULL;
+    unsigned char *nonce_sig = NULL;
+    size_t sig_len = 0;
+    char *nonce_sig_hex = NULL;
+
+    ithread_mutex_lock(&gSUpnpMutex);
+
+    int ret = SUPNP_E_INVALID_ARGUMENT;
+    supnp_verify(target, cleanup, "NULL Target\n");
+    supnp_verify(capTokenString, cleanup, "NULL CapToken\n");
+    supnp_verify(capTokenLocation, cleanup, "NULL CapToken Location\n");
+
+    ret = SUPNP_E_INTERNAL_ERROR;
+
+    /* Load Cap Token */
+    cap_token = loadCapTokenString(capTokenString);
+    supnp_verify(cap_token, cleanup, "Error converting CapToken from string.\n");
+
+    /* Extract Cap Token Location Signature (HEX String) */
+    capTokenLocationSig = extractCapTokenFieldValue(cap_token, eCapTokenPublicKeyRA);
+    supnp_verify(capTokenLocationSig, cleanup, "Error extracting CapToken Location Signature.\n");
+
+    /* Nonce */
+    nonce = OpenSslGenerateNonce(OPENSSL_CSPRNG_SIZE);
+    supnp_verify(nonce, cleanup, "Error generating nonce of size %d.\n", OPENSSL_CSPRNG_SIZE);
+    nonce_hex = OpenSslBinaryToHexString(nonce, OPENSSL_CSPRNG_SIZE);
+    supnp_verify(nonce_hex, cleanup, "Error converting nonce to hex string.\n");
+
+    /* Nonce signature */
+    nonce_sig = OpenSslSign(gDevicePKey, nonce, OPENSSL_CSPRNG_SIZE, &sig_len);
+    supnp_verify(nonce_sig, cleanup, "Error signing nonce.\n");
+    nonce_sig_hex = OpenSslBinaryToHexString(nonce_sig, sig_len);
+    supnp_verify(nonce_sig_hex, cleanup, "Error converting nonce signature to hex string.\n");
+
+    /* Invoke Secure Discovery */
+    ret = UpnpSearchAsync(handle, searchTime, target,
+        capTokenLocation,
+        capTokenLocationSig,
+        nonce_hex,
+        nonce_sig_hex,
+        NULL);
+
+cleanup:
+    freeif(nonce_sig_hex);
+    freeif(nonce_sig);
+    freeif(capTokenLocationSig);
+    freeCapToken(&cap_token);
+    freeif(nonce_hex);
+    freeif(nonce);
+
+    ithread_mutex_unlock(&gSUpnpMutex);
+    return ret;
+}
+
+
+int SUpnpSecureServiceDiscoveryVerify(
+    const char *capTokenLocation,
+    const char *capTokenLocationSignature,
+    const char *hexNonce,
+    const char *discoverySignature)
+{
+    int ret = SUPNP_E_INVALID_ARGUMENT;
+    unsigned char *nonce = NULL;
+    size_t nonce_len;
+    captoken_t *CapToken = NULL;
+    char *cp_pk = NULL;
+    EVP_PKEY *cp_pkey = NULL;
+
+    ithread_mutex_lock(&gSUpnpMutex);
+
+    /* Silent Error */
+    if (!gRAPublicKey) {
+        goto cleanup; /* RA Public Key not loaded in current thread */
+    }
+
+    supnp_verify(capTokenLocation, cleanup, "NULL capTokenLocation\n");
+    supnp_verify(capTokenLocationSignature, cleanup, "NULL capTokenLocationSignature\n");
+    supnp_verify(hexNonce, cleanup, "NULL hexNonce\n");
+    supnp_verify(discoverySignature, cleanup, "NULL discoverySignature\n");
+
+    /* nonce validation */
+    nonce = OpenSslHexStringToBinary(hexNonce, &nonce_len);
+    supnp_verify(nonce, cleanup, "Error converting nonce to binary\n");
+    ret = OpenSslInsertNonce(nonce, nonce_len);
+    if (ret != OPENSSL_SUCCESS) {
+        goto cleanup; /* Silent Error. Previous thread might've added nonce.  */
+    }
+
+    /* CapToken location validation */
+    ret = OpenSslVerifySignature("CapTokenLocationSignature",
+        gRAPublicKey,
+        capTokenLocationSignature,
+        (const unsigned char *)capTokenLocation,
+        strlen(capTokenLocation));
+    supnp_verify(ret == OPENSSL_SUCCESS, cleanup,
+        "Error verifying CapToken Location Signature\n");
+
+    /* Retrieve CP Public Key */
+    ret = downloadCapToken(capTokenLocation, &CapToken);
+    supnp_verify(ret == SUPNP_E_SUCCESS, cleanup,
+        "Error retrieving CapToken from %s\n", capTokenLocation);
+    cp_pk = extractCapTokenFieldValue(CapToken, eCapTokenPublicKeyCP);
+    supnp_verify(cp_pk, cleanup, "Error extracting CP Public Key\n");
+    cp_pkey = OpenSslLoadPublicKeyFromHex(cp_pk);
+    supnp_verify(cp_pkey, cleanup, "Error loading CP Public Key\n");
+
+    /* Verify Discovery Signature */
+    ret = OpenSslVerifySignature("DiscoverySignature",
+        cp_pkey,
+        discoverySignature,
+        nonce,
+        nonce_len);
+    supnp_verify(ret == OPENSSL_SUCCESS, cleanup,
+        "Error verifying Discovery Signature\n");
+
+    ret = SUPNP_E_SUCCESS;
+
+cleanup:
+    OpenSslFreePKey(&cp_pkey);
+    freeif(cp_pk);
+    freeif(nonce);
+    freeCapToken(&CapToken);
+    ithread_mutex_unlock(&gSUpnpMutex);
+    return ret;
+}
 
 #ifdef __cplusplus
 }

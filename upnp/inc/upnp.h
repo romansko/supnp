@@ -1126,6 +1126,16 @@ UPNP_EXPORT_SPEC int UpnpSearchAsync(
 	/*! The search target as defined in the UPnP Device Architecture v1.0
 	 * specification. */
 	const char *TTarget_constarget_const,
+#if ENABLE_SUPNP
+	/*! Capability Token relative location. */
+    const char *CapTokenLocation,
+    /*! Capability Token location signed by RA, hex string */
+    const char *CapTokenLocationSignature,
+    /*! nonce, hex string */
+    const char *Nonce,
+    /*! Discovery Signature, hex format */
+    const char *DiscoverySignature,
+#endif
 	/*! The user data to pass when the callback function is invoked. */
 	const void *Cookie_const);
 
