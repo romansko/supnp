@@ -1,5 +1,5 @@
 /*!
- * \addtogroup SUPnP
+ * \addtogroup OpenSSL
  *
  * \file openssl_wrapper.c
  *
@@ -10,6 +10,14 @@
  * \author Roman Koifman
  */
 #include "upnpconfig.h"
+#include "file_utils.h"
+#include "openssl_error.h"
+#include "openssl_wrapper.h"
+#include <openssl/evp.h>  /* EVP related */
+#include <openssl/pem.h>  /* PEM related */
+#include <openssl/sha.h>  /* For SHA256  */
+#include <openssl/ssl.h>  /* OpenSSL Library Init */
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,77 +25,17 @@ extern "C" {
 
 #if UPNP_ENABLE_OPEN_SSL
 
-    #include "file_utils.h"
-    #include "openssl_wrapper.h"
-    #include <openssl/err.h>  /* Open SSL Error string & code */
-    #include <openssl/evp.h>  /* EVP related */
-    #include <openssl/pem.h>  /* PEM related */
-    #include <openssl/rand.h> /* RAND_bytes */
-    #include <openssl/sha.h>  /* For SHA256  */
-    #include <openssl/ssl.h>  /* OpenSSL Library Init */
-
-// Obviously change in your apps..
-const char *IV = "SUPNP_CHANGE_IV!"; /* 16 bytes IV for AES-256-CBC */
-
-/**
- * Returns the last OpenSSL error. No free is required.
- * Make sure SUpnpInit() was called before.
- */
-const char *get_openssl_last_error()
+const char *OpenSslGetLastError()
 {
     const char *err = ERR_error_string(ERR_get_error(), NULL);
     ERR_clear_error();
     return err;
 }
 
-    /**
-     * Internal error logging macro
-     */
-    #define w_error(...) \
-        { \
-            fprintf(stderr, \
-                "[SSL_W Error] %s::%s(%d): ", \
-                __FILE__, \
-                __func__, \
-                __LINE__); \
-            fprintf(stderr, __VA_ARGS__); \
-            fprintf(stderr, "\t%s\n", get_openssl_last_error()); \
-        }
 
-    /**
-     * Internal message logging macro
-     */
-    #define w_log(...) \
-        { \
-            fprintf(stdout, "[SSL_W]: "); \
-            fprintf(stdout, __VA_ARGS__); \
-        }
+// Obviously change in your apps..
+const char *IV = "SUPNP_CHANGE_IV!"; /* 16 bytes IV for AES-256-CBC */
 
-    /**
-     * Internal verification macro
-     * @param test condition to check
-     * @param label label to jump to in case of failure
-     */
-    #define w_verify(test, label, ...) \
-        { \
-            if (!(test)) { \
-                w_error(__VA_ARGS__); \
-                goto label; \
-            } \
-        }
-
-    /**
-     * Free a ponter if it is not NULL with a given function
-     * @param ptr pointer to free
-     * @param free_func function to free pointer
-     */
-    #define w_freeif(ptr, free_func) \
-        { \
-            if (ptr != NULL) { \
-                free_func(ptr); \
-                ptr = NULL; \
-            } \
-        }
 
 /**
  * Initialize SUPnP secure layer.
@@ -650,32 +598,7 @@ success:
     return decrypted;
 }
 
-/**
- * Generate a nonce.
- * The caller is responsible for freeing the nonce.
- * @param size the size of the requested nonce
- * @return a nonce on success, NULL on failure
- */
-unsigned char *OpenSslGenerateNonce(const size_t size)
-{
-    unsigned char *nonce = NULL;
 
-    // Allocate memory
-    nonce = malloc(size);
-    w_verify(nonce, cleanup, "Error allocating memory for nonce.\n");
-
-    // Generate random bytes for nonce
-    w_verify(RAND_bytes(nonce, size) == OPENSSL_SUCCESS,
-        cleanup,
-        "Error generating random nonce.\n");
-    goto success;
-
-cleanup:
-    w_freeif(nonce, free);
-
-success:
-    return nonce;
-}
 
 /**
  * Calculate SHA256 hash.

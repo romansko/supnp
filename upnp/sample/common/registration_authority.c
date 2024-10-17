@@ -47,11 +47,12 @@
 #include "upnpdebug.h"
 
 #include <openssl_wrapper.h>
+#include <openssl_error.h>
 #include <supnp.h>
 
 #include <assert.h>
 #include <supnp_captoken.h>
-#include <supnp_err.h>
+#include <supnp_error.h>
 
 #if OPENSSL_CSPRNG_SIZE != SHA256_DIGEST_LENGTH
 #error "Hash size mismatch"

@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-#include "supnp_err.h"
+#include "supnp_error.h"
 #include "supnp_device.h"
 
 /*! Number of common documents on device (CertUCA, CertDevice, SpecDoc) */

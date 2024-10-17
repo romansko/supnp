@@ -23,7 +23,8 @@
 #include <ixml.h>
 #include "supnp.h"
 #include "supnp_device.h"
-#include "supnp_err.h"
+#include "supnp_error.h"
+#include "openssl_error.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -4,7 +4,7 @@
 /*!
  * \addtogroup SUPnP
  *
- * \file supnp_err.h
+ * \file supnp_error.h
  *
  * \brief Header file for SUPnP error codes.
  *

@@ -12,9 +12,10 @@
  */
 #include "supnp_captoken.h"
 #include "openssl_wrapper.h"
+#include "openssl_nonce.h"
 #include "supnp_device.h"
-#include "supnp_err.h"
-
+#include "supnp_error.h"
+#include "openssl_error.h"
 #include <cJSON/cJSON.h>
 #include <file_utils.h>
 #include <ixml.h>

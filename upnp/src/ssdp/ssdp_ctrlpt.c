@@ -383,6 +383,9 @@ static int CreateClientRequestPacket(
 	int Mx,
 	/*! [in] Number of seconds to wait to collect all the responses. */
 	char *SearchTarget,
+#if ENABLE_SUPNP
+
+#endif
 	/*! [in] search address family. */
 	int AddressFamily)
 {

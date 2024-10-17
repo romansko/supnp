@@ -43,7 +43,7 @@
 #if ENABLE_SUPNP
 #include <cJSON/cJSON.h>
 #include <supnp_captoken.h>
-#include <supnp_err.h>
+#include <supnp_error.h>
 #endif
 
 #ifdef INCLUDE_DEVICE_APIS
