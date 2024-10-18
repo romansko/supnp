@@ -9,11 +9,12 @@
  */
 #include "supnp_device.h"
 #include "openssl_wrapper.h"
-#include "supnp_err.h"
+#include "supnp_common.h"
 #include <cJSON/cJSON.h>
 #include <ixml.h>
 #include <openssl/evp.h>
 #include <openssl/x509.h>
+#include "openssl_error.h"
 
 #if ENABLE_SUPNP
 

@@ -544,13 +544,6 @@ int UpnpInit2(const char *IfName, unsigned short DestPort)
 {
 	int retVal;
 
-#if ENABLE_SUPNP
-	retVal = SUpnpInit();
-	if (retVal != UPNP_E_SUCCESS) {
-		return retVal;
-	}
-#endif
-
 	/* Initializes the ithread library */
 	ithread_initialize_library();
 
@@ -2085,6 +2078,12 @@ int UpnpSendAdvertisementLowPower(UpnpDevice_Handle Hnd,
 int UpnpSearchAsync(UpnpClient_Handle Hnd,
 	int Mx,
 	const char *Target_const,
+#if ENABLE_SUPNP
+    const char *CapTokenLocation,
+    const char *CapTokenLocationSignature,
+    const char *Nonce,
+    const char *DiscoverySignature,
+#endif
 	const void *Cookie_const)
 {
 	struct Handle_Info *SInfo = NULL;
@@ -2115,7 +2114,14 @@ int UpnpSearchAsync(UpnpClient_Handle Hnd,
 	}
 
 	HandleUnlock();
-	retVal = SearchByTarget(Hnd, Mx, Target, (void *)Cookie_const);
+	retVal = SearchByTarget(Hnd, Mx, Target,
+	    #if ENABLE_SUPNP
+        CapTokenLocation,
+        CapTokenLocationSignature,
+        Nonce,
+        DiscoverySignature,
+        #endif
+	    (void *)Cookie_const);
 	if (retVal != 1)
 		return retVal;
 

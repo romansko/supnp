@@ -150,6 +150,9 @@ typedef enum
 #ifdef ENABLE_SUPNP
 #define HDR_CAPTOKEN_LOCATION 37
 #define HDR_ADVERTISEMENT_SIGNATURE 38
+#define HDR_CAPTOKEN_LOCATION_SIGNATURE 39
+#define HDR_NONCE 40
+#define HDR_DISCOVERY_SIGNATURE 41
 #endif
 
 /*! status of parsing */

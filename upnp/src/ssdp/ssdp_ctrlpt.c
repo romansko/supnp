@@ -161,7 +161,7 @@ void ssdp_handle_ctrlpt_msg(
     #if ENABLE_SUPNP
     /* Cap Token URL */
     if (httpmsg_find_hdr(hmsg, HDR_CAPTOKEN_LOCATION, &hdr_value) != NULL) {
-        UpnpDiscovery_strncpy_CapTokenUrl(param, hdr_value.buf, hdr_value.length);
+        UpnpDiscovery_strncpy_CapTokenLocation(param, hdr_value.buf, hdr_value.length);
     }
     if (httpmsg_find_hdr(hmsg, HDR_ADVERTISEMENT_SIGNATURE, &hdr_value) != NULL) {
         UpnpDiscovery_strncpy_AdvSignature(param, hdr_value.buf, hdr_value.length);
@@ -370,6 +370,21 @@ end_ssdp_handle_ctrlpt_msg:
 	UpnpDiscovery_delete(param);
 }
 
+#if ENABLE_SUPNP
+/* To be used only by CreateClientRequestPacket */
+#define SUpnpClientRequestHelper(name, value) \
+{ \
+    if (value != NULL) { \
+        rc = snprintf( TempBuf, sizeof(TempBuf), name ": %s\r\n", value); \
+        if (rc < 0 || (unsigned int)rc >= sizeof(TempBuf)) \
+            return UPNP_E_INTERNAL_ERROR; \
+        if (RqstBufSize <= strlen(RqstBuf) + strlen(TempBuf)) \
+            return UPNP_E_BUFFER_TOO_SMALL; \
+        strcat(RqstBuf, TempBuf); \
+    } \
+}
+#endif /* ENABLE_SUPNP */
+
 /*!
  * \brief Creates a HTTP search request packet depending on the input
  * parameter.
@@ -383,6 +398,16 @@ static int CreateClientRequestPacket(
 	int Mx,
 	/*! [in] Number of seconds to wait to collect all the responses. */
 	char *SearchTarget,
+#if ENABLE_SUPNP
+	/*! [in] Capability Token relative location. */
+    const char *CapTokenLocation,
+    /*! [in] Capability Token location signed by RA, hex string */
+    const char *CapTokenLocationSignature,
+    /*! [in] nonce, hex string */
+    const char *Nonce,
+    /*! [in] Discovery Signature, hex format */
+    const char *DiscoverySignature,
+#endif
 	/*! [in] search address family. */
 	int AddressFamily)
 {
@@ -443,6 +468,14 @@ static int CreateClientRequestPacket(
 			return UPNP_E_BUFFER_TOO_SMALL;
 		strcat(RqstBuf, TempBuf);
 	}
+
+#if ENABLE_SUPNP
+    SUpnpClientRequestHelper("CAPTOKEN-LOCATION", CapTokenLocation);
+    SUpnpClientRequestHelper("CAPTOKEN-LOCATION-SIG", CapTokenLocationSignature);
+    SUpnpClientRequestHelper("NONCE", Nonce);
+    SUpnpClientRequestHelper("DISCOVERY-SIG", DiscoverySignature);
+#endif
+
 	if (RqstBufSize <= strlen(RqstBuf) + strlen("\r\n"))
 		return UPNP_E_BUFFER_TOO_SMALL;
 	strcat(RqstBuf, "\r\n");
@@ -450,10 +483,10 @@ static int CreateClientRequestPacket(
 	return UPNP_E_SUCCESS;
 }
 
-		/*!
-		 * \brief
-		 */
-		#ifdef UPNP_ENABLE_IPV6
+/*!
+ * \brief
+ */
+#ifdef UPNP_ENABLE_IPV6
 static int CreateClientRequestPacketUlaGua(
 	/*! [in,out] . */
 	char *RqstBuf,
@@ -463,6 +496,16 @@ static int CreateClientRequestPacketUlaGua(
 	int Mx,
 	/*! [in] . */
 	char *SearchTarget,
+	#if ENABLE_SUPNP
+	/*! [in] Capability Token relative location. */
+    const char *CapTokenLocation,
+    /*! [in] Capability Token location signed by RA, hex string */
+    const char *CapTokenLocationSignature,
+    /*! [in] nonce, hex string */
+    const char *Nonce,
+    /*! [in] Discovery Signature, hex format */
+    const char *DiscoverySignature,
+    #endif
 	/*! [in] . */
 	int AddressFamily)
 {
@@ -521,6 +564,12 @@ static int CreateClientRequestPacketUlaGua(
 			return UPNP_E_BUFFER_TOO_SMALL;
 		strcat(RqstBuf, TempBuf);
 	}
+    #if ENABLE_SUPNP
+    SUpnpClientRequestHelper("CAPTOKEN-LOCATION", CapTokenLocation);
+    SUpnpClientRequestHelper("CAPTOKEN-LOCATION-SIG", CapTokenLocationSignature);
+    SUpnpClientRequestHelper("NONCE", Nonce);
+    SUpnpClientRequestHelper("DISCOVERY-SIG", DiscoverySignature);
+    #endif
 	if (RqstBufSize <= strlen(RqstBuf) + strlen("\r\n"))
 		return UPNP_E_BUFFER_TOO_SMALL;
 	strcat(RqstBuf, "\r\n");
@@ -578,7 +627,15 @@ static void searchExpired(
 	free(arg);
 }
 
-int SearchByTarget(int Hnd, int Mx, char *St, void *Cookie)
+
+int SearchByTarget(int Hnd, int Mx, char *St,
+#if ENABLE_SUPNP
+    const char *CapTokenLocation,
+    const char *CapTokenLocationSignature,
+    const char *Nonce,
+    const char *DiscoverySignature,
+#endif
+    void *Cookie)
 {
 	char errorBuffer[ERROR_BUFFER_LEN];
 	int *id = NULL;
@@ -626,19 +683,40 @@ int SearchByTarget(int Hnd, int Mx, char *St, void *Cookie)
 		timeTillRead = MIN_SEARCH_TIME;
 	else if (timeTillRead > MAX_SEARCH_TIME)
 		timeTillRead = MAX_SEARCH_TIME;
+
 	retVal = CreateClientRequestPacket(
-		ReqBufv4, sizeof(ReqBufv4), timeTillRead, St, AF_INET);
+		ReqBufv4, sizeof(ReqBufv4), timeTillRead, St,
+        #if ENABLE_SUPNP
+		CapTokenLocation,
+        CapTokenLocationSignature,
+        Nonce,
+        DiscoverySignature,
+        #endif
+		AF_INET);
 	if (retVal != UPNP_E_SUCCESS)
 		return retVal;
 		#ifdef UPNP_ENABLE_IPV6
 	retVal = CreateClientRequestPacket(
-		ReqBufv6, sizeof(ReqBufv6), timeTillRead, St, AF_INET6);
+		ReqBufv6, sizeof(ReqBufv6), timeTillRead, St,
+		#if ENABLE_SUPNP
+        CapTokenLocation,
+        CapTokenLocationSignature,
+        Nonce,
+        DiscoverySignature,
+        #endif
+		AF_INET6);
 	if (retVal != UPNP_E_SUCCESS)
 		return retVal;
 	retVal = CreateClientRequestPacketUlaGua(ReqBufv6UlaGua,
 		sizeof(ReqBufv6UlaGua),
 		timeTillRead,
 		St,
+		#if ENABLE_SUPNP
+		CapTokenLocation,
+        CapTokenLocationSignature,
+        Nonce,
+        DiscoverySignature,
+        #endif
 		AF_INET6);
 	if (retVal != UPNP_E_SUCCESS)
 		return retVal;

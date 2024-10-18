@@ -47,11 +47,12 @@
 #include "upnpdebug.h"
 
 #include <openssl_wrapper.h>
+#include <openssl_error.h>
 #include <supnp.h>
 
 #include <assert.h>
 #include <supnp_captoken.h>
-#include <supnp_err.h>
+#include <supnp_common.h>
 
 #if OPENSSL_CSPRNG_SIZE != SHA256_DIGEST_LENGTH
 #error "Hash size mismatch"
@@ -64,9 +65,8 @@
 #define MAX_SUPNP_DOC_SIZE 4096
 
 const char *RA_DESC_DOC_DEF_PATH = "radesc.xml";
-const char *CA_PK_DEF_PATH = "../../simulation/CA/public_key.pem";
-const char *RA_SK_DEF_PATH = "../../simulation/RA/private_key.pem";
-EVP_PKEY *RaPrivateKey = NULL;
+const char *DefaultPublicKeyPathCA = "../../simulation/CA/public_key.pem";
+const char *DefaultPrivateKeyPathRA = "../../simulation/RA/private_key.pem";
 
 supnp_device_t * SUPnPDeviceList = NULL;
 
@@ -356,7 +356,7 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
         sample_verify_ex(docs[i], cleanup, errorString, "Invalid Registration parameters.\n");
     }
 
-    ca_pk = OpenSslLoadPublicKeyFromPEM(CA_PK_DEF_PATH);
+    ca_pk = OpenSslLoadPublicKeyFromPEM(DefaultPublicKeyPathCA);
     sample_verify_ex(ca_pk, cleanup, errorString, "Error loading CA Public Key.\n");
 
     p_dev = SupnpNewDevice(docs[eRegisterActionVar_SpecDoc],
@@ -433,7 +433,7 @@ cleanup:
     freeif(challenge_str);
     freeif(nonce);
     freeif(enc_nonce);
-    OpenSslFreePKey(ca_pk);
+    OpenSslFreePKey(&ca_pk);
     ithread_mutex_unlock(&RAMutex);
     return ret;
 }
@@ -449,6 +449,7 @@ int VerifyChallenge(IXML_Document *in, IXML_Document **out, const char **errorSt
     char *hex = NULL;
     char *response = NULL;
     EVP_PKEY *pkey = NULL;
+    EVP_PKEY *raPkey = NULL;
     char retVal[5] = {0};
     supnp_device_t *p_dev = NULL;
     char *capToken = NULL;
@@ -457,6 +458,9 @@ int VerifyChallenge(IXML_Document *in, IXML_Document **out, const char **errorSt
     (*out) = NULL;
 
     ithread_mutex_lock(&RAMutex);
+
+    raPkey = OpenSslLoadPrivateKeyFromPEM(DefaultPrivateKeyPathRA);
+    sample_verify_ex(raPkey, cleanup, errorString, "Unable to load RA Private Key.\n");
 
     /* Extract public key */
     hex = SampleUtil_GetFirstDocumentItem(in, RaChallengeActionVarName[eChallengeActionVar_PublicKey]);
@@ -486,7 +490,7 @@ int VerifyChallenge(IXML_Document *in, IXML_Document **out, const char **errorSt
     /* Since device is verified, it's time to generate a Cap Token */
     ret = SUPNP_E_CAPTOKEN_ERROR;
     sample_verify_ex(p_dev->device_url, cleanup, errorString, "NULL Device URL.\n");
-    p_dev->cap_token = generateCapToken(p_dev, RaPrivateKey);
+    p_dev->cap_token = generateCapToken(p_dev, raPkey);
     sample_verify_ex(p_dev->cap_token, cleanup, errorString, "Error generating Cap Token.\n");
 
 verified:
@@ -519,10 +523,10 @@ cleanup:
             ActionResponseVarName,
             retVal);
     }
-
     freeif(hex);
     freeif(response);
-    OpenSslFreePKey(pkey);
+    OpenSslFreePKey(&pkey);
+    OpenSslFreePKey(&raPkey);
     freeif(capToken);
     ithread_mutex_unlock(&RAMutex);
     return ret;
@@ -586,12 +590,8 @@ int RAStart(char *iface,
 			 "\tinterface = %s port = %u\n", iface ? iface : "{NULL}", port);
 
     /* Initialize SUPnP & UPnP SDK */
-	ret = UpnpInit2(iface, port);
+	ret = SUpnpInit(iface, port, DefaultPrivateKeyPathRA, eDeviceType_RA);
     sample_verify(ret == UPNP_E_SUCCESS, error_handler, "Error with UpnpInit2 -- %d\n", ret);
-
-    /* Load RA Private Key */
-    RaPrivateKey = OpenSslLoadPrivateKeyFromPEM(RA_SK_DEF_PATH);
-    sample_verify(RaPrivateKey, error_handler, "Error loading RA Private Key.\n");
 
 	switch (ip_mode) {
 	case IP_MODE_IPV4:
@@ -656,7 +656,7 @@ int RAStart(char *iface,
     return UPNP_E_SUCCESS;
 
 error_handler:
-    UpnpFinish();
+    SUpnpFinish();
     return ret;
 }
 
@@ -666,10 +666,9 @@ error_handler:
 int RAStop(void)
 {
 	UpnpUnRegisterRootDevice(device_handle);
-	UpnpFinish();
+	SUpnpFinish();
 	SampleUtil_Finish();
 	ithread_mutex_destroy(&RAMutex);
-    OpenSslFreePKey(RaPrivateKey);
 
 	return UPNP_E_SUCCESS;
 }

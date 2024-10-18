@@ -61,13 +61,15 @@ endif
 
 # OpenSSL Wrapper
 if UPNP_ENABLE_OPEN_SSL
-upnpinclude_HEADERS += inc/openssl_wrapper.h 
+upnpinclude_HEADERS += inc/openssl_error.h \
+    inc/openssl_wrapper.h \
+    inc/openssl_nonce.h
 endif
 
 # SUPnP
 if ENABLE_SUPNP
 upnpinclude_HEADERS += \
-	inc/supnp_err.h \
+	inc/supnp_common.h \
 	inc/supnp_captoken.h \
 	inc/supnp_device.h \
 	inc/supnp.h
@@ -218,7 +220,8 @@ libupnp_la_SOURCES += $(top_srcdir)/cJSON/cJSON.c
 endif
 
 if UPNP_ENABLE_OPEN_SSL
-libupnp_la_SOURCES += src/openssl/openssl_wrapper.c
+libupnp_la_SOURCES += src/openssl/openssl_wrapper.c \
+    src/openssl/openssl_nonce.c
 endif
 
 if ENABLE_SUPNP

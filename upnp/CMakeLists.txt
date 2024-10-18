@@ -125,10 +125,13 @@ endif()
 if (UPNP_ENABLE_OPEN_SSL)
 	list (APPEND UPNP_SOURCES
 		src/openssl/openssl_wrapper.c
+		src/openssl/openssl_nonce.c
 	)
 
 	list (APPEND UPNP_HEADERS
+		inc/openssl_error.h
 		inc/openssl_wrapper.h
+		inc/openssl_nonce.h
 	)
 endif()
 
@@ -140,7 +143,7 @@ if (ENABLE_SUPNP)
 	)
 
 	list (APPEND UPNP_HEADERS
-		inc/supnp_err.h
+			inc/supnp_common.h
 		inc/supnp_captoken.h
 		inc/supnp_device.h
 		inc/supnp.h

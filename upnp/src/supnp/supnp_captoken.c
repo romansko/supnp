@@ -12,9 +12,10 @@
  */
 #include "supnp_captoken.h"
 #include "openssl_wrapper.h"
+#include "openssl_nonce.h"
 #include "supnp_device.h"
-#include "supnp_err.h"
-
+#include "supnp_common.h"
+#include "openssl_error.h"
 #include <cJSON/cJSON.h>
 #include <file_utils.h>
 #include <ixml.h>
@@ -135,10 +136,10 @@ cJSON* getTimestamp()
  * description.
  *
  * @param p_dev device information
- * @param sk_ra RA private key
+ * @param pkey RA private key
  * @return CapToken on success, NULL on failure
  */
-captoken_t* generateCapToken(const supnp_device_t* p_dev, EVP_PKEY* sk_ra)
+captoken_t* generateCapToken(const supnp_device_t* p_dev, EVP_PKEY* pkey)
 {
     int ret = SUPNP_E_INVALID_ARGUMENT;
     captoken_t *cap_token = NULL;
@@ -153,7 +154,7 @@ captoken_t* generateCapToken(const supnp_device_t* p_dev, EVP_PKEY* sk_ra)
 
     /* Verifications */
     supnp_verify(p_dev, cleanup, "NULL Device.\n");
-    supnp_verify(sk_ra, cleanup, "NULL RA Private Key.\n");
+    supnp_verify(pkey, cleanup, "NULL RA Private Key.\n");
     supnp_verify(p_dev->name, cleanup, "NULL Device Name.\n");
     supnp_verify((p_dev->type == eDeviceType_CP) || (p_dev->type == eDeviceType_SD), cleanup, "Invalid device type\n");
     supnp_verify(p_dev->device_url != NULL, cleanup, "NULL device_url\n");
@@ -176,7 +177,7 @@ captoken_t* generateCapToken(const supnp_device_t* p_dev, EVP_PKEY* sk_ra)
     cJSON_AddItemToObject(cap_token, CT_TIMESTAMP, _timestamp);
 
     /* Export RA Public Key */
-    bytes = OpenSslPublicKeyToBytes(sk_ra, &size);
+    bytes = OpenSslPublicKeyToBytes(pkey, &size);
     cJSON* _pk_ra = bytesToJsonString(bytes, size);
     bytes = NULL; /* Freed in bytes_to_json_string */
     supnp_verify(_pk_ra, error, "RA Public Key exporting failed\n");
@@ -220,17 +221,17 @@ captoken_t* generateCapToken(const supnp_device_t* p_dev, EVP_PKEY* sk_ra)
         strcat(concatenate_url, cap_token_url);
 
         /* Sign */
-        bytes = OpenSslSign(sk_ra, (const unsigned char*)concatenate_url, strlen(concatenate_url), &size);
+        bytes = OpenSslSign(pkey, (const unsigned char*)concatenate_url, strlen(concatenate_url), &size);
         cJSON* _adv_sig = bytesToJsonString(bytes, size);
         bytes = NULL; /* Freed in bytes_to_json_string */
         supnp_verify(_adv_sig, error, "Advertisement Signature exporting failed (SD)\n");
         cJSON_AddItemToObject(cap_token, CT_ADV_SIG, _adv_sig);
     }
 
-    /* Sign Cap Token URI */
+    /* Sign Cap Token URL */
     if (p_dev->type == eDeviceType_CP)
     {
-        bytes = OpenSslSign(sk_ra, (const unsigned char*)cap_token_url, strlen(cap_token_url), &size);
+        bytes = OpenSslSign(pkey, (const unsigned char*)cap_token_url, strlen(cap_token_url), &size);
         cJSON* _uri_sig = bytesToJsonString(bytes, size);
         bytes = NULL; /* Freed in bytes_to_json_string */
         supnp_verify(_uri_sig, error, "Advertisement Signature exporting failed (CP)\n");
@@ -244,7 +245,7 @@ captoken_t* generateCapToken(const supnp_device_t* p_dev, EVP_PKEY* sk_ra)
         desc_doc = ixmlDocumenttoString(p_dev->desc_doc);
         const size_t doc_size = strlen(desc_doc);
         supnp_verify(desc_doc, error, "ixmlPrintDocument failed\n");
-        bytes = OpenSslSign(sk_ra, (unsigned char*)desc_doc, doc_size, &size);
+        bytes = OpenSslSign(pkey, (unsigned char*)desc_doc, doc_size, &size);
         cJSON* _doc_sig = bytesToJsonString(bytes, size);
         bytes = NULL; /* Freed in bytes_to_json_string */
         supnp_verify(_doc_sig, error, "Description Signature exporting failed\n");
@@ -274,7 +275,7 @@ captoken_t* generateCapToken(const supnp_device_t* p_dev, EVP_PKEY* sk_ra)
         {
             if (p_dev->type == eDeviceType_SD)
             {
-                bytes = OpenSslSign(sk_ra, (unsigned char*)_id, strlen(_id), &size);
+                bytes = OpenSslSign(pkey, (unsigned char*)_id, strlen(_id), &size);
                 cJSON* _service_sig = bytesToJsonString(bytes, size);
                 bytes = NULL; /* Freed in bytes_to_json_string */
                 cJSON_AddItemToObject(_services, _type, _service_sig);
@@ -289,7 +290,7 @@ captoken_t* generateCapToken(const supnp_device_t* p_dev, EVP_PKEY* sk_ra)
 
     /* Sign the cap token's content */
     cap_token_content = cJSON_PrintUnformatted(cap_token);
-    bytes = OpenSslSign(sk_ra, (unsigned char*)cap_token_content, strlen(cap_token_content), &size);
+    bytes = OpenSslSign(pkey, (unsigned char*)cap_token_content, strlen(cap_token_content), &size);
     cJSON* _content_sig = bytesToJsonString(bytes, size);
     bytes = NULL; /* Freed in bytes_to_json_string */
     supnp_verify(_content_sig, error, "Signing Cap Token content failed\n");

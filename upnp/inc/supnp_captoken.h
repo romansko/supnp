@@ -53,7 +53,8 @@ UPNP_EXPORT_SPEC cJSON* bytesToJsonString(unsigned char *bytes, size_t size);
 
 UPNP_EXPORT_SPEC cJSON* getTimestamp();
 
-UPNP_EXPORT_SPEC captoken_t* generateCapToken(const supnp_device_t *dev, EVP_PKEY *sk_ra);
+UPNP_EXPORT_SPEC captoken_t* generateCapToken(const supnp_device_t *dev,
+  EVP_PKEY *pkey);
 
 UPNP_EXPORT_SPEC void freeCapToken(captoken_t **cap_token);
 

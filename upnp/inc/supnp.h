@@ -15,6 +15,9 @@
 
 #include "UpnpGlobal.h" /* for UPNP_EXPORT_SPEC */
 #include "upnpconfig.h"
+#include "supnp_common.h"
+#include "supnp_device.h"
+#include "ixml.h"
 
 #if ENABLE_SUPNP
 
@@ -22,126 +25,11 @@
 extern "C" {
 #endif
 
-#include "supnp_err.h"
-#include "supnp_device.h"
-
-/*! Number of common documents on device (CertUCA, CertDevice, SpecDoc) */
-#define SUPNP_DOCS_ON_DEVICE (3)
-
-typedef int (*SUpnp_FunPtr)(void *Cookie);
-
-/*! Registration status */
-typedef enum _ERegistrationStatus
-{
-	eRegistrationStatus_DeviceUnregistered = 0,
-	eRegistrationStatus_DeviceRegistered
-}ERegistrationStatus;
-
-/*! Registration Authority services. */
-typedef enum _ERAServiceType
-{
-	/*! Registration Services. */
-	eRegistrationAuthorityService_Register = 0,
-
-	/*! Number of services. */
-	eRegistrationAuthorityServiceCount
-}ERAServiceType;
-
-typedef enum _ERARegisterServiceActions
-{
-	/*! Register action. */
-	eRegisterServiceAction_Register = 0,
-
-	/*! Challenge action. */
-	eRegisterServiceAction_Challenge,
-
-	/*! Number of actions. */
-	eRegisterServiceActionCount
-}ERARegisterServiceActions;
-
-/*! Registration service action Register variables. */
-typedef enum _ERARegisterActionVariables
-{
-	/*! Specification Document hex string */
-	eRegisterActionVar_SpecDoc = 0,
-
-	/*! Device Certificate hex string */
-	eRegisterActionVar_CertDevice,
-
-	/*! UCA Certificate hex string */
-	eRegisterActionVar_CertUCA,
-
-	/*! Device URL */
-	eRegisterActionVar_DeviceURL,
-
-	/*! Description document URI, applicable only for SD */
-	eRegisterActionVar_DescDocFileName,
-
-	eRegisterActionVar_CapTokenFilename,
-
-	/*! Number of variables. */
-	eRegisterActionVarCount
-
-}ERARegisterActionVariables;
-
-/*! Registration service action Challenge variables. */
-typedef enum _ERAChallengeActionVariables
-{
-	/*! Challenge response hex string */
-	eChallengeActionVar_Challenge = 0,
-
-	/*! Public key hex string */
-	eChallengeActionVar_PublicKey,
-
-	/*! Number of variables. */
-	eChallengeActionVarCount
-
-}ERAChallengeActionVariables;
-
-/*! Registration Params */
-typedef struct _RegistrationParams
-{
-	int handle; /* Registration handle */
-	SUpnp_FunPtr callback;  /* To call upon successful registration */
-	void *callback_cookie;
-    const char *publicKeyPath;
-    const char *privateKeyPath;
-    const char *RegistrationDocsPath[SUPNP_DOCS_ON_DEVICE];
-	char *deviceUrl;
-	char *descDocFilename;       /* Only for SD */
-	const char *capTokenFilename;
-}RegistrationParams;
-
-static const char *RaDeviceType = "urn:schemas-upnp-org:device:ra:1";
-static const char *RaServiceType[eRegistrationAuthorityServiceCount] = {
-	"urn:schemas-upnp-org:service:registration:1"
-};
-static const char *RaRegistrationAction[eRegisterServiceActionCount] = {
-	"Register",
-	"Challenge"
-};
-static const char *RaRegisterActionVarName[eRegisterActionVarCount] = {
-	"SpecificationDocument",
-	"CertificateDevice",
-	"CertificateUCA",
-	"DeviceURL",
-	"DescriptionDocumentName", /* Applicable only for SD */
-	"CapTokenFilename"
-};
-static const char *RaChallengeActionVarName[eChallengeActionVarCount] = {
-	"Challenge",
-	"PublicKey"
-};
-static const char *ActionResponseVarName = "ActionResponse";
-static const char *CapTokenResponseVarName = "CapToken";
-static const char *ActionSuccess = "1";
 
 /* Forward declaration */
 typedef struct evp_pkey_st EVP_PKEY;
 typedef struct x509_st X509;
 typedef struct cJSON cJSON;
-typedef struct _IXML_Document IXML_Document;
-typedef struct _IXML_NodeList IXML_NodeList;
 
 /*!
  * \name SUPnP Document keys
@@ -162,11 +50,36 @@ typedef struct _IXML_NodeList IXML_NodeList;
 
 
 /*!
- * \brief Initialize SUPnP secure layer.
+ * \brief Initialize [S]UPnP SDK. Invoking UpnpInit2.
  *
- * \return SUPNP_E_SUCCESS on success, SUPNP_E_INTERNAL_ERROR on failure.
+ * \return SUPNP_E_SUCCESS on success, ret code on failure.
  */
-UPNP_EXPORT_SPEC int SUpnpInit();
+UPNP_EXPORT_SPEC int SUpnpInit(
+ 	/*! [in] The interface name to use by the [S]UPnP SDK operations.
+	 * Examples: "eth0", "xl0", "Local Area Connection", \c NULL to
+	 * use the first suitable interface. */
+	const char *IfName,
+	/*! [in] Local Port to listen for incoming connections.
+	 * \c NULL will pick an arbitrary free port. */
+	unsigned short DestPort,
+	/*! [in] Private key path (PEM format), for loading device key pair */
+    const char *privateKeyPath,
+    /*! [in] Device Type */
+    int devType);
+
+
+/*!
+ * \brief Terminates the Linux SDK for SUPnP Devices.
+ * This function must be the last API function called. It should be called only
+ * once.
+ *
+ *  \return An integer representing one of the following:
+ *      \li \c UPNP_E_SUCCESS: The operation completed successfully.
+ *      \li \c UPNP_E_FINISH: The SDK is already terminated or
+ *		it is not initialized.
+ */
+UPNP_EXPORT_SPEC int SUpnpFinish();
+
 
 /*!
  * \brief Retrieve the first element item by name.
@@ -185,8 +98,6 @@ UPNP_EXPORT_SPEC int SUpnpVerifyDocument(EVP_PKEY *ca_pkey, supnp_device_t *dev)
 /*!
  * \brief Register device with RA. Handles both Register & Challenge actions.
  *
- * \param pk_path Path to the public key file.
- * \param sk_path Path to the private key file.
  * \param RegistrationDocsPath Array of paths to the registration documents.
  * \param capTokenFilename CapToken filename.
  * \param device_url The device URL.
@@ -197,8 +108,7 @@ UPNP_EXPORT_SPEC int SUpnpVerifyDocument(EVP_PKEY *ca_pkey, supnp_device_t *dev)
  *
  * \return SUPNP_E_SUCCESS on success, SUPNP_E_INTERNAL_ERROR on failure.
  */
-UPNP_EXPORT_SPEC int SUpnpRegisterDevice(const char *pk_path,
-	const char *sk_path,
+UPNP_EXPORT_SPEC int SUpnpRegisterDevice(
     const char *RegistrationDocsPath[],
     const char *capTokenFilename,
     char *device_url,      /* Expected heap allocated string */
@@ -215,10 +125,10 @@ UPNP_EXPORT_SPEC void SUpnpFreeRegistrationParams(RegistrationParams **params);
 
 /*!
  * \brief Verify advertisement signature.
-
+ *
  * \return SUPNP_E_SUCCESS on success, SUPNP_E_INVALID_SIGNATURE on failure.
  */
-UPNP_EXPORT_SPEC int SUpnpSecureServiceAdvertisement(
+UPNP_EXPORT_SPEC int SUpnpSecureServiceAdvertisementVerify(
 	/* [in] Advertisement signature in hex format */
 	const char *hexSignature,
 	/* [in] Description document URL */
@@ -228,6 +138,46 @@ UPNP_EXPORT_SPEC int SUpnpSecureServiceAdvertisement(
 	/* [in] Current Device (CP) Cap Token */
     const char *deviceCapTokenString);
 
+
+/*!
+ * \brief Secure Service Discovery logics CP.
+ * This function will invoke UpnpSearchAsync. See its description for more details.
+ *
+ * \return UPNP_E_SUCCESS on success, ret code on failure.
+ */
+UPNP_EXPORT_SPEC int SUpnpSecureServiceDiscoverySend(
+	/*! The handle of the client performing the search. */
+	int handle,
+	/*! The time, in seconds, to wait for responses. */
+	int searchTime,
+	/*! Search Target (ST) */
+    const char *target,
+    /*! CapToken string */
+    const char *capTokenString,
+    /*! Cap Token relative location */
+    const char *capTokenLocation);
+
+/*!
+ * \brief Secure Service Discovery logics SD. This function is called by multiple threads. Hence, some errors are silent.
+ * The function that invokes SUpnpSecureServiceDiscoveryVerify will simply discard the thread upon failure.
+ * Verify the discovery request and send the response.
+ *
+ * \return UPNP_E_SUCCESS on success, ret code on failure.
+ */
+int SUpnpSecureServiceDiscoveryVerify(
+    /*! [in] CapToken Location string */
+    const char *capTokenLocation,
+    /*! [in] CapToken Location Hex String Signature */
+    const char *capTokenLocationSignature,
+    /*! [in] hex string nonce */
+    const char *hexNonce,
+    /*! [in] hex string discovery signature */
+    const char *discoverySignature);
+
+/*!
+ * \brief returns current device type.
+ */
+int SUpnpGetDeviceType();
 
 /* Internal */
 int sendRAActionRegister(RegistrationParams *params, const char *controlUrl);

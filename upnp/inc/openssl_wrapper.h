@@ -1,5 +1,5 @@
 /*!
- * \addtogroup SUPnP
+ * \addtogroup OpenSSL
  *
  * \file openssl_wrapper.h
  *
@@ -21,17 +21,12 @@ extern "C" {
 
 #if UPNP_ENABLE_OPEN_SSL
 
-    #define OPENSSL_API_COMPAT 30000 /* OpenSSL 3.0.0 */
+#define OPENSSL_API_COMPAT 30000 /* OpenSSL 3.0.0 */
 
 /* Forward declaration <openssl/types.h> */
 typedef struct evp_pkey_st EVP_PKEY;
 typedef struct x509_st X509;
 
-    #define OPENSSL_SUCCESS (1)
-
-    #define OPENSSL_FAILURE (0)
-
-    #define OPENSSL_CSPRNG_SIZE (32) /* Default OpenSSL CSPRNG 256 bits */
 
 /*!
  * \brief Initialize SUPnP secure layer.
@@ -45,7 +40,7 @@ UPNP_EXPORT_SPEC int OpenSslInitializeWrapper();
  */
 UPNP_EXPORT_SPEC void OpenSslFreePKey(
     /*! [in] PKEY to free */
-    EVP_PKEY *pKey);
+    EVP_PKEY **pKey);
 
 /*!
  * \brief convert binary data to hex string.
@@ -263,16 +258,7 @@ UPNP_EXPORT_SPEC unsigned char *OpenSslAsymmetricDecryption(
     /*! [in] size of the encrypted data */
     size_t size);
 
-/*!
- * \brief Generate a nonce.
- *
- * \note Remember to free the returned nonce.
- *
- * \return a nonce on success, NULL on failure.
- */
-UPNP_EXPORT_SPEC unsigned char *OpenSslGenerateNonce(
-    /*! [in] size of the requested nonce */
-    size_t size);
+
 
 /*!
  * \brief Calculate SHA256 hash.

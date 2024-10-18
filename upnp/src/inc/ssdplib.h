@@ -81,7 +81,13 @@ typedef enum SsdpSearchType
 #define SSDP_PORT 1900
 #define NUM_TRY 3
 #define THREAD_LIMIT 50
+
+#if ENABLE_SUPNP
+#define COMMAND_LEN 1024  /* 2x Signature Length */
+#else
 #define COMMAND_LEN 300
+#endif
+
 
 /*! can be overwritten by configure CFLAGS argument. */
 #ifndef X_USER_AGENT
@@ -302,7 +308,17 @@ int SearchByTarget(
 	int Mx,
 	/* [in] Search target. */
 	char *St,
-	/* [in] Cookie provided by control point application. This cokie will
+#if ENABLE_SUPNP
+	/* [in] Capability Token relative location. */
+    const char *CapTokenLocation,
+    /* [in] Capability Token location signed by RA, hex string */
+    const char *CapTokenLocationSignature,
+    /* [in] nonce, hex string */
+    const char *Nonce,
+    /* [in] Discovery Signature, hex format */
+    const char *DiscoverySignature,
+#endif
+	/* [in] Cookie provided by control point application. This cookie will
 	 * be returned to application in the callback. */
 	void *Cookie);
 

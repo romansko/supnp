@@ -48,7 +48,7 @@ static struct s_Member UpnpDiscovery_members[] = {
 	INIT_MEMBER(ServiceVer, TYPE_STRING, 0, 0),
 	INIT_MEMBER(Location, TYPE_STRING, 0, 0),
 #if ENABLE_SUPNP
-    INIT_MEMBER(CapTokenUrl, TYPE_STRING, 0, 0),
+    INIT_MEMBER(CapTokenLocation, TYPE_STRING, 0, 0),
     INIT_MEMBER(AdvSignature, TYPE_STRING, 0, 0),
 #endif
 	INIT_MEMBER(Os, TYPE_STRING, 0, 0),

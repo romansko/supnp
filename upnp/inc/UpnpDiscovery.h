@@ -152,26 +152,26 @@ UPNP_EXPORT_SPEC int UpnpDiscovery_strncpy_Location(
 /*! UpnpDiscovery_clear_Location */
 UPNP_EXPORT_SPEC void UpnpDiscovery_clear_Location(UpnpDiscovery *p);
 
-/*! UpnpDiscovery_get_CapTokenUrl */
-UPNP_EXPORT_SPEC const UpnpString *UpnpDiscovery_get_CapTokenUrl(
+/*! UpnpDiscovery_get_CapTokenLocation */
+UPNP_EXPORT_SPEC const UpnpString *UpnpDiscovery_get_CapTokenLocation(
     const UpnpDiscovery *p);
-/*! UpnpDiscovery_set_CapTokenUrl */
-UPNP_EXPORT_SPEC int UpnpDiscovery_set_CapTokenUrl(
+/*! UpnpDiscovery_set_CapTokenLocation */
+UPNP_EXPORT_SPEC int UpnpDiscovery_set_CapTokenLocation(
     UpnpDiscovery *p, const UpnpString *s);
-/*! UpnpDiscovery_get_CapTokenUrl_Length */
-UPNP_EXPORT_SPEC size_t UpnpDiscovery_get_CapTokenUrl_Length(
+/*! UpnpDiscovery_get_CapTokenLocation_Length */
+UPNP_EXPORT_SPEC size_t UpnpDiscovery_get_CapTokenLocation_Length(
     const UpnpDiscovery *p);
-/*! UpnpDiscovery_get_CapTokenUrl_cstr */
-UPNP_EXPORT_SPEC const char *UpnpDiscovery_get_CapTokenUrl_cstr(
+/*! UpnpDiscovery_get_CapTokenLocation_cstr */
+UPNP_EXPORT_SPEC const char *UpnpDiscovery_get_CapTokenLocation_cstr(
     const UpnpDiscovery *p);
-/*! UpnpDiscovery_strcpy_CapTokenUrl */
-UPNP_EXPORT_SPEC int UpnpDiscovery_strcpy_CapTokenUrl(
+/*! UpnpDiscovery_strcpy_CapTokenLocation */
+UPNP_EXPORT_SPEC int UpnpDiscovery_strcpy_CapTokenLocation(
     UpnpDiscovery *p, const char *s);
-/*! UpnpDiscovery_strncpy_CapTokenUrl */
-UPNP_EXPORT_SPEC int UpnpDiscovery_strncpy_CapTokenUrl(
+/*! UpnpDiscovery_strncpy_CapTokenLocation */
+UPNP_EXPORT_SPEC int UpnpDiscovery_strncpy_CapTokenLocation(
     UpnpDiscovery *p, const char *s, size_t n);
-/*! UpnpDiscovery_clear_CapTokenUrl */
-UPNP_EXPORT_SPEC void UpnpDiscovery_clear_CapTokenUrl(UpnpDiscovery *p);
+/*! UpnpDiscovery_clear_CapTokenLocation */
+UPNP_EXPORT_SPEC void UpnpDiscovery_clear_CapTokenLocation(UpnpDiscovery *p);
 
 /*! UpnpDiscovery_get_AdvSignature */
 UPNP_EXPORT_SPEC const UpnpString *UpnpDiscovery_get_AdvSignature(

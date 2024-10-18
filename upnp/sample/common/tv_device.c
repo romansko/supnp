@@ -55,8 +55,8 @@
 #include <supnp.h>
 #include <file_utils.h>
 
+/* Will be used to load private & public key pair */
 const char *DefaultPrivateKeyPathSD = "../../simulation/SD/private_key.pem";
-const char *DefaultPublicKeyPathSD = "../../simulation/SD/public_key.pem";
 
 /*! Relative to upnp/sample */
 const char *RegisterDocsDefaultFilepathSD[SUPNP_DOCS_ON_DEVICE] = {
@@ -65,9 +65,8 @@ const char *RegisterDocsDefaultFilepathSD[SUPNP_DOCS_ON_DEVICE] = {
     "../../simulation/UCA/certificate.pem"
 };
 
-const char *CapTokenDefaultFilenameSD = "captoken_sd.json";
-
-char *CapTokenSD = NULL;  // todo free on UpnpFinish or make static..
+#define CAPTOKEN_SD "captoken_sd.json"
+#define CAPTOKEN_SD_FPATH ("./web/"CAPTOKEN_SD)
 
 #endif
 
@@ -1413,22 +1412,15 @@ int TvDeviceCallbackEventHandler(
 #if ENABLE_SUPNP
 int RegistrationCallbackSD(void *Cookie)
 {
-    char filepath[256];
-    size_t size;
-
-    SampleUtil_Print("SD registered with RA successfully. Sending Advertisements..\n");
-
-    /* Read the capability token from the file stored */
-    sprintf(filepath, "web/%s",CapTokenDefaultFilenameSD); // todo: configure filepath in SUPnP init
-    CapTokenSD = read_file(filepath, "r", &size);
-    sample_verify(CapTokenSD != NULL, cleanup, "Error reading capability token\n");
-
-    int ret = UpnpSendAdvertisement(device_handle, default_advr_expire);
-    sample_verify(ret == UPNP_E_SUCCESS, cleanup, "Error sending advertisements : %d\n", ret);
-    SampleUtil_Print("Advertisements Sent\n");
+    supnp_log("SD registered with RA successfully. Sending Advertisements..\n");
+    const int ret = UpnpSendAdvertisement(device_handle, default_advr_expire);
+    sample_verify(ret == UPNP_E_SUCCESS, cleanup,
+        "Error sending advertisements : %d\n", ret);
+    supnp_log("Secure Service Advertisements Sent\n");
 cleanup:
-    if (ret != UPNP_E_SUCCESS)
-        UpnpFinish();
+    if (ret != UPNP_E_SUCCESS) {
+        SUpnpFinish();
+    }
     return ret;
 }
 #endif
@@ -1459,10 +1451,18 @@ int TvDeviceStart(char *iface,
 			 "\tinterface = %s port = %u\n",
 		iface ? iface : "{NULL}",
 		port);
-	ret = UpnpInit2(iface, port);
+    #if ENABLE_SUPNP
+	ret = SUpnpInit(iface, port, DefaultPrivateKeyPathSD, eDeviceType_SD);
+    #else
+    ret = UpnpInit2(iface, port);
+    #endif
 	if (ret != UPNP_E_SUCCESS) {
 		SampleUtil_Print("Error with UpnpInit2 -- %d\n", ret);
-		UpnpFinish();
+	    #if ENABLE_SUPNP
+	    SUpnpFinish();
+	    #else
+	    UpnpFinish();
+	    #endif
 
 		return ret;
 	}
@@ -1499,7 +1499,7 @@ int TvDeviceStart(char *iface,
 	}
 	#if ENABLE_SUPNP
     if (!cap_token_name) {
-        cap_token_name = CapTokenDefaultFilenameSD;
+        cap_token_name = CAPTOKEN_SD;
     }
 	#endif
 	if (!web_dir_path) {
@@ -1533,7 +1533,11 @@ int TvDeviceStart(char *iface,
 			"Error specifying webserver root directory -- %s: %d\n",
 			web_dir_path,
 			ret);
-		UpnpFinish();
+	    #if ENABLE_SUPNP
+	    SUpnpFinish();
+	    #else
+	    UpnpFinish();
+	    #endif
 
 		return ret;
 	}
@@ -1557,9 +1561,12 @@ int TvDeviceStart(char *iface,
 		&device_handle,
 		address_family);
 	if (ret != UPNP_E_SUCCESS) {
-		SampleUtil_Print(
-			"Error registering the rootdevice : %d\n", ret);
-		UpnpFinish();
+		SampleUtil_Print("Error registering the rootdevice : %d\n", ret);
+	    #if ENABLE_SUPNP
+	    SUpnpFinish();
+	    #else
+	    UpnpFinish();
+	    #endif
 
 		return ret;
 	} else {
@@ -1570,10 +1577,8 @@ int TvDeviceStart(char *iface,
 
 #if ENABLE_SUPNP
 	    SampleUtil_Print("Registering SD with RA..\n");
-	    ret = SUpnpRegisterDevice(DefaultPublicKeyPathSD,
-            DefaultPrivateKeyPathSD,
-            RegisterDocsDefaultFilepathSD,
-            CapTokenDefaultFilenameSD,
+	    ret = SUpnpRegisterDevice(RegisterDocsDefaultFilepathSD,
+            cap_token_name,
             SampleUtil_BuildDeviceUrl(address_family, UpnpGetServerIpAddress(), UpnpGetServerPort()),
             strdup(desc_doc_name),
             10 /* timeout */,
@@ -1605,7 +1610,11 @@ cleanup:
 int TvDeviceStop(void)
 {
 	UpnpUnRegisterRootDevice(device_handle);
-	UpnpFinish();
+    #if ENABLE_SUPNP
+    SUpnpFinish();
+    #else
+    UpnpFinish();
+    #endif
 	SampleUtil_Finish();
 	ithread_mutex_destroy(&TVDevMutex);
 

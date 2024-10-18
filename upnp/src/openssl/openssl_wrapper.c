@@ -1,5 +1,5 @@
 /*!
- * \addtogroup SUPnP
+ * \addtogroup OpenSSL
  *
  * \file openssl_wrapper.c
  *
@@ -10,6 +10,14 @@
  * \author Roman Koifman
  */
 #include "upnpconfig.h"
+#include "file_utils.h"
+#include "openssl_error.h"
+#include "openssl_wrapper.h"
+#include <openssl/evp.h>  /* EVP related */
+#include <openssl/pem.h>  /* PEM related */
+#include <openssl/sha.h>  /* For SHA256  */
+#include <openssl/ssl.h>  /* OpenSSL Library Init */
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,77 +25,17 @@ extern "C" {
 
 #if UPNP_ENABLE_OPEN_SSL
 
-    #include "file_utils.h"
-    #include "openssl_wrapper.h"
-    #include <openssl/err.h>  /* Open SSL Error string & code */
-    #include <openssl/evp.h>  /* EVP related */
-    #include <openssl/pem.h>  /* PEM related */
-    #include <openssl/rand.h> /* RAND_bytes */
-    #include <openssl/sha.h>  /* For SHA256  */
-    #include <openssl/ssl.h>  /* OpenSSL Library Init */
-
-// Obviously change in your apps..
-const char *IV = "SUPNP_CHANGE_IV!"; /* 16 bytes IV for AES-256-CBC */
-
-/**
- * Returns the last OpenSSL error. No free is required.
- * Make sure SUpnpInit() was called before.
- */
-const char *get_openssl_last_error()
+const char *OpenSslGetLastError()
 {
     const char *err = ERR_error_string(ERR_get_error(), NULL);
     ERR_clear_error();
     return err;
 }
 
-    /**
-     * Internal error logging macro
-     */
-    #define w_error(...) \
-        { \
-            fprintf(stderr, \
-                "[SSL_W Error] %s::%s(%d): ", \
-                __FILE__, \
-                __func__, \
-                __LINE__); \
-            fprintf(stderr, __VA_ARGS__); \
-            fprintf(stderr, "\t%s\n", get_openssl_last_error()); \
-        }
 
-    /**
-     * Internal message logging macro
-     */
-    #define w_log(...) \
-        { \
-            fprintf(stdout, "[SSL_W]: "); \
-            fprintf(stdout, __VA_ARGS__); \
-        }
+// Obviously change in your apps..
+const char *IV = "SUPNP_CHANGE_IV!"; /* 16 bytes IV for AES-256-CBC */
 
-    /**
-     * Internal verification macro
-     * @param test condition to check
-     * @param label label to jump to in case of failure
-     */
-    #define w_verify(test, label, ...) \
-        { \
-            if (!(test)) { \
-                w_error(__VA_ARGS__); \
-                goto label; \
-            } \
-        }
-
-    /**
-     * Free a ponter if it is not NULL with a given function
-     * @param ptr pointer to free
-     * @param free_func function to free pointer
-     */
-    #define w_freeif(ptr, free_func) \
-        { \
-            if (ptr != NULL) { \
-                free_func(ptr); \
-                ptr = NULL; \
-            } \
-        }
 
 /**
  * Initialize SUPnP secure layer.
@@ -193,10 +141,9 @@ cleanup:
  * undefined reference to symbol 'EVP_PKEY_free@@OPENSSL_3.0.0'
  * @param pKey a PKEY
  */
-void OpenSslFreePKey(EVP_PKEY *pKey)
+void OpenSslFreePKey(EVP_PKEY **pKey)
 {
-    if (pKey)
-        EVP_PKEY_free(pKey);
+    w_freeif(*pKey, EVP_PKEY_free);
 }
 
 /**
@@ -377,26 +324,31 @@ int OpenSslVerifySignature(const char *name,
     unsigned char *sig = NULL;
     EVP_MD_CTX *mdctx = NULL;
     size_t sig_size = 0;
+    char pre[100] = { '\0'} ;
+
+    if (name) {
+        snprintf(pre, sizeof(pre) - 1, "'%s': ", name);
+    }
 
     // Arguments Verification
-    w_verify(pPublicKey, cleanup, "NULL public key provided.\n");
-    w_verify(hexSignature, cleanup, "NULL signature provided.\n");
-    w_verify(data, cleanup, "NULL data provided.\n");
-    w_verify(size > 0, cleanup, "Invalid data size provided.\n");
+    w_verify(pPublicKey, cleanup, "%sNULL public key provided.\n", pre);
+    w_verify(hexSignature, cleanup, "%sNULL signature provided.\n", pre);
+    w_verify(data, cleanup, "%sNULL data provided.\n", pre);
+    w_verify(size > 0, cleanup, "%sInvalid data size provided.\n", pre);
 
     // Initialize context
     mdctx = EVP_MD_CTX_new();
-    w_verify(mdctx, cleanup, "'%s': Error creating EVP_MD_CTX.\n", name);
+    w_verify(mdctx, cleanup, "%sError creating EVP_MD_CTX.\n", pre);
     ret = EVP_DigestVerifyInit(mdctx, NULL, EVP_sha256(), NULL, pPublicKey);
-    w_verify(ret == OPENSSL_SUCCESS, cleanup, "'%s':", name);
+    w_verify(ret == OPENSSL_SUCCESS, cleanup, "%s", pre);
     ret = EVP_DigestVerifyUpdate(mdctx, data, size);
-    w_verify(ret == OPENSSL_SUCCESS, cleanup, "'%s':", name);
+    w_verify(ret == OPENSSL_SUCCESS, cleanup, "%s", pre);
     sig = OpenSslHexStringToBinary(hexSignature, &sig_size);
-    w_verify(sig, cleanup, "Failed to convert hex signature to bytes.\n");
+    w_verify(sig, cleanup, "%sFailed to convert hex signature to bytes.\n", pre);
 
     // Verify signature
     ret = EVP_DigestVerifyFinal(mdctx, sig, sig_size);
-    w_verify(ret == OPENSSL_SUCCESS, cleanup, "'%s':", name);
+    w_verify(ret == OPENSSL_SUCCESS, cleanup, "%s", pre);
 
 cleanup:
     w_freeif(mdctx, EVP_MD_CTX_free);
@@ -650,32 +602,7 @@ success:
     return decrypted;
 }
 
-/**
- * Generate a nonce.
- * The caller is responsible for freeing the nonce.
- * @param size the size of the requested nonce
- * @return a nonce on success, NULL on failure
- */
-unsigned char *OpenSslGenerateNonce(const size_t size)
-{
-    unsigned char *nonce = NULL;
 
-    // Allocate memory
-    nonce = malloc(size);
-    w_verify(nonce, cleanup, "Error allocating memory for nonce.\n");
-
-    // Generate random bytes for nonce
-    w_verify(RAND_bytes(nonce, size) == OPENSSL_SUCCESS,
-        cleanup,
-        "Error generating random nonce.\n");
-    goto success;
-
-cleanup:
-    w_freeif(nonce, free);
-
-success:
-    return nonce;
-}
 
 /**
  * Calculate SHA256 hash.
@@ -716,6 +643,11 @@ unsigned char *OpenSslSign(EVP_PKEY *pPrivateKey,
     int ret = OPENSSL_FAILURE;
     unsigned char *signature = NULL;
     EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+
+    w_verify(pPrivateKey, error, "NULL private key provided.\n");
+    w_verify(data, error, "NULL data provided.\n");
+    w_verify(size > 0, error, "Invalid data size provided.\n");
+    w_verify(pSignatureLength, error, "NULL signature length ptr.\n");
 
     // Initialize the context for signing with the private key
     ret = EVP_DigestSignInit(mdctx, NULL, EVP_sha256(), NULL, pPrivateKey);

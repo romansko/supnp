@@ -12,9 +12,10 @@
 
 #include "UpnpGlobal.h" /* for UPNP_EXPORT_SPEC */
 #include "upnpconfig.h"
+#include "openssl_wrapper.h"
+#include "supnp_captoken.h"
+#include "openssl_nonce.h"
 
-#include <openssl_wrapper.h>
-#include <supnp_captoken.h>
 
 #if ENABLE_SUPNP
 
@@ -34,7 +35,8 @@ extern "C" {
 typedef enum _EDeviceType
 {
     eDeviceType_SD = 0,
-    eDeviceType_CP
+    eDeviceType_CP,
+    eDeviceType_RA
 } EDeviceType;
 
 static const char *const device_type_str[] = {

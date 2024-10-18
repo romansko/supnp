@@ -4,7 +4,7 @@
 /*!
  * \addtogroup SUPnP
  *
- * \file supnp_err.h
+ * \file supnp_common.h
  *
  * \brief Header file for SUPnP error codes.
  *
@@ -137,6 +137,117 @@ extern "C" {
         ptr = NULL; \
     } \
 }
+
+
+/*! Number of common documents on device (CertUCA, CertDevice, SpecDoc) */
+#define SUPNP_DOCS_ON_DEVICE (3)
+
+typedef int (*SUpnp_FunPtr)(void *Cookie);
+
+/*! Registration status */
+typedef enum _ERegistrationStatus
+{
+	eRegistrationStatus_DeviceUnregistered = 0,
+	eRegistrationStatus_DeviceRegistered
+}ERegistrationStatus;
+
+/*! Registration Authority services. */
+typedef enum _ERAServiceType
+{
+	/*! Registration Services. */
+	eRegistrationAuthorityService_Register = 0,
+
+	/*! Number of services. */
+	eRegistrationAuthorityServiceCount
+}ERAServiceType;
+
+typedef enum _ERARegisterServiceActions
+{
+	/*! Register action. */
+	eRegisterServiceAction_Register = 0,
+
+	/*! Challenge action. */
+	eRegisterServiceAction_Challenge,
+
+	/*! Number of actions. */
+	eRegisterServiceActionCount
+}ERARegisterServiceActions;
+
+/*! Registration service action Register variables. */
+typedef enum _ERARegisterActionVariables
+{
+	/*! Specification Document hex string */
+	eRegisterActionVar_SpecDoc = 0,
+
+	/*! Device Certificate hex string */
+	eRegisterActionVar_CertDevice,
+
+	/*! UCA Certificate hex string */
+	eRegisterActionVar_CertUCA,
+
+	/*! Device URL */
+	eRegisterActionVar_DeviceURL,
+
+	/*! Description document URI, applicable only for SD */
+	eRegisterActionVar_DescDocFileName,
+
+	eRegisterActionVar_CapTokenFilename,
+
+	/*! Number of variables. */
+	eRegisterActionVarCount
+
+}ERARegisterActionVariables;
+
+/*! Registration service action Challenge variables. */
+typedef enum _ERAChallengeActionVariables
+{
+	/*! Challenge response hex string */
+	eChallengeActionVar_Challenge = 0,
+
+	/*! Public key hex string */
+	eChallengeActionVar_PublicKey,
+
+	/*! Number of variables. */
+	eChallengeActionVarCount
+
+}ERAChallengeActionVariables;
+
+/*! Registration Params */
+typedef struct _RegistrationParams
+{
+	int handle; /* Registration handle */
+	SUpnp_FunPtr callback;  /* To call upon successful registration */
+	void *callback_cookie;
+    const char *RegistrationDocsPath[SUPNP_DOCS_ON_DEVICE];
+	char *deviceUrl;
+	char *descDocFilename;       /* Only for SD */
+	const char *capTokenFilename;
+}RegistrationParams;
+
+static const char *RaDeviceType = "urn:schemas-upnp-org:device:ra:1";
+static const char *RaServiceType[eRegistrationAuthorityServiceCount] = {
+	"urn:schemas-upnp-org:service:registration:1"
+};
+static const char *RaRegistrationAction[eRegisterServiceActionCount] = {
+	"Register",
+	"Challenge"
+};
+static const char *RaRegisterActionVarName[eRegisterActionVarCount] = {
+	"SpecificationDocument",
+	"CertificateDevice",
+	"CertificateUCA",
+	"DeviceURL",
+	"DescriptionDocumentName", /* Applicable only for SD */
+	"CapTokenFilename"
+};
+static const char *RaChallengeActionVarName[eChallengeActionVarCount] = {
+	"Challenge",
+	"PublicKey"
+};
+static const char *ActionResponseVarName = "ActionResponse";
+static const char *CapTokenResponseVarName = "CapToken";
+static const char *ActionSuccess = "1";
+
 
 #ifdef __cplusplus
 }
