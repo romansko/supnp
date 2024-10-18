@@ -465,8 +465,10 @@ static void CreateServicePacketSUPnP(
     if ((capTokenLocation != NULL) && (strlen(capTokenLocation) > 0)) {
         char *advSignatureTemp = extractCapTokenFieldValue2(capTokenLocation,
        eCapTokenSignatureAdvertisement);
-        strncpy(advSignature, advSignatureTemp, SIGNATURE_SIZE);
-        freeif(advSignatureTemp);
+        if (advSignatureTemp) {
+            strncpy(advSignature, advSignatureTemp, SIGNATURE_SIZE);
+            free(advSignatureTemp);
+        }
     }
 
     /* Secure Service Advertisement */
