@@ -60,8 +60,6 @@
 
 #define DEFAULT_WEB_DIR "./web"
 
-#define MAX_URI_SIZE 200
-
 #define MAX_SUPNP_DOC_SIZE 4096
 
 const char *RA_DESC_DOC_DEF_PATH = "radesc.xml";
@@ -331,7 +329,7 @@ cleanup:
  */
 int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorString)
 {
-    supnp_device_t *p_dev = NULL;
+    supnp_device_t *dev = NULL;
     int ret = UPNP_E_INVALID_PARAM;
     char* hex[SUPNP_DOCS_ON_DEVICE]  = {NULL};
     char* docs[SUPNP_DOCS_ON_DEVICE] = {NULL};
@@ -342,7 +340,6 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
     char * challenge_str = NULL;
     size_t enc_len = 0;
     char retVal[5] = {0};
-    char *desc_doc_url = NULL;
 
     sample_verify_ex(in && out && errorString, cleanup, errorString, "NULL arguments.\n");
     (*out) = NULL;
@@ -353,32 +350,39 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
     for (int i=0; i<SUPNP_DOCS_ON_DEVICE; ++i) {
         hex[i] = SampleUtil_GetFirstDocumentItem(in, RaRegisterActionVarName[i]);
         docs[i] = (char * )OpenSslHexStringToBinary(hex[i], &doc_size[i]);
-        sample_verify_ex(docs[i], cleanup, errorString, "Invalid Registration parameters.\n");
+        sample_verify_ex(docs[i], cleanup, errorString,
+            "Invalid Registration parameters.\n");
     }
 
     ca_pk = OpenSslLoadPublicKeyFromPEM(DefaultPublicKeyPathCA);
-    sample_verify_ex(ca_pk, cleanup, errorString, "Error loading CA Public Key.\n");
+    sample_verify_ex(ca_pk, cleanup, errorString,
+        "Error loading CA Public Key.\n");
 
-    p_dev = SupnpNewDevice(docs[eRegisterActionVar_SpecDoc],
+    dev = SupnpNewDevice(docs[eRegisterActionVar_SpecDoc],
         docs[eRegisterActionVar_CertDevice],
         docs[eRegisterActionVar_CertUCA]);
-    sample_verify_ex(p_dev, cleanup, errorString, "Unable to initialize new device.\n");
+    sample_verify_ex(dev, cleanup, errorString,
+        "Unable to initialize new device.\n");
 
-    /* Retrieve Device URL */
-    p_dev->device_url = SampleUtil_GetFirstDocumentItem(in, RaRegisterActionVarName[eRegisterActionVar_DeviceURL]);
-    sample_verify_ex(p_dev->device_url, cleanup, errorString, "NULL Device URL.\n");
-
-    /* Retrieve CapToken filename */
-    p_dev->cap_token_name = SampleUtil_GetFirstDocumentItem(in, RaRegisterActionVarName[eRegisterActionVar_CapTokenFilename]);
-    sample_verify_ex(p_dev->device_url, cleanup, errorString, "NULL CapToken Filename.\n");
+    /* Retrieve CapToken Location */
+    memset(dev->capTokenLocation, 0, sizeof(dev->capTokenLocation));
+    char *capTokenLocation = SampleUtil_GetFirstDocumentItem(in,
+        RaRegisterActionVarName[eRegisterActionVar_CapTokenLocation]);
+    sample_verify_ex(capTokenLocation, cleanup, errorString,
+        "NULL CapToken Location.\n");
+    strncpy(dev->capTokenLocation, capTokenLocation, LOCATION_SIZE);
+    freeif(capTokenLocation);
 
     /* Applicable only for SD */
-    p_dev->desc_doc_name = SampleUtil_GetFirstDocumentItemSilent(in, RaRegisterActionVarName[eRegisterActionVar_DescDocFileName]);
-    if (p_dev->desc_doc_name != NULL) {
-        ret = UpnpResolveURL2(p_dev->device_url, p_dev->desc_doc_name, &desc_doc_url);
-        sample_verify_ex(ret == UPNP_E_SUCCESS, cleanup, errorString, "Error resolving Device Description URI.\n");
-        ret = UpnpDownloadXmlDoc(desc_doc_url, &(p_dev->desc_doc));
-        sample_verify_ex(ret == UPNP_E_SUCCESS, cleanup, errorString, "Error in UpnpDownloadXmlDoc.\n");
+    memset(dev->descDocLocation, 0, sizeof(dev->descDocLocation));
+    char *descDocLocation = SampleUtil_GetFirstDocumentItemSilent(in,
+        RaRegisterActionVarName[eRegisterActionVar_DescDocFileLocation]);
+    if (descDocLocation != NULL) {
+        strncpy(dev->descDocLocation, descDocLocation, LOCATION_SIZE);
+        ret = UpnpDownloadXmlDoc(descDocLocation, &(dev->descDocument));
+        sample_verify_ex(ret == UPNP_E_SUCCESS, cleanup, errorString,
+            "Error in UpnpDownloadXmlDoc.\n");
+        free(descDocLocation);
     }
 
     /* Fig.15 - Step 2 + 3
@@ -386,8 +390,9 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
      * Verify Device Certificate using UCA's public key.
      * Verify DSD / SAD Using Device public key & UCA public key.
      */
-    ret = SUpnpVerifyDocument(ca_pk, p_dev);
-    sample_verify_ex(ret == SUPNP_E_SUCCESS, cleanup, errorString, "Unable to verify device\n");
+    ret = SUpnpVerifyDocument(ca_pk, dev);
+    sample_verify_ex(ret == SUPNP_E_SUCCESS, cleanup, errorString,
+        "Unable to verify device\n");
 
     ret = SUPNP_E_INTERNAL_ERROR;
 
@@ -396,10 +401,10 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
     sample_verify_ex(nonce, cleanup, errorString, "Error generating nonce.\n");
 
     /* Save nonce for later */
-    memcpy(p_dev->nonce, nonce, OPENSSL_CSPRNG_SIZE);
+    memcpy(dev->nonce, nonce, OPENSSL_CSPRNG_SIZE);
 
     /* Fig. 15 - step 5 - Encrypt and send the challenge. */
-    enc_nonce = OpenSslAsymmetricEncryption(p_dev->dev_pkey, &enc_len, nonce, OPENSSL_CSPRNG_SIZE);
+    enc_nonce = OpenSslAsymmetricEncryption(dev->pkeyDevice, &enc_len, nonce, OPENSSL_CSPRNG_SIZE);
     sample_verify_ex(enc_nonce, cleanup, errorString, "Error encrypting nonce challenge.\n");
     challenge_str = OpenSslBinaryToHexString(enc_nonce, enc_len);
     sample_verify_ex(challenge_str, cleanup, errorString, "Error converting challenge to hex string.\n");
@@ -411,13 +416,13 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
     sample_verify_ex(ret == UPNP_E_SUCCESS, cleanup, errorString, "Unable to add response\n");
 
     /* Save Device - Phase B will verify if device challenge is correct */
-    SupnpAddListDevice(&SUPnPDeviceList, p_dev);
+    SupnpAddListDevice(&SUPnPDeviceList, dev);
 
     ret = UPNP_E_SUCCESS;
 
 cleanup:
     if (ret != SUPNP_E_SUCCESS) {
-        SupnpFreeDevice(&p_dev);
+        SupnpFreeDevice(&dev);
         sprintf(retVal, "%d", ret);
         (void) UpnpAddToActionResponse(out,
             RaRegistrationAction[eRegisterServiceAction_Register],
@@ -429,7 +434,6 @@ cleanup:
         freeif(hex[i]);
         freeif(docs[i]);
     }
-    freeif(desc_doc_url);
     freeif(challenge_str);
     freeif(nonce);
     freeif(enc_nonce);
@@ -489,12 +493,11 @@ int VerifyChallenge(IXML_Document *in, IXML_Document **out, const char **errorSt
 
     /* Since device is verified, it's time to generate a Cap Token */
     ret = SUPNP_E_CAPTOKEN_ERROR;
-    sample_verify_ex(p_dev->device_url, cleanup, errorString, "NULL Device URL.\n");
-    p_dev->cap_token = generateCapToken(p_dev, raPkey);
-    sample_verify_ex(p_dev->cap_token, cleanup, errorString, "Error generating Cap Token.\n");
+    p_dev->capToken = SUpnpGenerateCapToken(p_dev, raPkey);
+    sample_verify_ex(p_dev->capToken, cleanup, errorString, "Error generating Cap Token.\n");
 
 verified:
-    capToken = capTokenToHexString(p_dev->cap_token);
+    capToken = SUpnpCapTokenToHexString(p_dev->capToken);
     sample_verify_ex(capToken, cleanup, errorString, "Error converting CapToken to hex string.\n");
 
     ret = UpnpAddToActionResponse(out,
@@ -515,7 +518,7 @@ cleanup:
            ActionResponseVarName,
            ActionSuccess);
     } else {
-        SupnpRemoveDevice(&SUPnPDeviceList, p_dev); /* Remove device from list */
+        SupnpRemoveListDevice(&SUPnPDeviceList, p_dev); /* Remove device from list */
         sprintf(retVal, "%d", ret);
         (void) UpnpAddToActionResponse(out,
             RaRegistrationAction[eRegisterServiceAction_Challenge],
@@ -576,7 +579,7 @@ int RAStart(char *iface,
 	print_string pfun)
 {
 	int ret = UPNP_E_SUCCESS;
-	char desc_doc_url[MAX_URI_SIZE];
+	char desc_doc_url[MAX_URL_SIZE];
 	char *ip_address = NULL;
 	int address_family = AF_INET;
 
@@ -621,36 +624,41 @@ int RAStart(char *iface,
 	if (!web_dir_path) {
 		web_dir_path = DEFAULT_WEB_DIR;
 	}
-	switch (address_family) {
-	case AF_INET:
-		snprintf(desc_doc_url, MAX_URI_SIZE,"http://%s:%d/%s", ip_address, port, desc_doc_name);
-		break;
-	case AF_INET6:
-		snprintf(desc_doc_url, MAX_URI_SIZE, "http://[%s]:%d/%s", ip_address, port, desc_doc_name);
-		break;
-	default:
-		return UPNP_E_INTERNAL_ERROR;
-	}
+
+    ret = SampleUtil_BuildUrl(desc_doc_url,
+        sizeof(desc_doc_url),
+        address_family,
+        ip_address,
+        port,
+        desc_doc_name);
+	sample_verify(ret == UPNP_E_SUCCESS, error_handler,
+	    "Error building URL -- %s: %d\n", desc_doc_name, ret);
 
 	SampleUtil_Print("Specifying the webserver root directory -- %s\n",
 		web_dir_path);
 	ret = UpnpSetWebServerRootDir(web_dir_path);
-    sample_verify(ret == UPNP_E_SUCCESS, error_handler, "Error specifying webserver root directory -- %s: %d\n", web_dir_path, ret);
+    sample_verify(ret == UPNP_E_SUCCESS, error_handler,
+        "Error specifying webserver root directory -- %s: %d\n",
+        web_dir_path, ret);
 
 	SampleUtil_Print("Registering the RootDevice\n"
 			 "\t with desc_doc_url: %s\n",	desc_doc_url);
 	ret = UpnpRegisterRootDevice3(desc_doc_url,
-	    NULL, /* RA Has no CapToken */
 		RACallbackEventHandler,
 		&device_handle,
 		&device_handle,
 		address_family);
-    sample_verify(ret == UPNP_E_SUCCESS, error_handler, "Error registering the rootdevice : %d\n", ret);
+    sample_verify(ret == UPNP_E_SUCCESS, error_handler,
+        "Error registering the rootdevice : %d\n", ret);
 
     SampleUtil_Print("RootDevice Registered\nInitializing State Table\n");
     RAStateTableInit(desc_doc_url);
     SampleUtil_Print("State Table Initialized\n");
-    ret = UpnpSendAdvertisement(device_handle, default_advr_expire);
+    SampleUtil_Print("State Table Initialized\n");
+    ret = UpnpSendAdvertisement(device_handle,
+        NULL,
+        NULL,
+        default_advr_expire);
     sample_verify(ret == UPNP_E_SUCCESS, error_handler, "Error sending advertisements : %d\n", ret);
     SampleUtil_Print("Advertisements Sent\n");
     return UPNP_E_SUCCESS;
@@ -665,7 +673,7 @@ error_handler:
  */
 int RAStop(void)
 {
-	UpnpUnRegisterRootDevice(device_handle);
+	UpnpUnRegisterRootDevice(device_handle, NULL, NULL);
 	SUpnpFinish();
 	SampleUtil_Finish();
 	ithread_mutex_destroy(&RAMutex);

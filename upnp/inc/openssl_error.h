@@ -11,9 +11,8 @@
 #define OPENSSL_ERROR_H
 
 #include "upnpconfig.h"  /* UPNP_ENABLE_OPEN_SSL */
-#include "UpnpGlobal.h" /* UPNP_EXPORT_SPEC */
 #include <openssl/err.h> /* Open SSL Error string & code */
-
+#include "ithread.h"
 
 #if UPNP_ENABLE_OPEN_SSL
 
@@ -40,7 +39,8 @@ extern const char *OpenSslGetLastError();
 #define w_error(...) \
 { \
     fprintf(stderr, \
-        "[SSL_W Error] %s::%s(%d): ", \
+        "[SSL_W Error] [tid %lu] %s::%s(%d): ", \
+        ithread_self(), \
         __FILE__, \
         __func__, \
         __LINE__); \
@@ -53,7 +53,10 @@ extern const char *OpenSslGetLastError();
  */
 #define w_log(...) \
 { \
-    fprintf(stdout, "[SSL_W]: "); \
+    fprintf(stdout, "[SSL_W] [tid %lu] %s(%d): ", \
+        ithread_self(), \
+        __func__, \
+        __LINE__); \
     fprintf(stdout, __VA_ARGS__); \
 }
 

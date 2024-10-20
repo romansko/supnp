@@ -1,15 +1,21 @@
 #include "file_utils.h"
 #include <stdlib.h>
+#include "ithread.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+
 /**
  * Internal error logging macro
  */
 #define file_error(...) { \
-	fprintf(stderr, "[File Error] %s::%s(%d): ", __FILE__, __func__, __LINE__); \
+	fprintf(stderr, "[File Utils Error] [tid %lu] %s::%s(%d): ", \
+	    ithread_self(), \
+	    __FILE__, \
+	    __func__, \
+	    __LINE__); \
 	fprintf(stderr, __VA_ARGS__); \
 }
 
@@ -17,7 +23,10 @@ extern "C" {
  * Internal message logging macro
  */
 #define file_log(...) { \
-	fprintf(stdout, "[File Utils]: "); \
+    fprintf(stdout, "[File Utils] [tid %lu] %s(%d): ", \
+        ithread_self(), \
+        __func__, \
+        __LINE__); \
 	fprintf(stdout, __VA_ARGS__); \
 }
 

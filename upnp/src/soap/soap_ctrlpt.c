@@ -30,6 +30,14 @@
  ******************************************************************************/
 
 #include "config.h"
+
+#if ENABLE_SUPNP
+#include <openssl_error.h>
+#include <openssl_nonce.h>
+#include "supnp_common.h"
+#include "supnp.h"
+#endif
+
 #ifdef INCLUDE_CLIENT_APIS
 	#if EXCLUDE_SOAP == 0
 
@@ -495,6 +503,196 @@ error_handler:
 	return err_code;
 }
 
+#if ENABLE_SUPNP
+/****************************************************************************
+ *	Function :	SoapSendActionSUPnP
+ *
+ *	Parameters :
+ *		IN char* action_url :	device control URL
+ *		IN char *service_type :	device service type
+ *		IN const SecureParams *params: SUPnP Secure Params
+ *		IN IXML_Document *action_node : SOAP action node
+ *		OUT IXML_Document **response_node :	SOAP response node
+ *
+ *	Description :	This function is called by UPnP API to send Secure SUPnP
+ *	                SOAP action request and waits till it gets the response
+ *	                from the device pass the response to the API layer
+ *
+ *	Return :	int
+ *		returns UPNP_E_SUCCESS if successful else returns appropriate error
+ ****************************************************************************/
+int SoapSendActionSUPnP(char *action_url,
+	char *service_type,
+    const SecureParams *params,
+	IXML_Document *action_node,
+	IXML_Document **response_node)
+{
+	char *action_str = NULL;
+	memptr name;
+	membuffer request;
+	membuffer responsename;
+	int err_code;
+	int ret_code;
+	http_parser_t response;
+	uri_type url;
+	int upnp_error_code;
+	char *upnp_error_str;
+	int got_response = 0;
+
+	off_t content_length;
+	const char *xml_start =
+		"<s:Envelope "
+		"xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" "
+		"s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/"
+		"\">\r\n"
+		"<s:Body>";
+	const char *xml_end = "</s:Body>\r\n"
+			      "</s:Envelope>\r\n\r\n";
+	size_t xml_start_len;
+	size_t xml_end_len;
+	size_t action_str_len;
+
+    supnp_verify(action_node, error_handler, "NULL action_node pointer\n");
+    supnp_verify(response_node, error_handler, "NULL response_node pointer\n");
+
+	*response_node = NULL; /* init */
+
+    err_code = UPNP_E_INVALID_ARGUMENT;
+
+    supnp_verify(action_url, error_handler, "NULL action_url\n");
+    supnp_verify(service_type, error_handler, "NULL service_type\n");
+    supnp_verify(params, error_handler, "NULL SecureParams\n");
+
+    err_code = UPNP_E_OUTOF_MEMORY; /* default error */
+
+	UpnpPrintf(UPNP_INFO,
+		SOAP,
+		__FILE__,
+		__LINE__,
+		"Inside SoapSendActionSUPnP():");
+	/* init */
+	membuffer_init(&request);
+	membuffer_init(&responsename);
+
+	/* print action */
+	action_str = ixmlPrintNode((IXML_Node *)action_node);
+	if (action_str == NULL) {
+		goto error_handler;
+	}
+	/* get action name */
+	if (get_action_name(action_str, &name) != 0) {
+		err_code = UPNP_E_INVALID_ACTION;
+		goto error_handler;
+	}
+	/* parse url */
+	if (http_FixStrUrl(action_url, strlen(action_url), &url) != 0) {
+		err_code = UPNP_E_INVALID_URL;
+		goto error_handler;
+	}
+
+	UpnpPrintf(UPNP_INFO,
+		SOAP,
+		__FILE__,
+		__LINE__,
+		"path=%.*s, hostport=%.*s\n",
+		(int)url.pathquery.size,
+		url.pathquery.buff,
+		(int)url.hostport.text.size,
+		url.hostport.text.buff);
+
+	xml_start_len = strlen(xml_start);
+	xml_end_len = strlen(xml_end);
+	action_str_len = strlen(action_str);
+
+	/* make request msg */
+	request.size_inc = 50;
+	content_length = (off_t)(xml_start_len + action_str_len + xml_end_len);
+	if (http_MakeMessage(&request,
+		    1,
+		    1,
+		    "q"
+		    "N"
+		    "s"
+		    #if ENABLE_SUPNP
+            "ssc"
+            "ssc"
+            "ssc"
+            "ssc"
+		    #endif
+		    "sssbsc"
+		    "Uc"
+		    "b"
+		    "b"
+		    "b",
+		    SOAPMETHOD_POST,     /* q */
+		    &url,                /* q */
+		    content_length,      /* N */
+		    ContentTypeHeader,   /* s */
+		    #if ENABLE_SUPNP
+		    "CAPTOKEN-LOCATION: ",
+		    params->CapTokenLocation,
+		    "CAPTOKEN-LOCATION-SIG: ",
+		    params->CapTokenLocationSig,
+		    "NONCE: ",
+		    params->Nonce,
+		    "ACTION-SIG: ",
+		    params->NonceSig, /* Action Signature */
+		    #endif
+		    "SOAPACTION: \"",    /* sssbsc */
+		    service_type,
+		    "#",
+		    name.buf,
+		    name.length,
+		    "\"",
+		    xml_start,
+		    xml_start_len,
+		    action_str,
+		    action_str_len,
+		    xml_end,
+		    xml_end_len) != 0) {
+		goto error_handler;
+	}
+
+	ret_code = soap_request_and_response(&request, &url, &response);
+	got_response = 1;
+	if (ret_code != UPNP_E_SUCCESS) {
+		err_code = ret_code;
+		goto error_handler;
+	}
+
+	if (membuffer_append(&responsename, name.buf, name.length) != 0 ||
+		membuffer_append_str(&responsename, "Response") != 0) {
+		goto error_handler;
+	}
+	/* get action node from the response */
+	ret_code = get_response_value(&response.msg,
+		SOAP_ACTION_RESP,
+		responsename.buf,
+		&upnp_error_code,
+		(IXML_Node **)response_node,
+		&upnp_error_str);
+
+	if (ret_code == SOAP_ACTION_RESP) {
+		err_code = UPNP_E_SUCCESS;
+	} else if (ret_code == SOAP_ACTION_RESP_ERROR) {
+		err_code = upnp_error_code;
+	} else {
+		err_code = ret_code;
+	}
+
+error_handler:
+	ixmlFreeDOMString(action_str);
+	membuffer_destroy(&request);
+	membuffer_destroy(&responsename);
+	if (got_response) {
+		httpmsg_destroy(&response.msg);
+	}
+
+	return err_code;
+}
+#endif /* ENABLE_SUPNP */
+
+
 /****************************************************************************
  *	Function :	SoapSendAction
  *
@@ -505,12 +703,11 @@ error_handler:
  *		OUT IXML_Document **response_node :	SOAP response node
  *
  *	Description :	This function is called by UPnP API to send the SOAP
- *		action request and waits till it gets the response from the
- *device pass the response to the API layer
+ *		action request and waits till it gets the response from the device
+ *		pass the response to the API layer
  *
  *	Return :	int
- *		returns UPNP_E_SUCCESS if successful else returns appropriate
- *error Note :
+ *		returns UPNP_E_SUCCESS if successful else returns appropriate error
  ****************************************************************************/
 int SoapSendAction(char *action_url,
 	char *service_type,
@@ -656,26 +853,253 @@ error_handler:
 	return err_code;
 }
 
+#if ENABLE_SUPNP
+
+/****************************************************************************
+*	Function :	SoapSendActionExSUPnP
+*
+*	Parameters :
+*		IN char* action_url :	device control URL
+*		IN char *service_type :	device service type
+*		const SecureParams *params: SUPnP Secure Params
+*		IN IXML_Document *Header: Soap header
+*		IN IXML_Document *action_node : SOAP action node ( SOAP body)
+*		OUT IXML_Document **response_node :	SOAP response node
+*
+*	Description : This function is called by UPnP API to send the Secure SUPnP
+*	              SOAP action request and waits till it gets the response from
+*	              the device pass the response to the API layer. This action
+*	              is similar to the SoapSendActionSUPnP with only difference
+*	              that it allows users to pass the SOAP header along the SOAP
+*	              body ( soap action request)
+*
+*	Return :	int
+*		returns UPNP_E_SUCCESS if successful else returns appropriate error
+****************************************************************************/
+int SoapSendActionExSUPnP(char *action_url,
+	char *service_type,
+	const SecureParams *params,
+	IXML_Document *header,
+	IXML_Document *action_node,
+	IXML_Document **response_node)
+{
+	char *xml_header_str = NULL;
+	char *action_str = NULL;
+	memptr name;
+	membuffer request;
+	membuffer responsename;
+	int err_code;
+	int ret_code;
+	http_parser_t response;
+	uri_type url;
+	int upnp_error_code;
+	char *upnp_error_str;
+	int got_response = 0;
+	const char *xml_start =
+		"<s:Envelope "
+		"xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" "
+		"s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/"
+		"\">\r\n";
+	const char *xml_header_start = "<s:Header>\r\n";
+	const char *xml_header_end = "</s:Header>\r\n";
+	const char *xml_body_start = "<s:Body>";
+	const char *xml_end = "</s:Body>\r\n"
+			      "</s:Envelope>\r\n";
+	size_t xml_start_len;
+	size_t xml_header_start_len;
+	size_t xml_header_str_len;
+	size_t xml_header_end_len;
+	size_t xml_body_start_len;
+	size_t action_str_len;
+	size_t xml_end_len;
+	off_t content_length;
+
+    supnp_verify(action_node, error_handler, "NULL action_node pointer\n");
+    supnp_verify(response_node, error_handler, "NULL response_node pointer\n");
+
+    *response_node = NULL; /* init */
+
+    err_code = UPNP_E_INVALID_ARGUMENT;
+
+    supnp_verify(action_url, error_handler, "NULL action_url\n");
+    supnp_verify(service_type, error_handler, "NULL service_type\n");
+    supnp_verify(params, error_handler, "NULL SecureParams\n");
+
+	err_code = UPNP_E_OUTOF_MEMORY; /* default error */
+
+	UpnpPrintf(UPNP_INFO,
+		SOAP,
+		__FILE__,
+		__LINE__,
+		"Inside SoapSendActionExSUPnP():");
+	/* init */
+	membuffer_init(&request);
+	membuffer_init(&responsename);
+
+	/* header string */
+	xml_header_str = ixmlPrintNode((IXML_Node *)header);
+	if (xml_header_str == NULL) {
+		goto error_handler;
+	}
+	/* print action */
+	action_str = ixmlPrintNode((IXML_Node *)action_node);
+	if (action_str == NULL) {
+		goto error_handler;
+	}
+	/* get action name */
+	if (get_action_name(action_str, &name) != 0) {
+		err_code = UPNP_E_INVALID_ACTION;
+		goto error_handler;
+	}
+	/* parse url */
+	if (http_FixStrUrl(action_url, strlen(action_url), &url) != 0) {
+		err_code = UPNP_E_INVALID_URL;
+		goto error_handler;
+	}
+
+	UpnpPrintf(UPNP_INFO,
+		SOAP,
+		__FILE__,
+		__LINE__,
+		"path=%.*s, hostport=%.*s\n",
+		(int)url.pathquery.size,
+		url.pathquery.buff,
+		(int)url.hostport.text.size,
+		url.hostport.text.buff);
+
+	xml_start_len = strlen(xml_start);
+	xml_body_start_len = strlen(xml_body_start);
+	xml_end_len = strlen(xml_end);
+	action_str_len = strlen(action_str);
+
+	xml_header_start_len = strlen(xml_header_start);
+	xml_header_end_len = strlen(xml_header_end);
+	xml_header_str_len = strlen(xml_header_str);
+
+	/* make request msg */
+	request.size_inc = 50;
+	content_length =
+		(off_t)(xml_start_len + xml_header_start_len +
+			xml_header_str_len + xml_header_end_len +
+			xml_body_start_len + action_str_len + xml_end_len);
+	if (http_MakeMessage(&request,
+		    1,
+		    1,
+		    "q"
+		    "N"
+		    "s"
+		    #if ENABLE_SUPNP
+            "ssc"
+            "ssc"
+            "ssc"
+            "ssc"
+		    #endif
+		    "sssbsc"
+		    "Uc"
+		    "b"
+		    "b"
+		    "b"
+		    "b"
+		    "b"
+		    "b"
+		    "b",
+		    SOAPMETHOD_POST,    /* q */
+		    &url,               /* q */
+		    content_length,     /* N */
+		    ContentTypeHeader,  /* s */
+		    #if ENABLE_SUPNP
+		    "CAPTOKEN-LOCATION: ",
+		    params->CapTokenLocation,
+		    "CAPTOKEN-LOCATION-SIG: ",
+		    params->CapTokenLocationSig,
+		    "NONCE: ",
+		    params->Nonce,
+		    "ACTION-SIG: ",
+		    params->NonceSig, /* Action Signature */
+		    #endif
+		    "SOAPACTION: \"",   /* sssbsc */
+		    service_type,
+		    "#",
+		    name.buf,
+		    name.length,
+		    "\"",
+		    xml_start,
+		    xml_start_len,
+		    xml_header_start,
+		    xml_header_start_len,
+		    xml_header_str,
+		    xml_header_str_len,
+		    xml_header_end,
+		    xml_header_end_len,
+		    xml_body_start,
+		    xml_body_start_len,
+		    action_str,
+		    action_str_len,
+		    xml_end,
+		    xml_end_len) != 0) {
+		goto error_handler;
+	}
+
+	ret_code = soap_request_and_response(&request, &url, &response);
+	got_response = 1;
+	if (ret_code != UPNP_E_SUCCESS) {
+		err_code = ret_code;
+		goto error_handler;
+	}
+
+	if (membuffer_append(&responsename, name.buf, name.length) != 0 ||
+		membuffer_append_str(&responsename, "Response") != 0) {
+		goto error_handler;
+	}
+	/* get action node from the response */
+	ret_code = get_response_value(&response.msg,
+		SOAP_ACTION_RESP,
+		responsename.buf,
+		&upnp_error_code,
+		(IXML_Node **)response_node,
+		&upnp_error_str);
+
+	if (ret_code == SOAP_ACTION_RESP) {
+		err_code = UPNP_E_SUCCESS;
+	} else if (ret_code == SOAP_ACTION_RESP_ERROR) {
+		err_code = upnp_error_code;
+	} else {
+		err_code = ret_code;
+	}
+
+error_handler:
+
+	ixmlFreeDOMString(action_str);
+	ixmlFreeDOMString(xml_header_str);
+	membuffer_destroy(&request);
+	membuffer_destroy(&responsename);
+	if (got_response) {
+		httpmsg_destroy(&response.msg);
+	}
+
+	return err_code;
+}
+
+#endif
+
 /****************************************************************************
 *	Function :	SoapSendActionEx
 *
 *	Parameters :
-*		IN char* action_url :	device contrl URL
+*		IN char* action_url :	device control URL
 *		IN char *service_type :	device service type
 		IN IXML_Document *Header: Soap header
 *		IN IXML_Document *action_node : SOAP action node ( SOAP body)
 *		OUT IXML_Document **response_node :	SOAP response node
 *
 *	Description :	This function is called by UPnP API to send the SOAP
-*		action request and waits till it gets the response from the
-device
-*		pass the response to the API layer. This action is similar to
-the *		the SoapSendAction with only difference that it allows users to
-*		pass the SOAP header along the SOAP body ( soap action request)
+*		action request and waits till it gets the response from the device
+*		pass the response to the API layer. This action is similar to the
+*		SoapSendAction with only difference that it allows users to pass the
+*		SOAP header along the SOAP body ( soap action request)
 *
 *	Return :	int
-*		returns UPNP_E_SUCCESS if successful else returns appropriate
-error *	Note :
+*		returns UPNP_E_SUCCESS if successful else returns appropriate error
 ****************************************************************************/
 int SoapSendActionEx(char *action_url,
 	char *service_type,

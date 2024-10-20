@@ -153,6 +153,7 @@ typedef enum
 #define HDR_CAPTOKEN_LOCATION_SIGNATURE 39
 #define HDR_NONCE 40
 #define HDR_DISCOVERY_SIGNATURE 41
+#define HDR_ACTION_SIGNATURE 42
 #endif
 
 /*! status of parsing */

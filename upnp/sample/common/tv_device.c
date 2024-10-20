@@ -1412,11 +1412,10 @@ int TvDeviceCallbackEventHandler(
 #if ENABLE_SUPNP
 int RegistrationCallbackSD(void *Cookie)
 {
-    supnp_log("SD registered with RA successfully. Sending Advertisements..\n");
-    const int ret = UpnpSendAdvertisement(device_handle, default_advr_expire);
+    supnp_log("SD registered with RA successfully.\n");
+    const int ret = SUpnpSendAdvertisement(device_handle, default_advr_expire);
     sample_verify(ret == UPNP_E_SUCCESS, cleanup,
-        "Error sending advertisements : %d\n", ret);
-    supnp_log("Secure Service Advertisements Sent\n");
+        "Error sending Secure Advertisements : %d\n", ret);
 cleanup:
     if (ret != UPNP_E_SUCCESS) {
         SUpnpFinish();
@@ -1553,9 +1552,6 @@ int TvDeviceStart(char *iface,
 #endif
 
 	ret = UpnpRegisterRootDevice3(desc_doc_url,
-#if ENABLE_SUPNP
-        cap_token_url,
-#endif
 		TvDeviceCallbackEventHandler,
 		&device_handle,
 		&device_handle,
@@ -1579,7 +1575,7 @@ int TvDeviceStart(char *iface,
 	    SampleUtil_Print("Registering SD with RA..\n");
 	    ret = SUpnpRegisterDevice(RegisterDocsDefaultFilepathSD,
             cap_token_name,
-            SampleUtil_BuildDeviceUrl(address_family, UpnpGetServerIpAddress(), UpnpGetServerPort()),
+            address_family,
             strdup(desc_doc_name),
             10 /* timeout */,
             RegistrationCallbackSD,
@@ -1609,10 +1605,11 @@ cleanup:
 
 int TvDeviceStop(void)
 {
-	UpnpUnRegisterRootDevice(device_handle);
     #if ENABLE_SUPNP
+    SUpnpUnRegisterRootDevice(device_handle);
     SUpnpFinish();
     #else
+    UpnpUnRegisterRootDevice(device_handle);
     UpnpFinish();
     #endif
 	SampleUtil_Finish();

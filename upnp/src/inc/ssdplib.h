@@ -194,6 +194,12 @@ int AdvertiseAndReply(
 	int AdFlag,
 	/* [in] Device handle. */
 	UpnpDevice_Handle Hnd,
+	#if ENABLE_SUPNP
+	/*! [in] CapToken Location. If NULL non-secure adv. will be performed. */
+    const char *CapTokenLocation,
+    /*! [in] Advertisement Signature. If NULL non-secure adv. will be performed. */
+    const char *AdvertisementSig,
+	#endif
 	/* [in] Search type for sending replies. */
 	enum SsdpSearchType SearchType,
 	/* [in] Destination address. */
@@ -308,16 +314,10 @@ int SearchByTarget(
 	int Mx,
 	/* [in] Search target. */
 	char *St,
-#if ENABLE_SUPNP
-	/* [in] Capability Token relative location. */
-    const char *CapTokenLocation,
-    /* [in] Capability Token location signed by RA, hex string */
-    const char *CapTokenLocationSignature,
-    /* [in] nonce, hex string */
-    const char *Nonce,
-    /* [in] Discovery Signature, hex format */
-    const char *DiscoverySignature,
-#endif
+	#if ENABLE_SUPNP
+	/* [in] SUPnP Secure Params */
+	const SecureParams *SParams,
+	#endif
 	/* [in] Cookie provided by control point application. This cookie will
 	 * be returned to application in the callback. */
 	void *Cookie);
@@ -375,8 +375,10 @@ int DeviceAdvertisement(
 	/* [in] Location URL. */
 	char *Location,
 #if ENABLE_SUPNP
-	/* [in] Capability token location. */
-	char *CapTokenLocation,
+	/*! [in] CapToken Location. If NULL non-secure adv. will be performed. */
+    const char *CapTokenLocation,
+    /*! [in] Advertisement Signature. If NULL non-secure adv. will be performed. */
+    const char *AdvertisementSig,
 #endif
 	/* [in] Service duration in sec. */
 	int Duration,
@@ -407,8 +409,10 @@ int SendReply(
 	/* [in] Location of Device description document. */
 	char *Location,
 	#if ENABLE_SUPNP
-	/* [in] Capability token location. */
-    char *CapTokenLocation,
+	/*! [in] CapToken Location. If NULL non-secure adv. will be performed. */
+    const char *CapTokenLocation,
+    /*! [in] Advertisement Signature. If NULL non-secure adv. will be performed. */
+    const char *AdvertisementSig,
 	#endif
 	/* [in] Life time of this device. */
 	int Duration,
@@ -439,8 +443,10 @@ int DeviceReply(
 	/* [in] Location of Device description document. */
 	char *Location,
 	#if ENABLE_SUPNP
-	/* [in] Capability token location. */
-    char *CapTokenLocation,
+	/*! [in] CapToken Location. If NULL non-secure adv. will be performed. */
+    const char *CapTokenLocation,
+    /*! [in] Advertisement Signature. If NULL non-secure adv. will be performed. */
+    const char *AdvertisementSig,
 	#endif
 	/* [in] Life time of this device. */
 	int Duration,
@@ -464,10 +470,12 @@ int ServiceAdvertisement(
 	char *ServType,
 	/* [in] Location of Device description document. */
 	char *Location,
-#if ENABLE_SUPNP
-	/* [in] Capability token location. */
-    char *CapTokenLocation,
-#endif
+	#if ENABLE_SUPNP
+	/* [in] CapToken Location. If NULL non-secure adv. will be performed. */
+    const char *CapTokenLocation,
+    /* [in] Advertisement Signature. If NULL non-secure adv. will be performed. */
+    const char *AdvertisementSig,
+	#endif
 	/* [in] Life time of this device. */
 	int Duration,
 	/* [in] Device address family. */
@@ -495,8 +503,10 @@ int ServiceReply(
 	/* [in] Location of Device description document. */
 	char *Location,
 	#if ENABLE_SUPNP
-	/* [in] Capability token location. */
-    char *CapTokenLocation,
+	/* [in] CapToken Location. If NULL non-secure adv. will be performed. */
+    const char *CapTokenLocation,
+    /* [in] Advertisement Signature. If NULL non-secure adv. will be performed. */
+    const char *AdvertisementSig,
 	#endif
 	/* [in] Life time of this device. */
 	int Duration,

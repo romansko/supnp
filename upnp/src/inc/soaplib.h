@@ -53,6 +53,31 @@ void soap_device_callback(
 	/*! [in,out] Socket info. */
 	SOCKINFO *info);
 
+#if ENABLE_SUPNP
+/****************************************************************************
+ *	Function :	SoapSendActionSUPnP
+ *
+ *	Parameters :
+ *		IN char* action_url :	device control URL
+ *		IN char *service_type :	device service type
+ *		IN const SecureParams *params: SUPnP Secure Params
+ *		IN IXML_Document *action_node : SOAP action node
+ *		OUT IXML_Document **response_node :	SOAP response node
+ *
+ *	Description :	This function is called by UPnP API to send Secure SUPnP
+ *	                SOAP action request and waits till it gets the response
+ *	                from the device pass the response to the API layer
+ *
+ *	Return :	int
+ *		returns UPNP_E_SUCCESS if successful else returns appropriate error
+ ****************************************************************************/
+int SoapSendActionSUPnP(char *action_url,
+	char *service_type,
+	const SecureParams *params,
+	IXML_Document *action_node,
+	IXML_Document **response_node);
+#endif
+
 /****************************************************************************
  * Function: SoapSendAction
  *
@@ -74,6 +99,36 @@ int SoapSendAction(char *action_url,
 	char *service_type,
 	IXML_Document *action_node,
 	IXML_Document **response_node);
+
+#if ENABLE_SUPNP
+/****************************************************************************
+*	Function :	SoapSendActionExSUPnP
+*
+*	Parameters :
+*		IN char* action_url :	device control URL
+*		IN char *service_type :	device service type
+*		IN const SecureParams *params: SUPnP Secure Params
+*		IN IXML_Document *Header: Soap header
+*		IN IXML_Document *action_node : SOAP action node ( SOAP body)
+*		OUT IXML_Document **response_node :	SOAP response node
+*
+*	Description : This function is called by UPnP API to send the Secure SUPnP
+*	              SOAP action request and waits till it gets the response from
+*	              the device pass the response to the API layer. This action
+*	              is similar to the SoapSendActionSUPnP with only difference
+*	              that it allows users to pass the SOAP header along the SOAP
+*	              body ( soap action request)
+*
+*	Return :	int
+*		returns UPNP_E_SUCCESS if successful else returns appropriate error
+****************************************************************************/
+int SoapSendActionExSUPnP(char *ActionURL,
+	char *ServiceType,
+	const SecureParams *params,
+	IXML_Document *Header,
+	IXML_Document *ActNode,
+	IXML_Document **RespNode);
+#endif
 
 /****************************************************************************
  * Function: SoapSendActionEx

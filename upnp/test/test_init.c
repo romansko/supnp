@@ -148,8 +148,11 @@ int main(int argc, char *argv[])
 		printf("\n");
 		exit(EXIT_FAILURE);
 	}
-
+    #if ENABLE_SUPNP
+	(void)UpnpFinish(0);
+	#else
 	(void)UpnpFinish();
+	#endif
 	printf("\n");
 
 	exit(EXIT_SUCCESS);

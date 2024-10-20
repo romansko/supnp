@@ -388,7 +388,11 @@ static int UpnpInitThreadPools(void)
 exit_function:
 	if (ret != UPNP_E_SUCCESS) {
 		UpnpSdkInit = 0;
-		UpnpFinish();
+	    #if ENABLE_SUPNP
+	    UpnpFinish(0);
+	    #else
+	    UpnpFinish();
+	    #endif
 	}
 
 	return ret;
@@ -474,8 +478,11 @@ static int UpnpInitPreamble(void)
 	/* Initialize the SDK timer thread. */
 	retVal = TimerThreadInit(&gTimerThread, &gSendThreadPool);
 	if (retVal != UPNP_E_SUCCESS) {
-		UpnpFinish();
-
+	    #if ENABLE_SUPNP
+	    UpnpFinish(0);
+	    #else
+	    UpnpFinish();
+	    #endif
 		return retVal;
 	}
 
@@ -516,7 +523,11 @@ static int UpnpInitStartServers(
 			__FILE__,
 			__LINE__,
 			"Miniserver failed to start\n");
-		UpnpFinish();
+	    #if ENABLE_SUPNP
+	    UpnpFinish(0);
+	    #else
+        UpnpFinish();
+	    #endif
 		return retVal;
 	}
 #endif
@@ -526,7 +537,11 @@ static int UpnpInitStartServers(
 	membuffer_init(&gWebserverCorsString);
 	retVal = UpnpEnableWebserver(WEB_SERVER_ENABLED);
 	if (retVal != UPNP_E_SUCCESS) {
-		UpnpFinish();
+	    #if ENABLE_SUPNP
+	    UpnpFinish(0);
+	    #else
+	    UpnpFinish();
+	    #endif
 		return retVal;
 	}
 #endif
@@ -587,7 +602,11 @@ int UpnpInit2(const char *IfName, unsigned short DestPort)
 
 exit_function:
 	if (retVal != UPNP_E_SUCCESS && retVal != UPNP_E_INIT) {
-		UpnpFinish();
+	    #if ENABLE_SUPNP
+	    UpnpFinish(0);
+	    #else
+	    UpnpFinish();
+	    #endif
 	}
 	ithread_mutex_unlock(&gSDKInitMutex);
 
@@ -669,7 +688,11 @@ void PrintThreadPoolStats(
 		} while (0)
 #endif /* DEBUG */
 
+#if ENABLE_SUPNP
+int UpnpFinish(int secure)
+#else
 int UpnpFinish(void)
+#endif
 {
 #ifdef INCLUDE_DEVICE_APIS
 	UpnpDevice_Handle device_handle;
@@ -709,11 +732,25 @@ int UpnpFinish(void)
 #ifdef INCLUDE_DEVICE_APIS
 	while (GetDeviceHandleInfo(0, AF_INET, &device_handle, &temp) ==
 		HND_DEVICE) {
-		UpnpUnRegisterRootDevice(device_handle);
+	    #if ENABLE_SUPNP
+	    if (secure)
+	        SUpnpUnRegisterRootDevice(device_handle);
+	    else
+	        UpnpUnRegisterRootDevice(device_handle, NULL, NULL);
+	    #else
+	    UpnpUnRegisterRootDevice(device_handle);
+	    #endif
 	}
 	while (GetDeviceHandleInfo(0, AF_INET6, &device_handle, &temp) ==
 		HND_DEVICE) {
-		UpnpUnRegisterRootDevice(device_handle);
+	    #if ENABLE_SUPNP
+	    if (secure)
+	        SUpnpUnRegisterRootDevice(device_handle);
+	    else
+	        UpnpUnRegisterRootDevice(device_handle, NULL, NULL);
+	    #else
+	    UpnpUnRegisterRootDevice(device_handle);
+	    #endif
 	}
 #endif
 #ifdef INCLUDE_CLIENT_APIS
@@ -892,9 +929,6 @@ static int FreeHandle(
 
 #ifdef INCLUDE_DEVICE_APIS
 int UpnpRegisterRootDevice(const char *DescUrl,
-#if ENABLE_SUPNP
-	const char *CapTokenUrl,
-#endif /* ENABLE_SUPNP */
 	Upnp_FunPtr Fun,
 	const void *Cookie,
 	UpnpDevice_Handle *Hnd)
@@ -947,10 +981,6 @@ int UpnpRegisterRootDevice(const char *DescUrl,
 
 	HInfo->aliasInstalled = 0;
 	HInfo->HType = HND_DEVICE;
-#if ENABLE_SUPNP
-    if (CapTokenUrl) /* Not Applicable for RA */
-        strncpy(HInfo->CapTokenUrl, CapTokenUrl, sizeof(HInfo->CapTokenUrl) - 1);
-#endif
 	strncpy(HInfo->DescURL, DescUrl, sizeof(HInfo->DescURL) - 1);
 	strncpy(HInfo->LowerDescURL, DescUrl, sizeof(HInfo->LowerDescURL) - 1);
 	UpnpPrintf(UPNP_ALL,
@@ -1090,7 +1120,6 @@ static int GetDescDocumentAndURL(
 	/* [out] . */
 	char descURL[LINE_SIZE]);
 
-#if ENABLE_SUPNP == 0       /* Not Implemented for SUPnP */
 #ifdef INCLUDE_DEVICE_APIS
 int UpnpRegisterRootDevice2(Upnp_DescType descriptionType,
 	const char *description_const,
@@ -1262,13 +1291,9 @@ exit_function:
 	return retVal;
 }
 #endif /* INCLUDE_DEVICE_APIS */
-#endif /* ENABLE_SUPNP == 0 */
 
 #ifdef INCLUDE_DEVICE_APIS
 int UpnpRegisterRootDevice3(const char *DescUrl,
-#if ENABLE_SUPNP
-	const char *CapTokenUrl,
-#endif /* ENABLE_SUPNP */
 	Upnp_FunPtr Fun,
 	const void *Cookie,
 	UpnpDevice_Handle *Hnd,
@@ -1279,21 +1304,13 @@ int UpnpRegisterRootDevice3(const char *DescUrl,
 		__FILE__,
 		__LINE__,
 		"Inside UpnpRegisterRootDevice3\n");
-#if ENABLE_SUPNP
-    return UpnpRegisterRootDevice4(
-        DescUrl, CapTokenUrl, Fun, Cookie, Hnd, AddressFamily, NULL);
-#else
 	return UpnpRegisterRootDevice4(
 		DescUrl, Fun, Cookie, Hnd, AddressFamily, NULL);
-#endif
 }
 #endif /* INCLUDE_DEVICE_APIS */
 
 #ifdef INCLUDE_DEVICE_APIS
 int UpnpRegisterRootDevice4(const char *DescUrl,
-#if ENABLE_SUPNP
-	const char *CapTokenUrl,
-#endif /* ENABLE_SUPNP */
 	Upnp_FunPtr Fun,
 	const void *Cookie,
 	UpnpDevice_Handle *Hnd,
@@ -1343,10 +1360,6 @@ int UpnpRegisterRootDevice4(const char *DescUrl,
 		DescUrl);
 	HInfo->aliasInstalled = 0;
 	HInfo->HType = HND_DEVICE;
-#if ENABLE_SUPNP
-    if (CapTokenUrl) /* Not Applicable for RA */
-        strncpy(HInfo->CapTokenUrl, CapTokenUrl, sizeof(HInfo->CapTokenUrl) - 1);
-    #endif
 	strncpy(HInfo->DescURL, DescUrl, sizeof(HInfo->DescURL) - 1);
 	if (LowerDescUrl == NULL)
 		strncpy(HInfo->LowerDescURL,
@@ -1475,17 +1488,33 @@ exit_function:
 #endif /* INCLUDE_DEVICE_APIS */
 
 #ifdef INCLUDE_DEVICE_APIS
-int UpnpUnRegisterRootDevice(UpnpDevice_Handle Hnd)
+int UpnpUnRegisterRootDevice(UpnpDevice_Handle Hnd
+	#if ENABLE_SUPNP
+	/*! [in] CapToken Location. If NULL non-secure adv. will be performed. */
+    ,const char *CapTokenLocation
+    /*! [in] Advertisement Signature. If NULL non-secure adv. will be performed. */
+    ,const char *AdvertisementSig
+	#endif
+    )
 {
 	UpnpPrintf(UPNP_INFO,
 		API,
 		__FILE__,
 		__LINE__,
 		"Inside UpnpUnRegisterRootDevice\n");
-	return UpnpUnRegisterRootDeviceLowPower(Hnd, -1, -1, -1);
+	return UpnpUnRegisterRootDeviceLowPower(Hnd,
+        #if ENABLE_SUPNP
+	    CapTokenLocation,
+	    AdvertisementSig,
+	    #endif
+	    -1, -1, -1);
 }
 
 int UpnpUnRegisterRootDeviceLowPower(UpnpDevice_Handle Hnd,
+    #if ENABLE_SUPNP
+    const char *CapTokenLocation,
+    const char *AdvertisementSig,
+	#endif
 	int PowerState,
 	int SleepPeriod,
 	int RegistrationState)
@@ -1523,6 +1552,10 @@ int UpnpUnRegisterRootDeviceLowPower(UpnpDevice_Handle Hnd,
 	#if EXCLUDE_SSDP == 0
 	retVal = AdvertiseAndReply(-1,
 		Hnd,
+		#if ENABLE_SUPNP
+        CapTokenLocation,
+        AdvertisementSig,
+        #endif
 		(enum SsdpSearchType)0,
 		(struct sockaddr *)NULL,
 		(char *)NULL,
@@ -1944,17 +1977,31 @@ static int GetDescDocumentAndURL(Upnp_DescType descriptionType,
 
 #ifdef INCLUDE_DEVICE_APIS
 	#if EXCLUDE_SSDP == 0
-int UpnpSendAdvertisement(UpnpDevice_Handle Hnd, int Exp)
+int UpnpSendAdvertisement(UpnpDevice_Handle Hnd,
+    #if ENABLE_SUPNP
+    const char *CapTokenLocation,
+    const char *AdvertisementSig,
+    #endif
+    int Exp)
 {
 	UpnpPrintf(UPNP_ALL,
 		API,
 		__FILE__,
 		__LINE__,
 		"Inside UpnpSendAdvertisement \n");
-	return UpnpSendAdvertisementLowPower(Hnd, Exp, -1, -1, -1);
+	return UpnpSendAdvertisementLowPower(Hnd,
+	    #if ENABLE_SUPNP
+        CapTokenLocation,
+        AdvertisementSig,
+	    #endif
+	    Exp, -1, -1, -1);
 }
 
 int UpnpSendAdvertisementLowPower(UpnpDevice_Handle Hnd,
+    #if ENABLE_SUPNP
+    const char *CapTokenLocation,
+    const char *AdvertisementSig,
+	#endif
 	int Exp,
 	int PowerState,
 	int SleepPeriod,
@@ -1998,6 +2045,10 @@ int UpnpSendAdvertisementLowPower(UpnpDevice_Handle Hnd,
 	HandleUnlock();
 	retVal = AdvertiseAndReply(1,
 		Hnd,
+		#if ENABLE_SUPNP
+        CapTokenLocation,
+        AdvertisementSig,
+		#endif
 		(enum SsdpSearchType)0,
 		(struct sockaddr *)NULL,
 		(char *)NULL,
@@ -2078,12 +2129,9 @@ int UpnpSendAdvertisementLowPower(UpnpDevice_Handle Hnd,
 int UpnpSearchAsync(UpnpClient_Handle Hnd,
 	int Mx,
 	const char *Target_const,
-#if ENABLE_SUPNP
-    const char *CapTokenLocation,
-    const char *CapTokenLocationSignature,
-    const char *Nonce,
-    const char *DiscoverySignature,
-#endif
+    #if ENABLE_SUPNP
+    const SecureParams *SParams,
+    #endif
 	const void *Cookie_const)
 {
 	struct Handle_Info *SInfo = NULL;
@@ -2116,10 +2164,7 @@ int UpnpSearchAsync(UpnpClient_Handle Hnd,
 	HandleUnlock();
 	retVal = SearchByTarget(Hnd, Mx, Target,
 	    #if ENABLE_SUPNP
-        CapTokenLocation,
-        CapTokenLocationSignature,
-        Nonce,
-        DiscoverySignature,
+        SParams,
         #endif
 	    (void *)Cookie_const);
 	if (retVal != 1)
@@ -2913,6 +2958,9 @@ int UpnpSendAction(UpnpClient_Handle Hnd,
 	const char *ActionURL_const,
 	const char *ServiceType_const,
 	const char *DevUDN_const,
+	#if ENABLE_SUPNP
+    const SecureParams *SParams,
+    #endif
 	IXML_Document *Action,
 	IXML_Document **RespNodePtr)
 {
@@ -2958,10 +3006,22 @@ int UpnpSendAction(UpnpClient_Handle Hnd,
 		return UPNP_E_INVALID_PARAM;
 	}
 
-	retVal = SoapSendAction(ActionURL, ServiceType, Action, RespNodePtr);
+    #if ENABLE_SUPNP
+    if (SParams != NULL) { /* Secure Control Intended */
+        retVal = SoapSendActionSUPnP(ActionURL,
+            ServiceType,
+            SParams,
+            Action,
+            RespNodePtr);
+    } else {
+        retVal = SoapSendAction(ActionURL, ServiceType, Action, RespNodePtr);
+    }
+    #else
+    retVal = SoapSendAction(ActionURL, ServiceType, Action, RespNodePtr);
+    #endif
 
-	UpnpPrintf(
-		UPNP_ALL, API, __FILE__, __LINE__, "Exiting UpnpSendAction\n");
+    UpnpPrintf(
+        UPNP_ALL, API, __FILE__, __LINE__, "Exiting UpnpSendAction\n");
 
 	return retVal;
 }
@@ -2970,6 +3030,9 @@ int UpnpSendActionEx(UpnpClient_Handle Hnd,
 	const char *ActionURL_const,
 	const char *ServiceType_const,
 	const char *DevUDN_const,
+	#if ENABLE_SUPNP
+	const SecureParams *SParams,
+    #endif
 	IXML_Document *Header,
 	IXML_Document *Action,
 	IXML_Document **RespNodePtr)
@@ -2993,6 +3056,9 @@ int UpnpSendActionEx(UpnpClient_Handle Hnd,
 			ActionURL_const,
 			ServiceType_const,
 			DevUDN_const,
+			#if ENABLE_SUPNP
+			SParams,
+			#endif
 			Action,
 			RespNodePtr);
 		return retVal;
@@ -3015,8 +3081,25 @@ int UpnpSendActionEx(UpnpClient_Handle Hnd,
 		return UPNP_E_INVALID_PARAM;
 	}
 
-	retVal = SoapSendActionEx(
-		ActionURL, ServiceType, Header, Action, RespNodePtr);
+    #if ENABLE_SUPNP
+    if (SParams != NULL ) { /* Secure Control Intended */
+        retVal = SoapSendActionExSUPnP(ActionURL,
+            ServiceType,
+            SParams,
+            Header,
+            Action,
+            RespNodePtr);
+    } else {
+        retVal = SoapSendActionEx(ActionURL,
+            ServiceType,
+            Header,
+            Action,
+            RespNodePtr);
+    }
+    #else
+    retVal = SoapSendActionEx(
+        ActionURL, ServiceType, Header, Action, RespNodePtr);
+    #endif
 
 	UpnpPrintf(
 		UPNP_ALL, API, __FILE__, __LINE__, "Exiting UpnpSendAction \n");
@@ -3028,6 +3111,9 @@ int UpnpSendActionAsync(UpnpClient_Handle Hnd,
 	const char *ActionURL_const,
 	const char *ServiceType_const,
 	const char *DevUDN_const,
+	#if ENABLE_SUPNP
+	const SecureParams *SParams,
+    #endif
 	IXML_Document *Act,
 	Upnp_FunPtr Fun,
 	const void *Cookie_const)
@@ -3091,7 +3177,9 @@ int UpnpSendActionAsync(UpnpClient_Handle Hnd,
 	strncpy(Param->ServiceType,
 		ServiceType,
 		sizeof(Param->ServiceType) - 1);
-
+    #if ENABLE_SUPNP
+    memcpy(&(Param->SUPnP), SParams, sizeof(SecureParams));
+    #endif
 	rc = ixmlParseBufferEx(tmpStr, &(Param->Act));
 	if (rc != IXML_SUCCESS) {
 		free(Param);
@@ -3127,6 +3215,9 @@ int UpnpSendActionExAsync(UpnpClient_Handle Hnd,
 	const char *ActionURL_const,
 	const char *ServiceType_const,
 	const char *DevUDN_const,
+	#if ENABLE_SUPNP
+	const SecureParams *SParams,
+    #endif
 	IXML_Document *Header,
 	IXML_Document *Act,
 	Upnp_FunPtr Fun,
@@ -3158,6 +3249,9 @@ int UpnpSendActionExAsync(UpnpClient_Handle Hnd,
 			ActionURL_const,
 			ServiceType_const,
 			DevUDN_const,
+			#if ENABLE_SUPNP
+            SParams,
+            #endif
 			Act,
 			Fun,
 			Cookie_const);
@@ -3204,6 +3298,9 @@ int UpnpSendActionExAsync(UpnpClient_Handle Hnd,
 	strncpy(Param->ServiceType,
 		ServiceType,
 		sizeof(Param->ServiceType) - 1);
+    #if ENABLE_SUPNP
+    memcpy(&(Param->SUPnP), SParams, sizeof(SecureParams));
+    #endif
 	retVal = ixmlParseBufferEx(headerStr, &(Param->Header));
 	if (retVal != IXML_SUCCESS) {
 		free(Param);
@@ -4109,16 +4206,48 @@ void UpnpThreadDistribution(struct UpnpNonblockParam *Param)
 		IXML_Document *actionResult = NULL;
 		int errCode;
 		if (Param->Header) {
-			errCode = SoapSendActionEx(Param->Url,
-				Param->ServiceType,
-				Param->Header,
-				Param->Act,
-				&actionResult);
+		    #if ENABLE_SUPNP
+            if (Param->SUPnP.CapTokenLocation[0] != '\0') { /* Secure Control */
+                errCode = SoapSendActionExSUPnP(Param->Url,
+                    Param->ServiceType,
+                    &(Param->SUPnP),
+                    Param->Header,
+                    Param->Act,
+                    &actionResult);
+            } else {
+                errCode = SoapSendActionEx(Param->Url,
+                    Param->ServiceType,
+                    Param->Header,
+                    Param->Act,
+                    &actionResult);
+            }
+		    #else
+		    errCode = SoapSendActionEx(Param->Url,
+                Param->ServiceType,
+                Param->Header,
+                Param->Act,
+                &actionResult);
+		    #endif
 		} else {
-			errCode = SoapSendAction(Param->Url,
+		    #if ENABLE_SUPNP
+		    if (Param->SUPnP.CapTokenLocation[0] != '\0') { /* Secure Control */
+		        errCode = SoapSendActionSUPnP(Param->Url,
+                    Param->ServiceType,
+                    &(Param->SUPnP),
+                    Param->Act,
+                    &actionResult);
+		    } else {
+		        errCode = SoapSendAction(Param->Url,
+				    Param->ServiceType,
+				    Param->Act,
+				    &actionResult);
+		    }
+		    #else
+		    errCode = SoapSendAction(Param->Url,
 				Param->ServiceType,
 				Param->Act,
 				&actionResult);
+		    #endif
 		}
 		UpnpActionComplete_set_ErrCode(Evt, errCode);
 		UpnpActionComplete_set_ActionRequest(Evt, Param->Act);
@@ -4343,9 +4472,13 @@ int PrintHandleInfo(UpnpClient_Handle Hnd)
 void AutoAdvertise(void *input)
 {
 	job_arg *arg = (job_arg *)input;
-
+    #if ENABLE_SUPNP
+    SUpnpSendAdvertisement(
+            arg->advertise.handle, *((int *)arg->advertise.Event));
+    #else
 	UpnpSendAdvertisement(
 		arg->advertise.handle, *((int *)arg->advertise.Event));
+    #endif
 	free_advertise_arg(arg);
 }
 	#endif /* EXCLUDE_SSDP == 0 */

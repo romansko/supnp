@@ -83,9 +83,8 @@ unsigned char *OpenSslHexStringToBinary(const char *hex, size_t *pSize)
     w_verify(hex, cleanup, "NULL hex string provided.\n");
     w_verify(pSize, cleanup, "NULL data size ptr.\n");
     const size_t hex_len = strlen(hex);
-    w_verify((hex_len % 2 == 0) && (hex_len > 0),
-        cleanup,
-        "Invalid hex string length.\n");
+    w_verify(hex_len % 2 == 0, cleanup, "Invalid hex string length %lu.\n",
+        hex_len);
     *pSize = hex_len / 2;
     binary = malloc(*pSize);
     w_verify(binary, cleanup, "Error allocating memory for binary data.\n");
@@ -291,7 +290,7 @@ int OpenSslVerifyCertificate(
     const char *name, X509 *pCertificate, EVP_PKEY *pPublicKey)
 {
     int ret = OPENSSL_FAILURE;
-    w_log("Verifying '%s''s certificate..\n", name); // todo upnp log debug
+    w_log("Verifying '%s''s certificate..\n", name);
     w_verify(name, cleanup, "Empty certificate name provided.\n");
     w_verify(pCertificate, cleanup, "Empty certificate provided.\n");
     w_verify(pPublicKey, cleanup, "Empty CA public key provided.\n");

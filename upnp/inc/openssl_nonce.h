@@ -14,13 +14,14 @@
 #include "upnpconfig.h" /* UPNP_ENABLE_OPEN_SSL */
 #include <stddef.h>
 
-#define OPENSSL_CSPRNG_SIZE (32) /* Default OpenSSL CSPRNG 256 bits */
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #if UPNP_ENABLE_OPEN_SSL
+
+/* Default OpenSSL CSPRNG 256 bits */
+#define OPENSSL_CSPRNG_SIZE (32)
 
 typedef struct NonceEntry
 {

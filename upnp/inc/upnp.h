@@ -46,6 +46,10 @@
 #include "ixml.h"
 #include "upnpconfig.h"
 
+#if ENABLE_SUPNP
+#include "supnp_common.h"
+#endif
+
 /*
  * \todo Document the exact reason of these include files and solve this
  * include mess in an include file like UpnpTime.h
@@ -63,10 +67,6 @@
 
 #if UPNP_ENABLE_OPEN_SSL
 	#include <openssl/ssl.h>
-#endif
-
-#if UPNP_ENABLE_OPEN_SSL
-#define SIGNATURE_SIZE (size_t)512
 #endif
 
 #define LINE_SIZE (size_t)180
@@ -598,7 +598,14 @@ UPNP_EXPORT_SPEC int UpnpInitSslContext(
  *      \li \c UPNP_E_FINISH: The SDK is already terminated or
  *		it is not initialized.
  */
+#if ENABLE_SUPNP
+UPNP_EXPORT_SPEC int UpnpFinish(
+    /*! Boolean flag to decide whether send Secure Advertisements on finish */
+    int secure);
+#else
 UPNP_EXPORT_SPEC int UpnpFinish(void);
+#endif
+
 
 /*!
  * \brief Returns the internal server IPv4 UPnP listening port.
@@ -718,13 +725,6 @@ UPNP_EXPORT_SPEC int UpnpRegisterRootDevice(
 	/*! [in] Pointer to a string containing the description URL for this
 	 * root device instance. */
 	const char *DescUrl,
-#if ENABLE_SUPNP
-	/*! [in] Pointer to a string containing the CapToken URL for this
-     * root device instance.
-     * Note: The URL will be effective only after device registration
-     * with the Registration Authority (RA). */
-	const char *CapTokenUrl,
-#endif /* ENABLE_SUPNP */
 	/*! [in] Pointer to the callback function for receiving asynchronous
 	   events. */
 	Upnp_FunPtr Callback,
@@ -734,7 +734,6 @@ UPNP_EXPORT_SPEC int UpnpRegisterRootDevice(
 	/*! [out] Pointer to a variable to store the new device handle. */
 	UpnpDevice_Handle *Hnd);
 
-#if ENABLE_SUPNP == 0 /* Not implemented for SUPnP */
 /*!
  * \brief Registers a device application with the UPnP Library. Similar to
  * \b UpnpRegisterRootDevice, except that it also allows the description
@@ -823,7 +822,6 @@ UPNP_EXPORT_SPEC int UpnpRegisterRootDevice2(
 	const void *Cookie,
 	/*! [out] Pointer to a variable to store the new device handle. */
 	UpnpDevice_Handle *Hnd);
-#endif /* ENABLE_SUPNP == 0 */
 
 /*!
  * \brief Registers a device application for a specific address family with
@@ -864,13 +862,6 @@ UPNP_EXPORT_SPEC int UpnpRegisterRootDevice3(
 	/*! [in] Pointer to a string containing the description URL for this
 	 * root device instance. */
 	const char *DescUrl,
-#if ENABLE_SUPNP
-	/*! [in] Pointer to a string containing the CapToken URL for this
-     * root device instance.
-     * Note: The URL will be effective only after device registration
-     * with the Registration Authority (RA). */
-	const char *CapTokenUrl,
-#endif /* ENABLE_SUPNP */
 	/*! [in] Pointer to the callback function for receiving asynchronous
 	   events. */
 	Upnp_FunPtr Callback,
@@ -923,13 +914,6 @@ UPNP_EXPORT_SPEC int UpnpRegisterRootDevice4(
 	/*! [in] Pointer to a string containing the description URL for this
 	 * root device instance. */
 	const char *DescUrl,
-#if ENABLE_SUPNP
-	/*! [in] Pointer to a string containing the CapToken URL for this
-     * root device instance.
-     * Note: The URL will be effective only after device registration
-     * with the Registration Authority (RA). */
-	const char *CapTokenUrl,
-#endif /* ENABLE_SUPNP */
 	/*! [in] Pointer to the callback function for receiving asynchronous
 	   events. */
 	Upnp_FunPtr Callback,
@@ -963,7 +947,14 @@ UPNP_EXPORT_SPEC int UpnpRegisterRootDevice4(
  */
 UPNP_EXPORT_SPEC int UpnpUnRegisterRootDevice(
 	/*! [in] The handle of the root device instance to unregister. */
-	UpnpDevice_Handle Hnd);
+	UpnpDevice_Handle Hnd
+	#if ENABLE_SUPNP
+	/*! [in] CapToken Location. If NULL non-secure adv. will be performed. */
+    ,const char *CapTokenLocation
+    /*! [in] Advertisement Signature. If NULL non-secure adv. will be performed. */
+    ,const char *AdvertisementSig
+	#endif
+	);
 
 /*!
  * \brief Unregisters a root device registered with \b UpnpRegisterRootDevice,
@@ -987,6 +978,12 @@ UPNP_EXPORT_SPEC int UpnpUnRegisterRootDevice(
 UPNP_EXPORT_SPEC int UpnpUnRegisterRootDeviceLowPower(
 	/*! [in] The handle of the root device instance to unregister. */
 	UpnpDevice_Handle Hnd,
+	#if ENABLE_SUPNP
+	/*! [in] CapToken Location. If NULL non-secure adv. will be performed. */
+    const char *CapTokenLocation,
+    /*! [in] Advertisement Signature. If NULL non-secure adv. will be performed. */
+    const char *AdvertisementSig,
+	#endif
 	/*! PowerState as defined by UPnP Low Power. */
 	int PowerState,
 	/*! SleepPeriod as defined by UPnP Low Power. */
@@ -1126,16 +1123,10 @@ UPNP_EXPORT_SPEC int UpnpSearchAsync(
 	/*! The search target as defined in the UPnP Device Architecture v1.0
 	 * specification. */
 	const char *TTarget_constarget_const,
-#if ENABLE_SUPNP
-	/*! Capability Token relative location. */
-    const char *CapTokenLocation,
-    /*! Capability Token location signed by RA, hex string */
-    const char *CapTokenLocationSignature,
-    /*! nonce, hex string */
-    const char *Nonce,
-    /*! Discovery Signature, hex format */
-    const char *DiscoverySignature,
-#endif
+	#if ENABLE_SUPNP
+	/*! SUPnP Secure Params */
+    const SecureParams *SParams,
+	#endif
 	/*! The user data to pass when the callback function is invoked. */
 	const void *Cookie_const);
 
@@ -1157,6 +1148,12 @@ UPNP_EXPORT_SPEC int UpnpSearchAsync(
 UPNP_EXPORT_SPEC int UpnpSendAdvertisement(
 	/*! The device handle for which to send out the announcements. */
 	UpnpDevice_Handle Hnd,
+	#if ENABLE_SUPNP
+	/*! [in] CapToken Location. If NULL non-secure adv. will be performed. */
+    const char *CapTokenLocation,
+    /*! [in] Advertisement Signature. If NULL non-secure adv. will be performed. */
+    const char *AdvertisementSig,
+	#endif
 	/*! The expiration age, in seconds, of the announcements. If the
 	 * expiration age is less than 1 then the expiration age is set to
 	 * \c DEFAULT_MAXAGE. If the expiration age is less than or equal to
@@ -1185,6 +1182,12 @@ UPNP_EXPORT_SPEC int UpnpSendAdvertisement(
 UPNP_EXPORT_SPEC int UpnpSendAdvertisementLowPower(
 	/*! The device handle for which to send out the announcements. */
 	UpnpDevice_Handle Hnd,
+	#if ENABLE_SUPNP
+	/*! [in] CapToken Location. If NULL non-secure adv. will be performed. */
+    const char *CapTokenLocation,
+    /*! [in] Advertisement Signature. If NULL non-secure adv. will be performed. */
+    const char *AdvertisementSig,
+	#endif
 	/*! The expiration age, in seconds, of the announcements. If the
 	 * expiration age is less than 1 then the expiration age is set to
 	 * \c DEFAULT_MAXAGE. If the expiration age is less than or equal to
@@ -1314,6 +1317,10 @@ UPNP_EXPORT_SPEC int UpnpSendAction(
 	const char *ServiceType,
 	/*! [in] This parameter is ignored and must be \c NULL. */
 	const char *DevUDN,
+	#if ENABLE_SUPNP
+	/*! [in] SUPnP Secure Parameters. */
+	const SecureParams *SParams,
+    #endif
 	/*! [in] The DOM document for the action. */
 	IXML_Document *Action,
 	/*! [out] The DOM document for the response to the action. The SDK
@@ -1352,7 +1359,11 @@ UPNP_EXPORT_SPEC int UpnpSendActionEx(
 	const char *ServiceType,
 	/*! [in] This parameter is ignored and must be \c NULL. */
 	const char *DevUDN,
-	/*! [in] The DOM document for the SOAP header. This may be \c NULL if
+	#if ENABLE_SUPNP
+	/*! [in] SUPnP Secure Parameters. */
+	const SecureParams *SParams,
+    #endif
+    /*! [in] The DOM document for the SOAP header. This may be \c NULL if
 	 * the header is not required. */
 	IXML_Document *Header,
 	/*! [in] The DOM document for the action. */
@@ -1391,7 +1402,11 @@ UPNP_EXPORT_SPEC int UpnpSendActionAsync(
 	const char *ServiceType,
 	/*! [in] This parameter is ignored and must be \c NULL. */
 	const char *DevUDN,
-	/*! [in] The DOM document for the action to perform on this device. */
+	#if ENABLE_SUPNP
+	/*! [in] SUPnP Secure Parameters. */
+	const SecureParams *SParams,
+    #endif
+    /*! [in] The DOM document for the action to perform on this device. */
 	IXML_Document *Action,
 	/*! [in] Pointer to a callback function to be invoked when the operation
 	 * completes. */
@@ -1430,7 +1445,11 @@ UPNP_EXPORT_SPEC int UpnpSendActionExAsync(
 	const char *ServiceType,
 	/*! [in] This parameter is ignored and must be \c NULL. */
 	const char *DevUDN,
-	/*! [in] The DOM document for the SOAP header. This may be \c NULL if
+	#if ENABLE_SUPNP
+	/*! [in] SUPnP Secure Parameters. */
+	const SecureParams *SParams,
+    #endif
+    /*! [in] The DOM document for the SOAP header. This may be \c NULL if
 	 * the header is not required. */
 	IXML_Document *Header,
 	/*! [in] The DOM document for the action to perform on this device. */

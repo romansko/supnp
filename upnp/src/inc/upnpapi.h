@@ -40,6 +40,11 @@
 #include "VirtualDir.h" /* for struct VirtualDirCallbacks */
 #include "client_table.h"
 
+#if ENABLE_SUPNP
+#include "supnp_common.h"
+#include "openssl_nonce.h"
+#endif
+
 #define MAX_INTERFACES 256
 
 #define DEV_LIMIT 200
@@ -88,12 +93,12 @@ struct Handle_Info
 	char LowerDescURL[LINE_SIZE];
 	/*! XML file path for device description. */
 	char DescXML[LINE_SIZE];
-#ifdef ENABLE_SUPNP
+	#if ENABLE_SUPNP
 	/*! CapToken URL for SUPnP Algorithms. */
-	char CapTokenUrl[LINE_SIZE];
+	char CapTokenLocation[LOCATION_SIZE];
 	/*! Advertisement Signature for Service Advertisement. */
-	char AdvertisementSignature[SIGNATURE_SIZE];
-#endif
+	char AdvertisementSig[HEXSIG_SIZE];
+	#endif
 	/* Advertisement timeout */
 	int MaxAge;
 	/* Power State as defined by UPnP Low Power. */
@@ -257,6 +262,9 @@ struct UpnpNonblockParam
 	char ServiceType[NAME_SIZE];
 	char ServiceVer[NAME_SIZE];
 	char Url[NAME_SIZE];
+	#if ENABLE_SUPNP
+	SecureParams SUPnP;
+	#endif
 	Upnp_SID SubsId;
 	char *Cookie;
 	Upnp_FunPtr Fun;

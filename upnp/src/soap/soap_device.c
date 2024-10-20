@@ -36,6 +36,10 @@
 
 #include "config.h"
 
+#if ENABLE_SUPNP
+#include "supnp.h"
+#endif
+
 #ifdef INCLUDE_DEVICE_APIS
 	#if EXCLUDE_SOAP == 0
 
@@ -801,6 +805,50 @@ void soap_device_callback(
 		err_code = HTTP_BAD_REQUEST;
 		goto error_handler;
 	}
+
+    #if ENABLE_SUPNP
+    /* Secure Control Verifications applicable only to SD */
+    if (SUpnpGetDeviceType() == eDeviceType_SD) {
+        memptr capTokenLocation;
+        memptr capTokenSignature;
+        memptr hexNonce;
+        memptr discoverySignature;
+        if (httpmsg_find_hdr(request, HDR_CAPTOKEN_LOCATION,
+            &capTokenLocation) == NULL) {
+            supnp_error("Expected 'CAPTOKEN-LOCATION' header not found\n");
+            err_code = HTTP_UNAUTHORIZED;
+            goto error_handler;
+        }
+        if (httpmsg_find_hdr(request, HDR_CAPTOKEN_LOCATION_SIGNATURE,
+            &capTokenSignature) == NULL) {
+            supnp_error("Expected 'CAPTOKEN-LOCATION-SIG' header not found\n");
+            err_code = HTTP_UNAUTHORIZED;
+            goto error_handler;
+        }
+        if (httpmsg_find_hdr(request, HDR_NONCE,
+            &hexNonce) == NULL) {
+            supnp_error("Expected 'NONCE' header not found\n");
+            err_code = HTTP_UNAUTHORIZED;
+            goto error_handler;
+        }
+        if (httpmsg_find_hdr(request, HDR_ACTION_SIGNATURE,
+            &discoverySignature) == NULL) {
+            supnp_error("Expected 'ACTION-SIG' header not found\n");
+            err_code = HTTP_UNAUTHORIZED;
+            goto error_handler;
+        }
+        SecureParams params = { 0 };
+        SUPNP_PARAM_STRNCPY(params.CapTokenLocation, capTokenLocation.buf);
+        SUPNP_PARAM_STRNCPY(params.CapTokenLocationSig, capTokenSignature.buf);
+        SUPNP_PARAM_STRNCPY(params.Nonce, hexNonce.buf);
+        SUPNP_PARAM_STRNCPY(params.NonceSig, discoverySignature.buf);
+        if (SUpnpSecureControlVerify(&params) != SUPNP_E_SUCCESS) {
+            err_code = HTTP_UNAUTHORIZED;
+            goto error_handler;
+        }
+    }
+    #endif
+
 	/* process SOAP request */
 	if (NULL == soap_info->action_name.buf)
 		/* query var */

@@ -12,13 +12,37 @@
  */
 #include "stdio.h"
 #include "UpnpGlobal.h" /* for UPNP_EXPORT_SPEC */
-#include "upnpconfig.h"
+#include "ithread.h"
 
 #if ENABLE_SUPNP
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* Location string - same as LINE_SIZE @ upnp.h */
+#define LOCATION_SIZE (180)
+
+/* Hash sig = 256 bytes /*
+#define SIGNATURE_SIZE (256)
+
+/* sig hex string = 512 bytes; +1 for null terminator */
+#define HEXSIG_SIZE (513)
+
+/* nonce hex string = 64 bytes; +1 for null terminator */
+#define HEXNONCE_SIZE (65)
+
+typedef struct SecureParams
+{
+	/*! Capability Token Location */
+	char CapTokenLocation[LOCATION_SIZE];
+	/*! Capability Token Location Signature, signed by RA */
+    char CapTokenLocationSig[HEXSIG_SIZE];
+	/*! Generate nonce */
+    char Nonce[HEXNONCE_SIZE];
+	/*! Discovery / Action signature, signed by the device */
+    char NonceSig[HEXSIG_SIZE];
+}SecureParams;
 
 /*!
  * \name SUPnP Error codes
@@ -39,7 +63,7 @@ extern "C" {
  * the operation was successfully transmitted on the network.  The result of
  * the entire operation comes as part of the callback for that operation.
  */
-#define SUPNP_E_SUCCESS (UPNP_E_SUCCESS)
+#define SUPNP_E_SUCCESS (0) /* Same as UPNP_E_SUCCESS */
 
 /*!
  * \brief Generic error code for internal conditions not covered by other
@@ -78,6 +102,17 @@ extern "C" {
  */
 #define SUPNP_E_CAPTOKEN_ERROR (-606)
 
+
+/*!
+ * \brief Populating secure params failed
+ */
+#define SUPNP_E_SECURE_PARAMS_ERROR (-607)
+
+/*!
+ * \brief Nonce already exists
+ */
+#define SUPNP_E_NONCE_EXISTS (-608)
+
 /*!
  * \brief Test failed
  */
@@ -89,7 +124,11 @@ extern "C" {
  * Internal error logging macro
  */
 #define supnp_error(...) { \
-    fprintf(stderr, "[SUPnP Error] %s::%s(%d): ", __FILE__, __func__, __LINE__); \
+    fprintf(stderr, "[SUPnP Error] [tid %lu] %s::%s(%d): ", \
+        ithread_self(), \
+        __FILE__, \
+        __func__, \
+        __LINE__); \
     fprintf(stderr, __VA_ARGS__); \
  }
 
@@ -98,7 +137,10 @@ extern "C" {
  * Internal message logging macro
  */
 #define supnp_log(...) { \
-    fprintf(stdout, "[SUPnP]: "); \
+	fprintf(stdout, "[SUPnP] [tid %lu] %s(%d): ", \
+	    ithread_self(), \
+	    __func__, \
+	    __LINE__); \
     fprintf(stdout, __VA_ARGS__); \
  }
 
@@ -185,13 +227,10 @@ typedef enum _ERARegisterActionVariables
 	/*! UCA Certificate hex string */
 	eRegisterActionVar_CertUCA,
 
-	/*! Device URL */
-	eRegisterActionVar_DeviceURL,
+	/*! Description document URL, applicable only for SD */
+	eRegisterActionVar_DescDocFileLocation,
 
-	/*! Description document URI, applicable only for SD */
-	eRegisterActionVar_DescDocFileName,
-
-	eRegisterActionVar_CapTokenFilename,
+	eRegisterActionVar_CapTokenLocation,
 
 	/*! Number of variables. */
 	eRegisterActionVarCount
@@ -219,9 +258,8 @@ typedef struct _RegistrationParams
 	SUpnp_FunPtr callback;  /* To call upon successful registration */
 	void *callback_cookie;
     const char *RegistrationDocsPath[SUPNP_DOCS_ON_DEVICE];
-	char *deviceUrl;
-	char *descDocFilename;       /* Only for SD */
-	const char *capTokenFilename;
+	char descDocLocation[LOCATION_SIZE];       /* Only for SD */
+	char capTokenLocation[LOCATION_SIZE];
 }RegistrationParams;
 
 static const char *RaDeviceType = "urn:schemas-upnp-org:device:ra:1";
@@ -236,9 +274,8 @@ static const char *RaRegisterActionVarName[eRegisterActionVarCount] = {
 	"SpecificationDocument",
 	"CertificateDevice",
 	"CertificateUCA",
-	"DeviceURL",
-	"DescriptionDocumentName", /* Applicable only for SD */
-	"CapTokenFilename"
+	"DescriptionDocumentLocation", /* Applicable only for SD */
+	"CapTokenLocation"
 };
 static const char *RaChallengeActionVarName[eChallengeActionVarCount] = {
 	"Challenge",

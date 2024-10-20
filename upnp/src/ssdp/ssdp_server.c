@@ -76,7 +76,7 @@ enum Listener
 
 struct SSDPSockArray
 {
-	/*! socket for incoming advertisments and search requests */
+	/*! socket for incoming advertisements and search requests */
 	SOCKET ssdpSock;
 	#ifdef INCLUDE_CLIENT_APIS
 	/*! socket for sending search requests and receiving search replies */
@@ -89,6 +89,10 @@ static const char SERVICELIST_STR[] = "serviceList";
 
 int AdvertiseAndReply(int AdFlag,
 	UpnpDevice_Handle Hnd,
+	#if ENABLE_SUPNP
+    const char *CapTokenLocation,
+    const char *AdvertisementSig,
+    #endif
 	enum SsdpSearchType SearchType,
 	struct sockaddr *DestAddr,
 	char *DeviceType,
@@ -265,7 +269,8 @@ int AdvertiseAndReply(int AdFlag,
 						UDNstr,
 						SInfo->DescURL,
                         #if ENABLE_SUPNP
-						SInfo->CapTokenUrl,
+						CapTokenLocation,
+						AdvertisementSig,
                         #endif
 						Exp,
 						SInfo->DeviceAf,
@@ -293,7 +298,8 @@ int AdvertiseAndReply(int AdFlag,
 						UDNstr,
 						SInfo->DescURL,
 						#if ENABLE_SUPNP
-						SInfo->CapTokenUrl,
+						CapTokenLocation,
+						AdvertisementSig,
 						#endif
 						defaultExp,
 						SInfo->PowerState,
@@ -308,7 +314,8 @@ int AdvertiseAndReply(int AdFlag,
 							UDNstr,
 							SInfo->DescURL,
 							#if ENABLE_SUPNP
-                            SInfo->CapTokenUrl,
+							CapTokenLocation,
+                            AdvertisementSig,
                             #endif
 							defaultExp,
 							0,
@@ -330,7 +337,8 @@ int AdvertiseAndReply(int AdFlag,
 								UDNstr, DeviceUDN);
 							SendReply(DestAddr, devType, 0, UDNstr, SInfo->DescURL,
 							    #if ENABLE_SUPNP
-							    SInfo->CapTokenUrl,
+							    CapTokenLocation,
+                                AdvertisementSig,
 							    #endif
 							defaultExp, 0,
 								SInfo->PowerState,
@@ -353,26 +361,28 @@ int AdvertiseAndReply(int AdFlag,
 								   "DeviceType=%s and search devType=%s MATCH\n",
 								   devType, DeviceType);
 							SendReply(DestAddr, DeviceType, 0, UDNstr, SInfo->LowerDescURL,
-							      #if ENABLE_SUPNP
-                                  SInfo->CapTokenUrl,
-                                  #endif
-								  defaultExp, 1,
-								  SInfo->PowerState,
-								  SInfo->SleepPeriod,
-								  SInfo->RegistrationState);
+							    #if ENABLE_SUPNP
+							    CapTokenLocation,
+							    AdvertisementSig,
+							    #endif
+							    defaultExp, 1,
+								SInfo->PowerState,
+								SInfo->SleepPeriod,
+								SInfo->RegistrationState);
 						} else if (atoi(strrchr(DeviceType, ':') + 1)
 							   == atoi(&devType[strlen(devType) - (size_t)1])) {
 							UpnpPrintf(UPNP_INFO, API, __FILE__, __LINE__,
 								   "DeviceType=%s and search devType=%s MATCH\n",
 								   devType, DeviceType);
 							SendReply(DestAddr, DeviceType, 0, UDNstr, SInfo->DescURL,
-						          #if ENABLE_SUPNP
-                                  SInfo->CapTokenUrl,
-                                  #endif
-								  defaultExp, 1,
-								  SInfo->PowerState,
-								  SInfo->SleepPeriod,
-								  SInfo->RegistrationState);
+							    #if ENABLE_SUPNP
+							    CapTokenLocation,
+							    AdvertisementSig,
+							    #endif
+							    defaultExp, 1,
+							    SInfo->PowerState,
+								SInfo->SleepPeriod,
+								SInfo->RegistrationState);
 						} else {
 							UpnpPrintf(UPNP_INFO, API, __FILE__, __LINE__,
 								   "DeviceType=%s and search devType=%s DID NOT MATCH\n",
@@ -466,7 +476,8 @@ int AdvertiseAndReply(int AdFlag,
 							servType,
 							SInfo->DescURL,
 							#if ENABLE_SUPNP
-                            SInfo->CapTokenUrl,
+                            CapTokenLocation,
+                            AdvertisementSig,
                             #endif
 							Exp,
 							SInfo->DeviceAf,
@@ -492,7 +503,8 @@ int AdvertiseAndReply(int AdFlag,
 							UDNstr,
 							SInfo->DescURL,
 							#if ENABLE_SUPNP
-							SInfo->CapTokenUrl,
+							CapTokenLocation,
+							AdvertisementSig,
 							#endif
 							defaultExp,
 							SInfo->PowerState,
@@ -513,7 +525,8 @@ int AdvertiseAndReply(int AdFlag,
 										   ServiceType, servType);
 									SendReply(DestAddr, ServiceType, 0, UDNstr, SInfo->LowerDescURL,
 									      #if ENABLE_SUPNP
-							              SInfo->CapTokenUrl,
+							              CapTokenLocation,
+							              AdvertisementSig,
 							              #endif
 										  defaultExp, 1,
 										  SInfo->PowerState,
@@ -526,7 +539,8 @@ int AdvertiseAndReply(int AdFlag,
 										   ServiceType, servType);
 									SendReply(DestAddr, ServiceType, 0, UDNstr, SInfo->DescURL,
 									      #if ENABLE_SUPNP
-							              SInfo->CapTokenUrl,
+							              CapTokenLocation,
+							              AdvertisementSig,
 							              #endif
 										  defaultExp, 1,
 										  SInfo->PowerState,

@@ -41,6 +41,12 @@
 
 #include "upnputil.h"
 
+#if ENABLE_SUPNP
+#include "supnp_common.h"
+#include "supnp.h"
+#include <string.h>
+#endif
+
 #ifdef INCLUDE_CLIENT_APIS
 	#if EXCLUDE_SSDP == 0
 
@@ -159,7 +165,6 @@ void ssdp_handle_ctrlpt_msg(
 		UpnpDiscovery_strncpy_Location(param, hdr_value.buf, hdr_value.length);
 	}
     #if ENABLE_SUPNP
-    /* Cap Token URL */
     if (httpmsg_find_hdr(hmsg, HDR_CAPTOKEN_LOCATION, &hdr_value) != NULL) {
         UpnpDiscovery_strncpy_CapTokenLocation(param, hdr_value.buf, hdr_value.length);
     }
@@ -247,6 +252,45 @@ void ssdp_handle_ctrlpt_msg(
 			ctrlpt_cookie = ctrlpt_info->Cookie;
 			HandleUnlock();
 
+		    #if ENABLE_SUPNP
+		    /* Secure Advertisement verified only by CP device */
+		    if (SUpnpGetDeviceType() == eDeviceType_CP) {
+		        const char *location = UpnpString_get_String(
+                    UpnpDiscovery_get_Location(param));
+		        if (location == NULL) {
+		            supnp_error("UpnpDiscovery_get_Location resulted in NULL.\n")
+                    return;
+		        }
+		        char *deviceType = SUpnpGetFirstElementItem2(location, "deviceType");
+		        if (deviceType == NULL) {
+		            supnp_error("NULL deviceType.\n")
+                    return;
+		        }
+
+		        /* Always accept Advertisements from RA */
+		        if (strcmp(deviceType, RaDeviceType) != 0) {
+		            freeif(deviceType);
+
+		            /* Drop Advertisements until CP is initialized */
+		            if (SUpnpGetRAPKey() == NULL) {
+		                return;
+		            }
+
+		            const char *capTokenUrl = UpnpString_get_String(
+		                UpnpDiscovery_get_CapTokenLocation(param));
+		            const char *advSignature = UpnpString_get_String(
+		                UpnpDiscovery_get_AdvSignature(param));
+		            if (SUPNP_E_SUCCESS != SUpnpSecureServiceAdvertisementVerify(
+                        location,
+                        capTokenUrl,
+                        advSignature))
+		            {
+		                /* Secure Advertisement failed, ignore this Advertisement */
+		                return;
+		            }
+		        }
+		    }
+		    #endif
 			ctrlpt_callback(event_type, param, ctrlpt_cookie);
 		}
 	} else {
@@ -374,14 +418,12 @@ end_ssdp_handle_ctrlpt_msg:
 /* To be used only by CreateClientRequestPacket */
 #define SUpnpClientRequestHelper(name, value) \
 { \
-    if (value != NULL) { \
-        rc = snprintf( TempBuf, sizeof(TempBuf), name ": %s\r\n", value); \
-        if (rc < 0 || (unsigned int)rc >= sizeof(TempBuf)) \
-            return UPNP_E_INTERNAL_ERROR; \
-        if (RqstBufSize <= strlen(RqstBuf) + strlen(TempBuf)) \
-            return UPNP_E_BUFFER_TOO_SMALL; \
-        strcat(RqstBuf, TempBuf); \
-    } \
+    rc = snprintf( TempBuf, sizeof(TempBuf), name ": %s\r\n", value); \
+    if (rc < 0 || (unsigned int)rc >= sizeof(TempBuf)) \
+        return UPNP_E_INTERNAL_ERROR; \
+    if (RqstBufSize <= strlen(RqstBuf) + strlen(TempBuf)) \
+        return UPNP_E_BUFFER_TOO_SMALL; \
+    strcat(RqstBuf, TempBuf); \
 }
 #endif /* ENABLE_SUPNP */
 
@@ -398,16 +440,10 @@ static int CreateClientRequestPacket(
 	int Mx,
 	/*! [in] Number of seconds to wait to collect all the responses. */
 	char *SearchTarget,
-#if ENABLE_SUPNP
-	/*! [in] Capability Token relative location. */
-    const char *CapTokenLocation,
-    /*! [in] Capability Token location signed by RA, hex string */
-    const char *CapTokenLocationSignature,
-    /*! [in] nonce, hex string */
-    const char *Nonce,
-    /*! [in] Discovery Signature, hex format */
-    const char *DiscoverySignature,
-#endif
+    #if ENABLE_SUPNP
+	/*! [in] SUPnP Secure Params */
+    const SecureParams *SParams,
+    #endif
 	/*! [in] search address family. */
 	int AddressFamily)
 {
@@ -470,10 +506,13 @@ static int CreateClientRequestPacket(
 	}
 
 #if ENABLE_SUPNP
-    SUpnpClientRequestHelper("CAPTOKEN-LOCATION", CapTokenLocation);
-    SUpnpClientRequestHelper("CAPTOKEN-LOCATION-SIG", CapTokenLocationSignature);
-    SUpnpClientRequestHelper("NONCE", Nonce);
-    SUpnpClientRequestHelper("DISCOVERY-SIG", DiscoverySignature);
+    if (SParams != NULL) {
+        SUpnpClientRequestHelper("CAPTOKEN-LOCATION", SParams->CapTokenLocation);
+        SUpnpClientRequestHelper("CAPTOKEN-LOCATION-SIG",
+            SParams->CapTokenLocationSig);
+        SUpnpClientRequestHelper("NONCE", SParams->Nonce);
+        SUpnpClientRequestHelper("DISCOVERY-SIG", SParams->NonceSig);
+    }
 #endif
 
 	if (RqstBufSize <= strlen(RqstBuf) + strlen("\r\n"))
@@ -497,14 +536,8 @@ static int CreateClientRequestPacketUlaGua(
 	/*! [in] . */
 	char *SearchTarget,
 	#if ENABLE_SUPNP
-	/*! [in] Capability Token relative location. */
-    const char *CapTokenLocation,
-    /*! [in] Capability Token location signed by RA, hex string */
-    const char *CapTokenLocationSignature,
-    /*! [in] nonce, hex string */
-    const char *Nonce,
-    /*! [in] Discovery Signature, hex format */
-    const char *DiscoverySignature,
+	/*! [in] SUPnP Secure Params */
+	const SecureParams *SParams,
     #endif
 	/*! [in] . */
 	int AddressFamily)
@@ -565,10 +598,13 @@ static int CreateClientRequestPacketUlaGua(
 		strcat(RqstBuf, TempBuf);
 	}
     #if ENABLE_SUPNP
-    SUpnpClientRequestHelper("CAPTOKEN-LOCATION", CapTokenLocation);
-    SUpnpClientRequestHelper("CAPTOKEN-LOCATION-SIG", CapTokenLocationSignature);
-    SUpnpClientRequestHelper("NONCE", Nonce);
-    SUpnpClientRequestHelper("DISCOVERY-SIG", DiscoverySignature);
+    if (SParams != NULL) {
+        SUpnpClientRequestHelper("CAPTOKEN-LOCATION", SParams->CapTokenLocation);
+        SUpnpClientRequestHelper("CAPTOKEN-LOCATION-SIG",
+            SParams->CapTokenLocationSig);
+        SUpnpClientRequestHelper("NONCE", SParams->Nonce);
+        SUpnpClientRequestHelper("DISCOVERY-SIG", SParams->NonceSig);
+    }
     #endif
 	if (RqstBufSize <= strlen(RqstBuf) + strlen("\r\n"))
 		return UPNP_E_BUFFER_TOO_SMALL;
@@ -629,12 +665,9 @@ static void searchExpired(
 
 
 int SearchByTarget(int Hnd, int Mx, char *St,
-#if ENABLE_SUPNP
-    const char *CapTokenLocation,
-    const char *CapTokenLocationSignature,
-    const char *Nonce,
-    const char *DiscoverySignature,
-#endif
+    #if ENABLE_SUPNP
+    const SecureParams *SParams,
+    #endif
     void *Cookie)
 {
 	char errorBuffer[ERROR_BUFFER_LEN];
@@ -687,10 +720,7 @@ int SearchByTarget(int Hnd, int Mx, char *St,
 	retVal = CreateClientRequestPacket(
 		ReqBufv4, sizeof(ReqBufv4), timeTillRead, St,
         #if ENABLE_SUPNP
-		CapTokenLocation,
-        CapTokenLocationSignature,
-        Nonce,
-        DiscoverySignature,
+		SParams,
         #endif
 		AF_INET);
 	if (retVal != UPNP_E_SUCCESS)
@@ -699,10 +729,7 @@ int SearchByTarget(int Hnd, int Mx, char *St,
 	retVal = CreateClientRequestPacket(
 		ReqBufv6, sizeof(ReqBufv6), timeTillRead, St,
 		#if ENABLE_SUPNP
-        CapTokenLocation,
-        CapTokenLocationSignature,
-        Nonce,
-        DiscoverySignature,
+        SParams,
         #endif
 		AF_INET6);
 	if (retVal != UPNP_E_SUCCESS)
@@ -712,10 +739,7 @@ int SearchByTarget(int Hnd, int Mx, char *St,
 		timeTillRead,
 		St,
 		#if ENABLE_SUPNP
-		CapTokenLocation,
-        CapTokenLocationSignature,
-        Nonce,
-        DiscoverySignature,
+		SParams,
         #endif
 		AF_INET6);
 	if (retVal != UPNP_E_SUCCESS)

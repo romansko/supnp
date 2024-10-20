@@ -80,30 +80,6 @@ int SampleUtil_Initialize(print_string print_function)
 	return UPNP_E_SUCCESS;
 }
 
-char *SampleUtil_BuildDeviceUrl(int address_family, const char *ip, uint16_t port)
-{
-    char *url = NULL;
-    switch (address_family) {
-    case AF_INET:
-        url = malloc(MAX_URL_SIZE);
-        sample_verify(url, cleanup, "Memory allocation failed\n");
-        snprintf(url, MAX_URL_SIZE, "http://%s:%d/", ip, port);
-        break;
-    case AF_INET6:
-        url = malloc(MAX_URL_SIZE);
-        sample_verify(url, cleanup, "Memory allocation failed\n");
-        snprintf(url, MAX_URL_SIZE, "http://[%s]:%d/", ip, port);
-        break;
-    default:
-        SampleUtil_Print("Invalid address family\n");
-        break;
-    }
-
-cleanup:
-    return url;
-}
-
-
 int SampleUtil_BuildUrl(char *buffer,
     const size_t size,
     const int address_family,
@@ -290,7 +266,6 @@ char *SampleUtil_GetFirstDocumentItem(IXML_Document *doc, const char *item)
 						 "tmpNode) returned NULL\n",
 					__FILE__,
 					__LINE__);
-				ret = strdup("");
 				goto epilogue;
 			}
 			nodeValue = ixmlNode_getNodeValue(textNode);
@@ -300,7 +275,6 @@ char *SampleUtil_GetFirstDocumentItem(IXML_Document *doc, const char *item)
 					"returned NULL\n",
 					__FILE__,
 					__LINE__);
-				ret = strdup("");
 				goto epilogue;
 			}
 			ret = strdup(nodeValue);

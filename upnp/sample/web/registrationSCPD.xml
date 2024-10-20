@@ -28,18 +28,13 @@
           <direction>in</direction>
         </argument>
         <argument>
-          <name>DeviceURL</name>
-          <relatedStateVariable>DevURL</relatedStateVariable>
+          <name>DescriptionDocumentLocation</name>
+          <relatedStateVariable>DescDocLoc</relatedStateVariable>
           <direction>in</direction>
         </argument>
         <argument>
-          <name>DescriptionDocumentFilename</name>
-          <relatedStateVariable>DescDocName</relatedStateVariable>
-          <direction>in</direction>
-        </argument>
-        <argument>
-          <name>CapTokenFilename</name>
-          <relatedStateVariable>CapTokName</relatedStateVariable>
+          <name>CapTokenLocation</name>
+          <relatedStateVariable>CapTokenLoc</relatedStateVariable>
           <direction>in</direction>
         </argument>
 

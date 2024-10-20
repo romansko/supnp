@@ -122,22 +122,6 @@ typedef enum
 } eventType;
 
 /*!
- * \brief Given an address family, IP address, and port, this routine
- * builds a URL string in the form of http://ip:port/.
- * The string must be freed by the caller using free.
- *
- * \return The URL string.
- */
-char *SampleUtil_BuildDeviceUrl(
-	/*! [in] The address family. */
-	int address_family,
-	/*! [in] The IP address. */
-	const char *ip,
-	/*! [in] The port. */
-	uint16_t port);
-
-
-/*!
  * \brief Given an address family, IP address, port and filename this routine
  * builds a URL string in the form of http://ip:port/filename.
  * returns UPNP_E_SUCCESS on success.

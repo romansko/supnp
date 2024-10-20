@@ -259,15 +259,10 @@ int TvCtrlPointRefresh(void)
     /* Search for all devices of type tvdevice version 1,
 	 * waiting for up to 5 seconds for the response */
     #if ENABLE_SUPNP
-    char capTokenLocation[MAX_URL_SIZE] = {0};
-    char *url = SampleUtil_BuildDeviceUrl(AF_INET,
-        UpnpGetServerIpAddress(), UpnpGetServerPort());
-    snprintf(capTokenLocation, MAX_URL_SIZE, "%s%s", url, CAPTOKEN_CP);
+    // todo supnp: to supnp.c
     char *captoken = read_file(CAPTOKEN_CP_FPATH, "r",  NULL);
-    rc = SUpnpSecureServiceDiscoverySend(ctrlpt_handle, SEARCH_TIME, TvDeviceType,
-        captoken,
-        capTokenLocation);
-    freeif(url);
+    rc = SUpnpSearchAsync(ctrlpt_handle, SEARCH_TIME, TvDeviceType,
+        captoken);
     freeif(captoken);
     #else
     rc = UpnpSearchAsync(ctrlpt_handle, SEARCH_TIME, TvDeviceType, NULL);
@@ -409,13 +404,23 @@ int TvCtrlPointSendAction(int service,
 			}
 		}
 
-		rc = UpnpSendActionAsync(ctrlpt_handle,
-			devnode->device.TvService[service].ControlURL,
-			TvServiceType[service],
-			NULL,
-			actionNode,
-			TvCtrlPointCallbackEventHandler,
-			NULL);
+	    #if ENABLE_SUPNP
+	    rc = SUpnpSendActionAsync(ctrlpt_handle,
+            devnode->device.TvService[service].ControlURL,
+            TvServiceType[service],
+            NULL,
+            actionNode,
+            TvCtrlPointCallbackEventHandler,
+            NULL);
+	    #else
+	    rc = UpnpSendActionAsync(ctrlpt_handle,
+            devnode->device.TvService[service].ControlURL,
+            TvServiceType[service],
+            NULL,
+            actionNode,
+            TvCtrlPointCallbackEventHandler,
+            NULL);
+	    #endif
 
 		if (rc != UPNP_E_SUCCESS) {
 			SampleUtil_Print(
@@ -1094,24 +1099,13 @@ int TvCtrlPointCallbackEventHandler(Upnp_EventType EventType, const void *Event,
 				errCode);
 		} else {
             #if ENABLE_SUPNP
-		    if (strcmp(SUpnpGetFirstElementItem((IXML_Element*)DescDoc, "deviceType"), RaDeviceType) == 0 ) {
+		    char *deviceType = SUpnpGetFirstElementItem((IXML_Element*)DescDoc,
+		        "deviceType");
+		    if (strcmp(deviceType, RaDeviceType) == 0) {
+		        freeif(deviceType);
 		        freeif2(DescDoc, ixmlDocument_free);
-		        break; /* ignore ra device */
+		        break; /* ignore RA device at this point */
 		    }
-		    /* Secure Advertisement Verification (Fig17). */
-		    char *captoken = read_file(CAPTOKEN_CP_FPATH, "r",  NULL);
-		    const char *capTokenUrl =
-		        UpnpString_get_String(UpnpDiscovery_get_CapTokenLocation(d_event));
-		    const char *advSignature =
-                UpnpString_get_String(UpnpDiscovery_get_AdvSignature(d_event));
-            const int sig_ok = SUpnpSecureServiceAdvertisementVerify(advSignature,
-                location, capTokenUrl, captoken);
-		    freeif(captoken);
-		    if (sig_ok != SUPNP_E_SUCCESS) {
-                SampleUtil_Print("Secure Service Advertisement verifications failed. EventType (%d).\n", EventType);
-                freeif2(DescDoc, ixmlDocument_free);
-                break;
-            }
 		    #endif
 
 		    TvCtrlPointAddDevice(DescDoc, location,	UpnpDiscovery_get_Expires(d_event));
@@ -1273,19 +1267,13 @@ void TvCtrlPointVerifyTimeouts(int incr)
 				 * send out a search request for this device
 				 * UDN to try to renew */
 			    #if ENABLE_SUPNP
-			    char capTokenLocation[MAX_URL_SIZE] = {0};
-			    char *url = SampleUtil_BuildDeviceUrl(AF_INET,
-			        UpnpGetServerIpAddress(), UpnpGetServerPort());
-			    snprintf(capTokenLocation, MAX_URL_SIZE, "%s%s", url,
-                    CAPTOKEN_CP);
-			    freeif(url);
+			    // todo to supnp.c
 			    char *captoken = read_file(CAPTOKEN_CP_FPATH, "r",
 			        NULL);
-			    ret = SUpnpSecureServiceDiscoverySend(ctrlpt_handle,
+			    ret = SUpnpSearchAsync(ctrlpt_handle,
 			        incr,
 			        curdevnode->device.UDN,
-			        captoken,
-			        capTokenLocation);
+			        captoken);
 			    freeif(captoken);
 			    #else
 				ret = UpnpSearchAsync(ctrlpt_handle,
@@ -1336,7 +1324,7 @@ int RegistrationCallbackCP(void *Cookie)
     SampleUtil_Print("Control Point Registered with RA\n");
 
     /* Set Web Directory */
-    const int rc = UpnpSetWebServerRootDir("./web");  // todo make configurable.
+    const int rc = UpnpSetWebServerRootDir("./web");  // todo supnp: make configurable.
     sample_verify(rc == UPNP_E_SUCCESS, error_handler, "Error specifying webserver root directory -- %d\n", rc);
 
     TvCtrlPointRefresh();
@@ -1422,8 +1410,7 @@ int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo)
 #if ENABLE_SUPNP
     rc = SUpnpRegisterDevice(RegisterDocsDefaultFilepathCP,
         CAPTOKEN_CP,
-        SampleUtil_BuildDeviceUrl(CAPTOKEN_AF,
-            UpnpGetServerIpAddress(), UpnpGetServerPort()),
+        CAPTOKEN_AF,
         NULL, /* Not Applicable */
         10 /* timeout */,
         RegistrationCallbackCP,

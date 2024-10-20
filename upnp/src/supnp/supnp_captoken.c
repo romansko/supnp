@@ -11,25 +11,19 @@
  * \author Roman Koifman
  */
 #include "supnp_captoken.h"
-#include "openssl_wrapper.h"
-#include "openssl_nonce.h"
-#include "supnp_device.h"
-#include "supnp_common.h"
 #include "openssl_error.h"
+#include "supnp_device.h"
 #include <cJSON/cJSON.h>
-#include <file_utils.h>
-#include <ixml.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#include <upnp.h>
-#include <upnptools.h>
+#include "file_utils.h"     /* write_file */
+#include <openssl/evp.h>    /* EVP_PKEY_eq */
+#include "httpreadwrite.h"  /* http_Download */
 
 #if ENABLE_SUPNP
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 
 /* Cap Token related */
 #define ID_SIZE       11  /* As presented by the paper */
@@ -47,6 +41,7 @@ extern "C" {
 #define CT_URI_SIG    "LOCATION-SIG"
 #define CT_SERVICES   "SERVICES"
 
+
 const char *CapTokenFields[eCatTokenFieldTypesCount] = {
     CT_ID,
     CT_TYPE,
@@ -61,11 +56,9 @@ const char *CapTokenFields[eCatTokenFieldTypesCount] = {
     CT_SERVICES
 };
 
+
 /**
- * Copy src to dst and increment dst by size
- * @param dst destination buffer
- * @param src source buffer
- * @param size size of source buffer
+ * \brief Internal helper macro. Copy src to dst and increment dst by size.
  */
 #define copy_inc(dst, src, size) \
 { \
@@ -73,35 +66,17 @@ const char *CapTokenFields[eCatTokenFieldTypesCount] = {
     dst += size; \
 }
 
-captoken_t *loadCapTokenString(const char *capTokenStr)
-{
-    return cJSON_Parse(capTokenStr);
-}
 
-/**
- * Helper function to convert string to cJSON.
- * @note the function free the input string.
- * @param string input string
- * @return cJSON object on success, NULL on failure
+/*!
+ * \brief Internal function to convert bytes to cJSON.
+ *
+ * \return cJSON object.
  */
-cJSON* stringToJsonString(char* string)
-{
-    cJSON* node = NULL;
-    supnp_verify(string != NULL, cleanup, "NULL string\n");
-    node = cJSON_CreateString(string);
-cleanup:
-    freeif(string);
-    return node;
-}
-
-/**
- * Helper function to convert bytes to cJSON.
- * @note the function free the input bytes.
- * @param bytes input bytes
- * @param size size of input bytes
- * @return cJSON object on success, NULL on failure
- */
-cJSON* bytesToJsonString(unsigned char* bytes, size_t size)
+UPNP_EXPORT_SPEC cJSON* bytesToJsonString(
+    /*! [in] Bytes to convert. */
+    unsigned char *bytes,
+    /*! [in] Size of the bytes. */
+    const size_t size)
 {
     char *hex_string = NULL;
     cJSON *node = NULL;
@@ -114,6 +89,11 @@ cleanup:
     return node;
 }
 
+
+/**
+ * Internal function to retrieve current timestamp as cJSON string
+ * @return cJSON object
+ */
 cJSON* getTimestamp()
 {
     time_t rawtime;
@@ -122,52 +102,38 @@ cJSON* getTimestamp()
     return cJSON_CreateString(asctime(timeinfo));
 }
 
-/**
- * Generate a CapToken for a Service Device which consists of:
- *   ID - Random Token ID
- *   ISSUER_INSTANT - Current time
- *   RA_PK - RA Public Key
- *   SD_PK - SD Public Key
- *   RA_SIG - RA Signature on Cap Token's content
- *   TYPE - "SERVICE-DEVICE"
- *   ADV_SIG - RA Signature on (description uri || cap token uri).
- *   SERVICES - List of service types and corresponding signature by RA on their
- * ID. Note: This differs from the paper, where the signature is on the
- * description.
- *
- * @param p_dev device information
- * @param pkey RA private key
- * @return CapToken on success, NULL on failure
- */
-captoken_t* generateCapToken(const supnp_device_t* p_dev, EVP_PKEY* pkey)
+
+captoken_t* SUpnpGenerateCapToken(const supnp_device_t* dev, EVP_PKEY* pkeyRA)
 {
-    int ret = SUPNP_E_INVALID_ARGUMENT;
+    char concatenate_url[2*LOCATION_SIZE] = {0}; // description url || token url
     captoken_t *cap_token = NULL;
     char *desc_doc = NULL;
-    char *desc_doc_url = NULL;
-    char *cap_token_url = NULL;
-    char *concatenate_url = NULL; // description url || token url
     char *cap_token_content = NULL;
 
     unsigned char* bytes = NULL;
     size_t size = 0;
 
     /* Verifications */
-    supnp_verify(p_dev, cleanup, "NULL Device.\n");
-    supnp_verify(pkey, cleanup, "NULL RA Private Key.\n");
-    supnp_verify(p_dev->name, cleanup, "NULL Device Name.\n");
-    supnp_verify((p_dev->type == eDeviceType_CP) || (p_dev->type == eDeviceType_SD), cleanup, "Invalid device type\n");
-    supnp_verify(p_dev->device_url != NULL, cleanup, "NULL device_url\n");
+    supnp_verify(dev, cleanup, "NULL Device.\n");
+    supnp_verify(pkeyRA, cleanup, "NULL RA Private Key.\n");
+    supnp_verify(dev->name, cleanup, "NULL Device Name.\n");
+    supnp_verify((dev->type == eDeviceType_CP) ||
+        (dev->type == eDeviceType_SD), cleanup, "Invalid device type\n");
+    supnp_verify(dev->capTokenLocation != NULL, cleanup,
+        "NULL capTokenLocation\n");
+    supnp_verify(strlen(dev->capTokenLocation) < LOCATION_SIZE, cleanup,
+        "capTokenLocation too long\n");
 
     supnp_log("Generating CapToken for device '%s' - %s..\n",
-        device_type_str[p_dev->type], p_dev->name);
+        SupnpDeviceTypeStr(dev), dev->name);
 
     /* Init Cap Token */
     cap_token = cJSON_CreateObject();
     supnp_verify(cap_token, error, "cap_token initial generation failed\n");
 
     /* ID */
-    cJSON* id = bytesToJsonString(OpenSslGenerateNonce(ID_SIZE), ID_SIZE);
+    cJSON* id = bytesToJsonString(OpenSslGenerateNonce(ID_SIZE),
+        ID_SIZE);
     supnp_verify(id, error, "ID Generation failed\n");
     cJSON_AddItemToObject(cap_token, "ID", id);
 
@@ -177,78 +143,82 @@ captoken_t* generateCapToken(const supnp_device_t* p_dev, EVP_PKEY* pkey)
     cJSON_AddItemToObject(cap_token, CT_TIMESTAMP, _timestamp);
 
     /* Export RA Public Key */
-    bytes = OpenSslPublicKeyToBytes(pkey, &size);
+    bytes = OpenSslPublicKeyToBytes(pkeyRA, &size);
     cJSON* _pk_ra = bytesToJsonString(bytes, size);
     bytes = NULL; /* Freed in bytes_to_json_string */
     supnp_verify(_pk_ra, error, "RA Public Key exporting failed\n");
     cJSON_AddItemToObject(cap_token, CT_RA_PK, _pk_ra);
 
     /* Export Device Public Key & Type */
-    bytes = OpenSslPublicKeyToBytes(p_dev->dev_pkey, &size);
+    bytes = OpenSslPublicKeyToBytes(dev->pkeyDevice, &size);
     cJSON* _pk_dev = bytesToJsonString(bytes, size);
     bytes = NULL; /* Freed in bytes_to_json_string */
     supnp_verify(_pk_dev, error, "Device Public Key exporting failed\n");
-    switch (p_dev->type)
+    switch (dev->type)
     {
-    case eDeviceType_SD:
-        cJSON_AddItemToObject(cap_token, CT_SD_PK, _pk_dev);
-        cJSON_AddItemToObject(cap_token, CT_TYPE, cJSON_CreateString(SD_TYPE_STR));
-        break;
-    case eDeviceType_CP:
-        cJSON_AddItemToObject(cap_token, CT_CP_PK, _pk_dev);
-        cJSON_AddItemToObject(cap_token, CT_TYPE, cJSON_CreateString(CP_TYPE_STR));
-        break;
+        case eDeviceType_SD:
+            cJSON_AddItemToObject(cap_token, CT_SD_PK, _pk_dev);
+            cJSON_AddItemToObject(cap_token, CT_TYPE,
+                cJSON_CreateString(SD_TYPE_STR));
+            break;
+        case eDeviceType_CP:
+            cJSON_AddItemToObject(cap_token, CT_CP_PK, _pk_dev);
+            cJSON_AddItemToObject(cap_token, CT_TYPE,
+                cJSON_CreateString(CP_TYPE_STR));
+            break;
+        default:
+            supnp_log("Device type not supported.\n");
+            goto error;
     }
 
-    /* Generate CapToken URL */
-    supnp_verify(p_dev->cap_token_name != NULL, cleanup, "NULL cap_token_name\n");
-    ret = UpnpResolveURL2(p_dev->device_url, p_dev->cap_token_name , &cap_token_url);
-    supnp_verify(ret == SUPNP_E_SUCCESS, cleanup, "Error resolving Cap Token URL.\n");
-
     /* Sign advertisement URI (description uri || token uri) */
-    if (p_dev->type == eDeviceType_SD)
+    if (dev->type == eDeviceType_SD)
     {
-
-        /* Generate Description Document URL */
-        supnp_verify(p_dev->desc_doc_name != NULL, cleanup, "NULL desc_doc_name\n");
-        ret = UpnpResolveURL2(p_dev->device_url, p_dev->desc_doc_name , &desc_doc_url);
-        supnp_verify(ret == SUPNP_E_SUCCESS, cleanup, "Error resolving description Document URL.\n");
+        supnp_verify(dev->descDocLocation != NULL, cleanup,
+            "NULL descDocLocation\n");
+        supnp_verify(strlen(dev->descDocLocation) < LOCATION_SIZE, cleanup,
+            "descDocLocation too long\n");
 
         /* Concatenate Description URL and Cap Token URL */
-        concatenate_url = malloc(strlen(desc_doc_url) + strlen(cap_token_url) + 1);
-        supnp_verify(concatenate_url, error, "concatenate_uri memory allocation failed\n");
-        strcpy(concatenate_url, desc_doc_url);
-        strcat(concatenate_url, cap_token_url);
+        strncpy(concatenate_url, dev->descDocLocation, LOCATION_SIZE);
+        strncat(concatenate_url, dev->capTokenLocation, LOCATION_SIZE);
 
         /* Sign */
-        bytes = OpenSslSign(pkey, (const unsigned char*)concatenate_url, strlen(concatenate_url), &size);
+        bytes = OpenSslSign(pkeyRA, (const unsigned char*)concatenate_url,
+            strlen(concatenate_url), &size);
         cJSON* _adv_sig = bytesToJsonString(bytes, size);
         bytes = NULL; /* Freed in bytes_to_json_string */
-        supnp_verify(_adv_sig, error, "Advertisement Signature exporting failed (SD)\n");
+        supnp_verify(_adv_sig, error,
+            "Advertisement Signature exporting failed (SD)\n");
         cJSON_AddItemToObject(cap_token, CT_ADV_SIG, _adv_sig);
     }
 
     /* Sign Cap Token URL */
-    if (p_dev->type == eDeviceType_CP)
+    if (dev->type == eDeviceType_CP)
     {
-        bytes = OpenSslSign(pkey, (const unsigned char*)cap_token_url, strlen(cap_token_url), &size);
+        bytes = OpenSslSign(pkeyRA,
+            dev->capTokenLocation,
+            strlen(dev->capTokenLocation), &size);
         cJSON* _uri_sig = bytesToJsonString(bytes, size);
         bytes = NULL; /* Freed in bytes_to_json_string */
-        supnp_verify(_uri_sig, error, "Advertisement Signature exporting failed (CP)\n");
+        supnp_verify(_uri_sig, error,
+            "Advertisement Signature exporting failed (CP)\n");
         cJSON_AddItemToObject(cap_token, CT_URI_SIG, _uri_sig);
     }
 
     /* Sign Device Description Document */
-    if (p_dev->type == eDeviceType_SD)
+    if (dev->type == eDeviceType_SD)
     {
-        supnp_verify(p_dev->desc_doc != NULL, cleanup, "NULL device description document\n");
-        desc_doc = ixmlDocumenttoString(p_dev->desc_doc);
+        supnp_verify(dev->descDocument != NULL, cleanup,
+            "NULL device description document\n");
+        desc_doc = ixmlDocumenttoString(dev->descDocument);
         const size_t doc_size = strlen(desc_doc);
         supnp_verify(desc_doc, error, "ixmlPrintDocument failed\n");
-        bytes = OpenSslSign(pkey, (unsigned char*)desc_doc, doc_size, &size);
+        bytes = OpenSslSign(pkeyRA, (unsigned char*)desc_doc, doc_size, &size);
         cJSON* _doc_sig = bytesToJsonString(bytes, size);
         bytes = NULL; /* Freed in bytes_to_json_string */
-        supnp_verify(_doc_sig, error, "Description Signature exporting failed\n");
+        supnp_verify(_doc_sig, error,
+            "Description Signature exporting failed\n");
         cJSON_AddItemToObject(cap_token, CT_DESC_SIG, _doc_sig);
     }
 
@@ -260,10 +230,14 @@ captoken_t* generateCapToken(const supnp_device_t* p_dev, EVP_PKEY* pkey)
      *   if CP:
      *     cap_token.add_Service(service_type);
      */
-    supnp_verify(p_dev->supnp_doc != NULL, cleanup, "NULL supnp specification document\n");
-    const cJSON* service_list = cJSON_GetObjectItemCaseSensitive(p_dev->supnp_doc, "SERVICES");
-    supnp_verify(service_list, cleanup, "Couldn't find services tagname in SUPnP Document.\n");
-    cJSON* _services = p_dev->type == eDeviceType_SD ? cJSON_CreateObject() : cJSON_CreateArray();
+    supnp_verify(dev->specDocument != NULL, cleanup,
+        "NULL supnp specification document\n");
+    const cJSON* service_list = cJSON_GetObjectItemCaseSensitive(dev->specDocument,
+        "SERVICES");
+    supnp_verify(service_list, cleanup,
+        "Couldn't find services tagname in SUPnP Document.\n");
+    cJSON* _services = dev->type == eDeviceType_SD ? cJSON_CreateObject() :
+    cJSON_CreateArray();
     supnp_verify(_services, error, "Couldn't create services array\n");
     cJSON_AddItemToObject(cap_token, CT_SERVICES, _services);
     const cJSON* p_service = service_list->child;
@@ -273,9 +247,10 @@ captoken_t* generateCapToken(const supnp_device_t* p_dev, EVP_PKEY* pkey)
         const char* _type = p_service->valuestring;
         if (_id && _type)
         {
-            if (p_dev->type == eDeviceType_SD)
+            if (dev->type == eDeviceType_SD)
             {
-                bytes = OpenSslSign(pkey, (unsigned char*)_id, strlen(_id), &size);
+                bytes = OpenSslSign(pkeyRA, (unsigned char*)_id,
+                    strlen(_id), &size);
                 cJSON* _service_sig = bytesToJsonString(bytes, size);
                 bytes = NULL; /* Freed in bytes_to_json_string */
                 cJSON_AddItemToObject(_services, _type, _service_sig);
@@ -290,13 +265,14 @@ captoken_t* generateCapToken(const supnp_device_t* p_dev, EVP_PKEY* pkey)
 
     /* Sign the cap token's content */
     cap_token_content = cJSON_PrintUnformatted(cap_token);
-    bytes = OpenSslSign(pkey, (unsigned char*)cap_token_content, strlen(cap_token_content), &size);
+    bytes = OpenSslSign(pkeyRA, (unsigned char*)cap_token_content,
+        strlen(cap_token_content), &size);
     cJSON* _content_sig = bytesToJsonString(bytes, size);
     bytes = NULL; /* Freed in bytes_to_json_string */
     supnp_verify(_content_sig, error, "Signing Cap Token content failed\n");
     cJSON_AddItemToObject(cap_token, CT_RA_SIG, _content_sig);
 
-    supnp_log("CapToken for device %s generated successfully.\n", p_dev->name);
+    supnp_log("CapToken for device %s generated successfully.\n", dev->name);
     goto cleanup;
 
 error:
@@ -306,77 +282,46 @@ cleanup:
     freeif(bytes);
     freeif(cap_token_content);
     freeif(desc_doc);
-    freeif(concatenate_url);
-    freeif(cap_token_url);
     return cap_token;
 }
 
-/**
- * Free a CapToken
- * @param cap_token CapToken to free
- */
-void freeCapToken(captoken_t **cap_token)
+
+void SUpnpFreeCapToken(captoken_t **p_capToken)
 {
-    if (cap_token && *cap_token)
+    if (p_capToken && *p_capToken)
     {
-        cJSON_Delete(*cap_token);
-        *cap_token = NULL;
+        cJSON_Delete(*p_capToken);
+        *p_capToken = NULL;
     }
 }
 
-/**
- * Convert CapToken to string
- * @param cap_token CapToken to convert
- * @note the caller is responsible to free the returned string
- * @return CapToken as string on success, NULL on failure
- */
-char *capTokenToString(const captoken_t *cap_token)
+
+char *SUpnpCapTokenToString(const captoken_t *capToken)
 {
     char *cap_token_str = NULL;
-    if (cap_token)
+    if (capToken)
     {
-        cap_token_str = cJSON_PrintUnformatted(cap_token);
+        cap_token_str = cJSON_PrintUnformatted(capToken);
     }
     return cap_token_str;
 }
 
-/**
- * Convert CapToken to hex string
- * @param cap_token CapToken to convert
- * @note the caller is responsible to free the returned string
- * @return CapToken as hex string on success, NULL on failure
- */
-char *capTokenToHexString(const captoken_t *cap_token)
+
+char *SUpnpCapTokenToHexString(const captoken_t *capToken)
 {
     char *str = NULL;
     char *hex = NULL;
-    if (cap_token)
+    if (capToken)
     {
-        str = capTokenToString(cap_token);
+        str = SUpnpCapTokenToString(capToken);
         hex = OpenSslBinaryToHexString((unsigned char*)str, strlen(str));
         freeif(str);
     }
     return hex;
 }
 
-/**
- * Convert string to CapToken
- * @param cap_token_str CapToken as string
- * @return CapToken on success, NULL on failure
- */
-captoken_t *capTokenFromString(const char *cap_token_str)
-{
-    if (cap_token_str == NULL)
-        return NULL;
-    return cJSON_Parse(cap_token_str);
-}
 
-/**
- * Convert hex string to CapToken
- * @param hex CapToken as hex string
- * @return CapToken on success, NULL on failure
- */
-captoken_t *capTokenFromHexString(const char *hex)
+captoken_t *SUpnpCapTokenFromHexString(const char *hex)
 {
     size_t size;
     char *str = NULL;
@@ -384,59 +329,62 @@ captoken_t *capTokenFromHexString(const char *hex)
     if (hex == NULL)
         return NULL;
     str = (char *)OpenSslHexStringToBinary(hex, &size);
-    capToken = capTokenFromString(str);
-    freeif(str);
+    if (str) {
+        capToken = cJSON_Parse(str);
+        free(str);
+    }
     return capToken;
 }
 
-/**
- * Store CapToken to file
- * @param capToken CapToken to store
- * @param filepath path to CapToken file
- * @return FILE_OP_OK on success, FILE_OP_ERR on failure
- */
-int storeCapToken(const captoken_t *capToken, const char *filepath)
+
+int SUpnpStoreCapToken(const captoken_t *capToken, const char *filepath)
 {
+    int ret = SUPNP_E_INTERNAL_ERROR;
     char *capTokenStr = cJSON_Print(capToken);
-    int ret = write_file(filepath, (const unsigned char *)capTokenStr, strlen(capTokenStr));
-    freeif(capTokenStr);
+    if (capTokenStr && (FILE_OP_OK == write_file(
+        filepath,
+        (const unsigned char *)capTokenStr,
+        strlen(capTokenStr)))) {
+        ret = SUPNP_E_SUCCESS;
+    }
     return ret;
 }
 
-/**
- * Download CapToken from url
- * @param capTokenUrl CapToken URL
- * @param ppCapToken CapToken to store
- * @return SUPNP_E_SUCCESS on success, SUPNP_E_ERROR on failure
- */
-int downloadCapToken(const char *capTokenUrl, captoken_t **ppCapToken)
+
+int SUpnpDownloadCapToken(const char *capTokenUrl, captoken_t **p_capToken)
 {
-    int ret = UPNP_E_INVALID_PARAM;
-    char content_type[LINE_SIZE] = {0};
+    int ret = SUPNP_E_INVALID_ARGUMENT;
+    char content_type[LOCATION_SIZE] = {0};
     char *capTokenBuf = NULL;
-    *ppCapToken = NULL;
-    ret = UpnpDownloadUrlItem(capTokenUrl, &capTokenBuf, content_type);
+    size_t dummy;
+
+    supnp_verify(capTokenUrl, cleanup, "NULL capTokenUrl\n");
+    supnp_verify(p_capToken, cleanup, "NULL p_capToken\n");
+
+    *p_capToken = NULL;
+    ret = http_Download(capTokenUrl,
+        HTTP_DEFAULT_TIMEOUT,
+        &capTokenBuf,
+        &dummy,
+        content_type);
     supnp_verify(ret == SUPNP_E_SUCCESS, cleanup, "Error downloading CapToken\n");
-    *ppCapToken = cJSON_Parse(capTokenBuf);
-    supnp_verify(*ppCapToken, cleanup, "Error parsing CapToken\n");
+
+    *p_capToken = cJSON_Parse(capTokenBuf);
+    supnp_verify(*p_capToken, cleanup, "Error parsing CapToken\n");
+
     ret = SUPNP_E_SUCCESS;
 cleanup:
     freeif(capTokenBuf);
     return ret;
 }
 
-/**
- * Extract Field Value from CapToken. User is responsible to free the returned value.
- * @cap_token CapToken to extract from
- * @type Field type to extract
- * @return Field Value on success, NULL on failure
- */
-char *extractCapTokenFieldValue(const captoken_t *cap_token, const ECapTokenFieldType type)
+
+char *SUpnpExtractCapTokenFieldValue(const captoken_t *capToken, const ECapTokenFieldType type)
 {
-    supnp_verify(cap_token != NULL, error_handle, "NULL CapToken\n");
+    supnp_verify(capToken != NULL, error_handle, "NULL CapToken\n");
     supnp_verify((uint)type < eCatTokenFieldTypesCount, error_handle, "Invalid field type\n");
     const char *fieldName = CapTokenFields[type];
-    const cJSON *field = cJSON_GetObjectItemCaseSensitive(cap_token, fieldName);
+    const cJSON *field = cJSON_GetObjectItemCaseSensitive(capToken, fieldName);
     supnp_verify(field != NULL, error_handle, "Field '%s' not found\n", fieldName);
     const char *fieldValue = cJSON_GetStringValue(field);
     supnp_verify(fieldValue != NULL, error_handle, "Field '%s' has no value\n", fieldName);
@@ -445,35 +393,26 @@ error_handle:
     return NULL;
 }
 
-/**
- * Extract Field Value from CapToken URL. User is responsible to free the returned value.
- * @capTokenUrl CapToken URL to extract from
- * @type Field type to extract
- * @return Field Value on success, NULL on failure
- */
-char *extractCapTokenFieldValue2(const char *capTokenUrl, const ECapTokenFieldType type)
+
+char *SUpnpExtractCapTokenFieldValue2(const char *capTokenUrl, const ECapTokenFieldType type)
 {
     int ret = SUPNP_E_INVALID_ARGUMENT;
     char *fieldValue = NULL;
     captoken_t *capToken = NULL;
     supnp_verify(capTokenUrl != NULL, cleanup, "NULL capTokenUrl\n");
     supnp_verify((uint)type < eCatTokenFieldTypesCount, cleanup, "Invalid field type\n");
-    ret = downloadCapToken(capTokenUrl, &capToken);
+    ret = SUpnpDownloadCapToken(capTokenUrl, &capToken);
     supnp_verify(ret == SUPNP_E_SUCCESS, cleanup, "Error Retrieving CapToken\n");
-    fieldValue = extractCapTokenFieldValue(capToken, type);
+    fieldValue = SUpnpExtractCapTokenFieldValue(capToken, type);
 cleanup:
     freeif2(capToken, cJSON_Delete);
     return fieldValue;
 }
 
-/**
- * Verify CapToken as part of Secure Device Description.
- * @param cap_token CapToken to verify
- * @param ra_pk RA Public Key
- * @param desc_doc_content Device Description Document
- * @return SUPNP_E_SUCCESS on success, SUPNP_E_ERROR on failure
- */
-int verifyCapToken(const captoken_t *cap_token, EVP_PKEY *ra_pk, const char *desc_doc_content)
+
+int SUpnpVerifyCapToken(const captoken_t *capToken,
+    EVP_PKEY *pkeyRA,
+    const char *descDocContent)
 {
     int ret = SUPNP_E_INVALID_ARGUMENT;
     char *ra_pk_hex = NULL;
@@ -485,29 +424,29 @@ int verifyCapToken(const captoken_t *cap_token, EVP_PKEY *ra_pk, const char *des
 
     supnp_log("Verifying Cap Token..\n");
 
-    supnp_verify(cap_token != NULL, cleanup, "NULL CapToken\n");
-    supnp_verify(ra_pk != NULL, cleanup, "NULL RA Public Key\n");
-    supnp_verify(desc_doc_content != NULL, cleanup, "NULL Description Document\n");
+    supnp_verify(capToken != NULL, cleanup, "NULL CapToken\n");
+    supnp_verify(pkeyRA != NULL, cleanup, "NULL RA Public Key\n");
+    supnp_verify(descDocContent != NULL, cleanup, "NULL Description Document\n");
 
 
     /* Verify RA Public Key is the same */
-    ra_pk_hex = extractCapTokenFieldValue(cap_token, eCapTokenPublicKeyRA);
+    ra_pk_hex = SUpnpExtractCapTokenFieldValue(capToken, eCapTokenPublicKeyRA);
     supnp_verify(ra_pk_hex, cleanup, "Error extracting RA Public Key from CapToken.\n");
     ra_pk_cpy = OpenSslLoadPublicKeyFromHex(ra_pk_hex);
     supnp_verify(ra_pk_cpy, cleanup, "Error loading RA Public Key from hex string.\n");
-    ret = EVP_PKEY_eq(ra_pk, ra_pk_cpy);
+    ret = EVP_PKEY_eq(pkeyRA, ra_pk_cpy);
     supnp_verify(ret == OPENSSL_SUCCESS, cleanup, "RA Public Key mismatch.\n");
 
     /* Verify RA-SIG */
     supnp_log("Verifying RA Signature..\n");
-    ra_sig = extractCapTokenFieldValue(cap_token, eCapTokenSignatureRA);
+    ra_sig = SUpnpExtractCapTokenFieldValue(capToken, eCapTokenSignatureRA);
     supnp_verify(ra_sig, cleanup, "Error extracting RA Signature from CapToken.\n");
-    cap_token_cpy = cJSON_Duplicate(cap_token, 1);
+    cap_token_cpy = cJSON_Duplicate(capToken, 1);
     supnp_verify(cap_token_cpy, cleanup, "Error duplicating CapToken.\n");
     cJSON_DeleteItemFromObject(cap_token_cpy, CT_RA_SIG);
     cap_token_content = cJSON_PrintUnformatted(cap_token_cpy);
     ret = OpenSslVerifySignature(CT_RA_SIG,
-        ra_pk,
+        pkeyRA,
         ra_sig,
         (unsigned char*)cap_token_content,
         strlen(cap_token_content));
@@ -518,12 +457,12 @@ int verifyCapToken(const captoken_t *cap_token, EVP_PKEY *ra_pk, const char *des
 
     /* Verify DESCRIPTION-SIG */
     supnp_log("Verifying Description Signature..\n");
-    desc_sig = extractCapTokenFieldValue(cap_token, eCapTokenSignatureDescription);
+    desc_sig = SUpnpExtractCapTokenFieldValue(capToken, eCapTokenSignatureDescription);
     OpenSslVerifySignature(CT_DESC_SIG,
-        ra_pk,
+        pkeyRA,
         desc_sig,
-        (unsigned char*)desc_doc_content,
-        strlen(desc_doc_content));
+        (unsigned char*)descDocContent,
+        strlen(descDocContent));
     supnp_verify(ret == OPENSSL_SUCCESS, cleanup,
         "Description Signature verification failed.\n");
     supnp_log("Description Signature verified successfully.\n");
@@ -533,13 +472,14 @@ int verifyCapToken(const captoken_t *cap_token, EVP_PKEY *ra_pk, const char *des
 cleanup:
     freeif(desc_sig);
     freeif(cap_token_content);
-    freeCapToken(&cap_token_cpy);
+    SUpnpFreeCapToken(&cap_token_cpy);
     freeif(ra_sig);
-    freeif2(ra_pk_cpy, EVP_PKEY_free);
+    OpenSslFreePKey(&ra_pk_cpy);
     freeif(ra_pk_hex);
 
     return ret;
 }
+
 
 #ifdef __cplusplus
 }

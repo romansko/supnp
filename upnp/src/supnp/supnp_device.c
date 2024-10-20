@@ -22,42 +22,45 @@
 extern "C" {
 #endif
 
-supnp_device_t *SupnpNewDevice(const char *spec_doc, const char *cert, const char *uca_cert)
+
+supnp_device_t *SupnpNewDevice(const char *specDocument,
+    const char *certDevice,
+    const char *certUCA)
 {
     supnp_device_t *p_dev = NULL;
     char *type = NULL;
     char *name = NULL;
 
-    supnp_verify(spec_doc, cleanup, "NULL SAD/DSD provided\n");
-    supnp_verify(cert, cleanup, "NULL Device Certificate provided\n");
-    supnp_verify(uca_cert, cleanup, "NULL UCA Certificate provided\n");
+    supnp_verify(specDocument, cleanup, "NULL SAD/DSD provided\n");
+    supnp_verify(certDevice, cleanup, "NULL Device Certificate provided\n");
+    supnp_verify(certUCA, cleanup, "NULL UCA Certificate provided\n");
 
     p_dev = malloc(sizeof(supnp_device_t));
     supnp_verify(p_dev, cleanup, "Error allocating memory for device.\n");
     memset(p_dev, 0, sizeof(supnp_device_t));
 
-    p_dev->supnp_doc = cJSON_Parse(spec_doc);
-    supnp_verify(
-        p_dev->supnp_doc, cleanup, "cJSON Error parsing spec document.\n");
+    p_dev->specDocument = cJSON_Parse(specDocument);
+    supnp_verify(p_dev->specDocument, cleanup,
+        "cJSON Error parsing spec document.\n");
 
-    p_dev->dev_cert = OpenSslLoadCertificateFromString(cert);
-    supnp_verify(
-        p_dev->dev_cert, cleanup, "Error loading device certificate.\n");
+    p_dev->certDevice = OpenSslLoadCertificateFromString(certDevice);
+    supnp_verify(p_dev->certDevice, cleanup,
+        "Error loading device certificate.\n");
 
-    p_dev->dev_pkey = X509_get_pubkey(p_dev->dev_cert);
-    supnp_verify(
-        p_dev->dev_pkey, cleanup, "Error extracting device public key.\n");
+    p_dev->pkeyDevice = X509_get_pubkey(p_dev->certDevice);
+    supnp_verify(p_dev->pkeyDevice, cleanup,
+        "Error extracting device public key.\n");
 
-    p_dev->uca_cert = OpenSslLoadCertificateFromString(uca_cert);
-    supnp_verify(uca_cert, cleanup, "Error loading UCA certificate.\n");
+    p_dev->certUCA = OpenSslLoadCertificateFromString(certUCA);
+    supnp_verify(certUCA, cleanup, "Error loading UCA certificate.\n");
 
-    p_dev->uca_pkey = X509_get_pubkey(p_dev->uca_cert);
-    supnp_verify(
-        p_dev->uca_pkey, cleanup, "Error extracting uca public key.\n");
+    p_dev->pkeyUCA = X509_get_pubkey(p_dev->certUCA);
+    supnp_verify(p_dev->pkeyUCA, cleanup,
+        "Error extracting uca public key.\n");
 
     /* Extract Device Type */
-    type = cJSON_GetStringValue(
-        cJSON_GetObjectItemCaseSensitive(p_dev->supnp_doc, "TYPE"));
+    type = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(
+        p_dev->specDocument, "TYPE"));
     supnp_verify(type, cleanup, "Unexpected '%s'\n", "TYPE");
     if (!strcmp("CP", type)) {
         p_dev->type = eDeviceType_CP;
@@ -69,99 +72,130 @@ supnp_device_t *SupnpNewDevice(const char *spec_doc, const char *cert, const cha
 
     /* Extract ID*/
     name = cJSON_GetStringValue(
-        cJSON_GetObjectItemCaseSensitive(p_dev->supnp_doc, "NAME"));
+        cJSON_GetObjectItemCaseSensitive(p_dev->specDocument, "NAME"));
     supnp_verify(name, cleanup, "Unexpected '%s'\n", "NAME");
     p_dev->name = strdup(name);
 
     return p_dev;
 
 cleanup:
-    SupnpFreeDeviceContent(p_dev);
+    SupnpFreeDevice(&p_dev);
     return p_dev;
 }
 
-const char *SupnpDeviceTypeStr(const EDeviceType type)
+
+const char *SupnpDeviceTypeStr(const supnp_device_t *dev)
 {
-    switch (type) {
-    case eDeviceType_SD:
-        return "SD";
-    case eDeviceType_CP:
-        return "CP";
-    default:
+    if (dev == NULL) {
         return "";
+    }
+    switch(dev->type) {
+        case eDeviceType_SD:
+            return "SD";
+        case eDeviceType_CP:
+            return "CP";
+        case eDeviceType_RA:
+            return "RA";
+        default:
+            return "";
     }
 }
 
-void SupnpFreeDeviceContent(supnp_device_t *p_dev)
-{
-    if (p_dev == NULL)
-        return; /* Do Nothing */
-    freeif(p_dev->name);
-    freeif2(p_dev->dev_cert, X509_free);
-    freeif2(p_dev->uca_cert, X509_free);
-    freeif2(p_dev->dev_pkey, EVP_PKEY_free);
-    freeif2(p_dev->uca_pkey, EVP_PKEY_free);
-    freeif(p_dev->device_url);
-    freeif(p_dev->desc_doc_name);
-    freeif2(p_dev->desc_doc, ixmlDocument_free);
-    freeif2(p_dev->supnp_doc, cJSON_Delete);
-    freeif2(p_dev->cap_token, cJSON_Delete);
-    freeif(p_dev->cap_token_name);
-    memset(p_dev->nonce, 0, sizeof(p_dev->nonce));
-}
 
-void SupnpFreeDevice(supnp_device_t **pp_dev)
+void SupnpFreeDevice(supnp_device_t **p_dev)
 {
-    if (pp_dev == NULL || *pp_dev == NULL)
+    if (p_dev == NULL || *p_dev == NULL)
         return; /* Do Nothing */
-    supnp_device_t *prev = (*pp_dev)->prev;
-    supnp_device_t *next = (*pp_dev)->next;
+
+    /* Remove from list */
+    supnp_device_t *prev = (*p_dev)->prev;
+    supnp_device_t *next = (*p_dev)->next;
     if (prev) {
         prev->next = next;
     }
     if (next) {
         next->prev = prev;
     }
-    SupnpFreeDeviceContent(*pp_dev);
-    freeif(*pp_dev);
+
+    /* Free content */
+    freeif((*p_dev)->name);
+    freeif2((*p_dev)->certDevice, X509_free);
+    freeif2((*p_dev)->certUCA, X509_free);
+    freeif2((*p_dev)->pkeyDevice, EVP_PKEY_free);
+    freeif2((*p_dev)->pkeyUCA, EVP_PKEY_free);
+    freeif2((*p_dev)->descDocument, ixmlDocument_free);
+    freeif2((*p_dev)->specDocument, cJSON_Delete);
+    freeif2((*p_dev)->capToken, cJSON_Delete);
+    memset((*p_dev)->descDocLocation, 0, sizeof((*p_dev)->descDocLocation));
+    memset((*p_dev)->capTokenLocation, 0, sizeof((*p_dev)->capTokenLocation));
+    memset((*p_dev)->nonce, 0, sizeof((*p_dev)->nonce));
+
+    /* Free pointer */
+    freeif(*p_dev);
 }
 
-void SupnpAddListDevice(supnp_device_t **head, supnp_device_t *p_dev)
+
+void SupnpAddListDevice(supnp_device_t **p_head, supnp_device_t *dev)
 {
-    if (head == NULL || p_dev == NULL) /* Nothing can be done */
+    if (p_head == NULL || dev == NULL) /* Nothing can be done */
         return;
-    if (*head == NULL) {
-        *head = p_dev; /* new head */
-    } else if (OPENSSL_SUCCESS != EVP_PKEY_eq((*head)->dev_pkey, p_dev->dev_pkey)) {
-        supnp_device_t *itr = *head;
+    if (*p_head == NULL) {
+        *p_head = dev; /* new head */
+    } else if (OPENSSL_SUCCESS != EVP_PKEY_eq((*p_head)->pkeyDevice,
+        dev->pkeyDevice)) {
+        supnp_device_t *itr = *p_head;
         while (itr->next != NULL) {
-            if (OPENSSL_SUCCESS == EVP_PKEY_eq((*head)->dev_pkey, p_dev->dev_pkey)) {
+            if (OPENSSL_SUCCESS == EVP_PKEY_eq((*p_head)->pkeyDevice,
+                dev->pkeyDevice)) {
                 return; /* Already in List */
             }
             itr = itr->next;
         }
-        itr->next = p_dev;
-        p_dev->prev = itr;
+        itr->next = dev;
+        dev->prev = itr;
     }
 }
 
-void SupnpRemoveListDevice(supnp_device_t **head, supnp_device_t *p_dev)
+
+void SupnpRemoveListDevice(supnp_device_t **p_head, supnp_device_t *dev)
 {
-    if (head == NULL || p_dev == NULL) /* Nothing can be done */
+    if (p_head == NULL || dev == NULL) /* Nothing can be done */
         return;
-    if (p_dev == *head) {
-        *head = p_dev->next; /* new head */
+
+    /* If dev is head, replace it */
+    if (dev == *p_head) {
+        *p_head = dev->next; /* new head */
+        (*p_head)->prev = NULL;
+        SupnpFreeDevice(&dev);
+        return;
     }
-    SupnpFreeDevice(&p_dev);
+
+    /* Search for dev in list and remove it */
+    const supnp_device_t *itr = *p_head;
+    while (itr != NULL) {
+        if (itr == dev) {
+            if (itr->prev) {
+                itr->prev->next = itr->next;
+            }
+            if (itr->next) {
+                itr->next->prev = itr->prev;
+            }
+            SupnpFreeDevice(&dev);
+            return;
+        }
+        itr = itr->next;
+    }
 }
 
-supnp_device_t *SupnpFindDeviceByPublicKey(supnp_device_t *head, const EVP_PKEY *pkey)
+
+supnp_device_t *SupnpFindDeviceByPublicKey(supnp_device_t *head,
+    const EVP_PKEY *pkey)
 {
     if (head == NULL || pkey == NULL) /* Nothing can be done */
         return NULL;
     supnp_device_t *itr = head;
     while (itr != NULL) {
-        if (OPENSSL_SUCCESS == EVP_PKEY_eq(itr->dev_pkey, pkey)) {
+        if (OPENSSL_SUCCESS == EVP_PKEY_eq(itr->pkeyDevice, pkey)) {
             return itr;
         }
         itr = itr->next;
@@ -169,29 +203,6 @@ supnp_device_t *SupnpFindDeviceByPublicKey(supnp_device_t *head, const EVP_PKEY 
     return NULL;
 }
 
-
-void SupnpRemoveDevice(supnp_device_t **head, supnp_device_t *p_dev)
-{
-    if (head == NULL || p_dev == NULL) /* Nothing can be done */
-        return;
-    const supnp_device_t *itr = *head;
-    while (itr != NULL) {
-        if (itr == p_dev) {
-            if (p_dev == *head) {
-                *head = p_dev->next; /* new head */
-            }
-            if (itr->prev) {
-                itr->prev->next = itr->next;
-            }
-            if (itr->next) {
-                itr->next->prev = itr->prev;
-            }
-            SupnpFreeDevice(&p_dev);
-            return;
-        }
-        itr = itr->next;
-    }
-}
 
 #ifdef __cplusplus
 }

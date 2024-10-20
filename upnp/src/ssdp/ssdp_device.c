@@ -40,18 +40,12 @@
 
 #include "config.h"
 
+#if ENABLE_SUPNP
 #include <openssl_error.h>
 #include <openssl_nonce.h>
-#include <openssl_wrapper.h>
-
-#if ENABLE_SUPNP
-#include <cJSON/cJSON.h>
 #include "supnp_captoken.h"
-#include "supnp_common.h"
 #include "supnp.h"
 #endif
-
-
 
 #ifdef INCLUDE_DEVICE_APIS
 	#if EXCLUDE_SSDP == 0
@@ -79,8 +73,33 @@ void advertiseAndReplyThread(void *data)
 {
 	SsdpSearchReply *arg = (SsdpSearchReply *)data;
 
+    #if ENABLE_SUPNP
+    char CapTokenLocation[LOCATION_SIZE];
+    char AdvertisementSig[HEXSIG_SIZE];
+    const char *pCapTokenLocation = NULL;
+    const char *pAdvertisementSig = NULL;
+
+    if (SUpnpGetDeviceType() == eDeviceType_SD) {  /* RA not applicable */
+        EVP_PKEY *ra_pk = SUpnpGetRAPKey();
+        if (ra_pk != NULL) {  /* Wait until SD registered with RA */
+            return;
+        }
+        OpenSslFreePKey(&ra_pk);
+        if (SUpnpGetSecureAdvertisementParams(CapTokenLocation,
+                    AdvertisementSig) == SUPNP_E_SUCCESS)
+        {
+            pCapTokenLocation = CapTokenLocation;
+            pAdvertisementSig = AdvertisementSig;
+        }
+    }
+    #endif
+
 	AdvertiseAndReply(0,
 		arg->handle,
+		#if ENABLE_SUPNP
+		pCapTokenLocation,
+		pAdvertisementSig,
+		#endif
 		arg->event.RequestType,
 		(struct sockaddr *)&arg->dest_addr,
 		arg->event.DeviceType,
@@ -133,37 +152,43 @@ void ssdp_handle_device_request(
 #if ENABLE_SUPNP
     /* Secure Service Discovery applicable only for SD */
     if (SUpnpGetDeviceType() == eDeviceType_SD) {
+        EVP_PKEY *ra_pk = SUpnpGetRAPKey();
+        if (ra_pk == NULL) {
+            return; /* Wait until SD registered with RA */
+        }
+        OpenSslFreePKey(&ra_pk);
         /* Messages from RA are not applicable */
         if (memptr_cmp(&hdr_value, RaDeviceType) != 0) {
             memptr capTokenLocation;
             memptr capTokenSignature;
-            memptr hex_nonce;
+            memptr hexNonce;
             memptr discoverySignature;
             if(httpmsg_find_hdr(hmsg, HDR_CAPTOKEN_LOCATION,
                 &capTokenLocation) == NULL) {
                 return; /* Ignore packet */
-                }
+            }
             if(httpmsg_find_hdr(hmsg, HDR_CAPTOKEN_LOCATION_SIGNATURE,
                 &capTokenSignature) == NULL) {
                 return; /* Ignore packet */
-                }
+            }
             if(httpmsg_find_hdr(hmsg, HDR_NONCE,
-                &hex_nonce) == NULL) {
+                &hexNonce) == NULL) {
                 return; /* Ignore packet */
-                }
+            }
             if(httpmsg_find_hdr(hmsg, HDR_DISCOVERY_SIGNATURE,
                 &discoverySignature) == NULL) {
                 return; /* Ignore packet */
-                }
-            ret_code = SUpnpSecureServiceDiscoveryVerify(
-                capTokenLocation.buf,
-                capTokenSignature.buf,
-                hex_nonce.buf,
-                discoverySignature.buf);
+            }
+            SecureParams params = {0};
+            SUPNP_PARAM_STRNCPY(params.CapTokenLocation, capTokenLocation.buf);
+            SUPNP_PARAM_STRNCPY(params.CapTokenLocationSig, capTokenSignature.buf);
+            SUPNP_PARAM_STRNCPY(params.Nonce, hexNonce.buf);
+            SUPNP_PARAM_STRNCPY(params.NonceSig, discoverySignature.buf);
+            ret_code = SUpnpSecureServiceDiscoveryVerify(&params);
             if (ret_code != SUPNP_E_SUCCESS) {
                 return;  /* Ignore packet */
             }
-        }
+        } /* if (memptr_cmp(&hdr_value, RaDeviceType) != 0) */
     }
 #endif
 
@@ -442,8 +467,10 @@ static void CreateServicePacketSUPnP(
 	char *usn,
 	/*! [in] Location URL. */
 	char *location,
-    /*! [in] Capability Token Location URL. */
-    char *capTokenLocation,
+	/*! [in] Capability Token Location URL. */
+    const char *CapTokenLocation,
+    /*! [in] Advertisement Signature */
+    const char *AdvertisementSig,
 	/*! [in] Service duration in sec. */
 	int duration,
 	/*! [out] Output buffer filled with HTTP statement. */
@@ -460,16 +487,6 @@ static void CreateServicePacketSUPnP(
 	int ret_code;
 	const char *nts;
 	membuffer buf;
-
-    char advSignature[SIGNATURE_SIZE + 1] = {0}; // +1 for null terminator
-    if ((capTokenLocation != NULL) && (strlen(capTokenLocation) > 0)) {
-        char *advSignatureTemp = extractCapTokenFieldValue2(capTokenLocation,
-       eCapTokenSignatureAdvertisement);
-        strncpy(advSignature, advSignatureTemp, SIGNATURE_SIZE);
-        freeif(advSignatureTemp);
-    }
-
-    /* Secure Service Advertisement */
 
 	/* Notf == 0 means service shutdown,
 	 * Notf == 1 means service advertisement,
@@ -490,10 +507,8 @@ static void CreateServicePacketSUPnP(
 				"ssc"
 				"ssc"
 				"ssc"
-				#if ENABLE_SUPNP
                 "ssc"
                 "ssc"
-				#endif
 				"S"
 				"Xc"
 				"ssc"
@@ -507,12 +522,10 @@ static void CreateServicePacketSUPnP(
 				"EXT:",
 				"LOCATION: ",
 				location,
-				#if ENABLE_SUPNP
 				"CAPTOKEN-LOCATION: ",
-			    capTokenLocation,
+			    CapTokenLocation,
 			    "ADVERTISEMENT-SIG: ",
-			    advSignature,
-			    #endif
+			    AdvertisementSig,
 				"OPT: ",
 				"\"http://schemas.upnp.org/upnp/1/0/\"; ns=01",
 				"01-NLS: ",
@@ -538,10 +551,8 @@ static void CreateServicePacketSUPnP(
 				"sc"
 				"ssc"
 				"S"
-				#if ENABLE_SUPNP
                 "ssc"
                 "ssc"
-                #endif
 				"ssc"
 				"ssc"
 				"sdc"
@@ -553,12 +564,10 @@ static void CreateServicePacketSUPnP(
 				"EXT:",
 				"LOCATION: ",
 				location,
-				#if ENABLE_SUPNP
 				"CAPTOKEN-LOCATION: ",
-			    capTokenLocation,
+			    CapTokenLocation,
 			    "ADVERTISEMENT-SIG: ",
-			    advSignature,
-			    #endif
+			    AdvertisementSig,
 				"ST: ",
 				nt,
 				"USN: ",
@@ -582,10 +591,8 @@ static void CreateServicePacketSUPnP(
 				"ssc"
 				"ssc"
 				"ssc"
-				#if ENABLE_SUPNP
                 "ssc"
                 "ssc"
-                #endif
 				"S"
 				"Xc"
 				"ssc"
@@ -596,12 +603,10 @@ static void CreateServicePacketSUPnP(
 				"EXT:",
 				"LOCATION: ",
 				location,
-				#if ENABLE_SUPNP
-                "CAPTOKEN-LOCATION: ",
-                capTokenLocation,
-                "ADVERTISEMENT-SIG: ",
-                advSignature,
-                #endif
+				"CAPTOKEN-LOCATION: ",
+			    CapTokenLocation,
+			    "ADVERTISEMENT-SIG: ",
+			    AdvertisementSig,
 				"OPT: ",
 				"\"http://schemas.upnp.org/upnp/1/0/\"; ns=01",
 				"01-NLS: ",
@@ -621,10 +626,8 @@ static void CreateServicePacketSUPnP(
 				"sc"
 				"ssc"
 				"S"
-				#if ENABLE_SUPNP
                 "ssc"
                 "ssc"
-                #endif
 				"ssc"
 				"sscc",
 				HTTP_OK,
@@ -633,12 +636,10 @@ static void CreateServicePacketSUPnP(
 				"EXT:",
 				"LOCATION: ",
 				location,
-				#if ENABLE_SUPNP
-                "CAPTOKEN-LOCATION: ",
-                capTokenLocation,
+				"CAPTOKEN-LOCATION: ",
+                CapTokenLocation,
                 "ADVERTISEMENT-SIG: ",
-                advSignature,
-                #endif
+                AdvertisementSig,
 				"ST: ",
 				nt,
 				"USN: ",
@@ -683,10 +684,8 @@ static void CreateServicePacketSUPnP(
 				"ssc"
 				"ssc"
 				"ssc"
-				#if ENABLE_SUPNP
                 "ssc"
                 "ssc"
-                #endif
 				"S"
 				"Xc"
 				"ssc"
@@ -704,12 +703,10 @@ static void CreateServicePacketSUPnP(
 				duration,
 				"LOCATION: ",
 				location,
-				#if ENABLE_SUPNP
-                "CAPTOKEN-LOCATION: ",
-                capTokenLocation,
+				"CAPTOKEN-LOCATION: ",
+                CapTokenLocation,
                 "ADVERTISEMENT-SIG: ",
-                advSignature,
-                #endif
+                AdvertisementSig,
 				"OPT: ",
 				"\"http://schemas.upnp.org/upnp/1/0/\"; ns=01",
 				"01-NLS: ",
@@ -737,10 +734,8 @@ static void CreateServicePacketSUPnP(
 				"ssc"
 				"ssc"
 				"ssc"
-				#if ENABLE_SUPNP
                 "ssc"
                 "ssc"
-                #endif
 				"S"
 				"ssc"
 				"sdc"
@@ -757,12 +752,10 @@ static void CreateServicePacketSUPnP(
 				duration,
 				"LOCATION: ",
 				location,
-				#if ENABLE_SUPNP
-                "CAPTOKEN-LOCATION: ",
-                capTokenLocation,
+				"CAPTOKEN-LOCATION: ",
+                CapTokenLocation,
                 "ADVERTISEMENT-SIG: ",
-                advSignature,
-                #endif
+                AdvertisementSig,
 				"NT: ",
 				nt,
 				"NTS: ",
@@ -789,10 +782,8 @@ static void CreateServicePacketSUPnP(
 				"ssc"
 				"ssc"
 				"ssc"
-				#if ENABLE_SUPNP
                 "ssc"
                 "ssc"
-                #endif
 				"S"
 				"Xc"
 				"sscc",
@@ -807,12 +798,10 @@ static void CreateServicePacketSUPnP(
 				duration,
 				"LOCATION: ",
 				location,
-				#if ENABLE_SUPNP
-                "CAPTOKEN-LOCATION: ",
-                capTokenLocation,
+				"CAPTOKEN-LOCATION: ",
+                CapTokenLocation,
                 "ADVERTISEMENT-SIG: ",
-                advSignature,
-                #endif
+                AdvertisementSig,
 				"OPT: ",
 				"\"http://schemas.upnp.org/upnp/1/0/\"; ns=01",
 				"01-NLS: ",
@@ -834,10 +823,8 @@ static void CreateServicePacketSUPnP(
 				"ssc"
 				"ssc"
 				"ssc"
-				#if ENABLE_SUPNP
                 "ssc"
                 "ssc"
-                #endif
 				"S"
 				"sscc",
 				HTTPMETHOD_NOTIFY,
@@ -851,12 +838,10 @@ static void CreateServicePacketSUPnP(
 				duration,
 				"LOCATION: ",
 				location,
-				#if ENABLE_SUPNP
-                "CAPTOKEN-LOCATION: ",
-                capTokenLocation,
+				"CAPTOKEN-LOCATION: ",
+                CapTokenLocation,
                 "ADVERTISEMENT-SIG: ",
-                advSignature,
-                #endif
+                AdvertisementSig,
 				"NT: ",
 				nt,
 				"NTS: ",
@@ -894,9 +879,11 @@ static void CreateServicePacket(
 	/*! [in] Location URL. */
 	char *location,
 	#if ENABLE_SUPNP
-    /*! [in] Capability Token Location URL. */
-    char *capTokenLocation,
-    #endif
+	/*! [in] CapToken Location. If NULL non-secure adv. will be performed. */
+    const char *CapTokenLocation,
+    /*! [in] Advertisement Signature. If NULL non-secure adv. will be performed. */
+    const char *AdvertisementSig,
+	#endif
 	/*! [in] Service duration in sec. */
 	int duration,
 	/*! [out] Output buffer filled with HTTP statement. */
@@ -914,12 +901,18 @@ static void CreateServicePacket(
 	const char *nts;
 	membuffer buf;
 
-    if ((capTokenLocation != NULL) && (strlen(capTokenLocation) > 0)) {
+    #if ENABLE_SUPNP
+    /* Secure Advertisement intended */
+    if ((CapTokenLocation != NULL) &&
+        (AdvertisementSig != NULL) &&
+        (strlen(CapTokenLocation) > 0) &&
+        (strlen(AdvertisementSig) > 0)) {
         CreateServicePacketSUPnP(msg_type,
             nt,
             usn,
             location,
-            capTokenLocation,
+            CapTokenLocation,
+            AdvertisementSig,
             duration,
             packet,
             AddressFamily,
@@ -928,6 +921,7 @@ static void CreateServicePacket(
             RegistrationState);
         return;
     }
+    #endif
 
 	/* Notf == 0 means service shutdown,
 	 * Notf == 1 means service advertisement,
@@ -1255,15 +1249,16 @@ static void CreateServicePacket(
 	return;
 }
 
-
-
 int DeviceAdvertisement(char *DevType,
 	int RootDev,
 	char *Udn,
 	char *Location,
-#if ENABLE_SUPNP
-    char *CapTokenLocation,
-#endif
+    #if ENABLE_SUPNP
+	/*! [in] Capability Token Location URL. */
+    const char *CapTokenLocation,
+    /*! [in] Advertisement Signature */
+    const char *AdvertisementSig,
+    #endif
 	int Duration,
 	int AddressFamily,
 	int PowerState,
@@ -1323,6 +1318,7 @@ int DeviceAdvertisement(char *DevType,
 			Location,
 			#if ENABLE_SUPNP
             CapTokenLocation,
+            AdvertisementSig,
             #endif
 			Duration,
 			&msgs[0],
@@ -1338,6 +1334,7 @@ int DeviceAdvertisement(char *DevType,
 		Location,
 		#if ENABLE_SUPNP
         CapTokenLocation,
+        AdvertisementSig,
         #endif
 		Duration,
 		&msgs[1],
@@ -1354,6 +1351,7 @@ int DeviceAdvertisement(char *DevType,
 		Location,
 		#if ENABLE_SUPNP
         CapTokenLocation,
+        AdvertisementSig,
         #endif
 		Duration,
 		&msgs[2],
@@ -1393,7 +1391,8 @@ int SendReply(struct sockaddr *DestAddr,
 	char *Udn,
 	char *Location,
 	#if ENABLE_SUPNP
-    char *CapTokenLocation,
+    const char *CapTokenLocation,
+    const char *AdvertisementSig,
     #endif
 	int Duration,
 	int ByType,
@@ -1424,6 +1423,7 @@ int SendReply(struct sockaddr *DestAddr,
 			Location,
 			#if ENABLE_SUPNP
             CapTokenLocation,
+            AdvertisementSig,
             #endif
 			Duration,
 			&msgs[0],
@@ -1443,6 +1443,7 @@ int SendReply(struct sockaddr *DestAddr,
 				Location,
 				#if ENABLE_SUPNP
 				CapTokenLocation,
+				AdvertisementSig,
                 #endif
 				Duration,
 				&msgs[0],
@@ -1464,6 +1465,7 @@ int SendReply(struct sockaddr *DestAddr,
 				Location,
 				#if ENABLE_SUPNP
                 CapTokenLocation,
+                AdvertisementSig,
                 #endif
 				Duration,
 				&msgs[0],
@@ -1497,7 +1499,10 @@ int DeviceReply(struct sockaddr *DestAddr,
 	char *Udn,
 	char *Location,
 	#if ENABLE_SUPNP
-    char *CapTokenLocation,
+    /*! [in] CapToken Location. If NULL non-secure adv. will be performed. */
+    const char *CapTokenLocation,
+    /*! [in] Advertisement Signature. If NULL non-secure adv. will be performed. */
+    const char *AdvertisementSig,
     #endif
 	int Duration,
 	int PowerState,
@@ -1526,6 +1531,7 @@ int DeviceReply(struct sockaddr *DestAddr,
 			Location,
 			#if ENABLE_SUPNP
             CapTokenLocation,
+            AdvertisementSig,
             #endif
 			Duration,
 			&szReq[0],
@@ -1546,6 +1552,7 @@ int DeviceReply(struct sockaddr *DestAddr,
 		Location,
 		#if ENABLE_SUPNP
         CapTokenLocation,
+        AdvertisementSig,
         #endif
 		Duration,
 		&szReq[1],
@@ -1565,6 +1572,7 @@ int DeviceReply(struct sockaddr *DestAddr,
 		Location,
 		#if ENABLE_SUPNP
         CapTokenLocation,
+        AdvertisementSig,
         #endif
 		Duration,
 		&szReq[2],
@@ -1596,9 +1604,10 @@ error_handler:
 int ServiceAdvertisement(char *Udn,
 	char *ServType,
 	char *Location,
-#if ENABLE_SUPNP
-    char *CapTokenLocation,
-#endif
+	#if ENABLE_SUPNP
+    const char *CapTokenLocation,
+    const char *AdvertisementSig,
+    #endif
 	int Duration,
 	int AddressFamily,
 	int PowerState,
@@ -1648,6 +1657,7 @@ int ServiceAdvertisement(char *Udn,
 		Location,
 		#if ENABLE_SUPNP
         CapTokenLocation,
+        AdvertisementSig,
         #endif
 		Duration,
 		&szReq[0],
@@ -1671,7 +1681,8 @@ int ServiceReply(struct sockaddr *DestAddr,
 	char *Udn,
 	char *Location,
 	#if ENABLE_SUPNP
-    char *CapTokenLocation,
+    const char *CapTokenLocation,
+    const char *AdvertisementSig,
     #endif
 	int Duration,
 	int PowerState,
@@ -1693,6 +1704,7 @@ int ServiceReply(struct sockaddr *DestAddr,
 		Location,
 		#if ENABLE_SUPNP
         CapTokenLocation,
+        AdvertisementSig,
         #endif
 		Duration,
 		&szReq[0],
@@ -1761,7 +1773,10 @@ int ServiceShutdown(char *Udn,
 		ServType,
 		Mil_Usn,
 		Location,
-		NULL,
+		#if ENABLE_SUPNP
+		NULL, /* NA */
+		NULL, /* NA */
+		#endif
 		Duration,
 		&szReq[0],
 		AddressFamily,
@@ -1832,7 +1847,10 @@ int DeviceShutdown(char *DevType,
 			"upnp:rootdevice",
 			Mil_Usn,
 			Location,
-			NULL,
+			#if ENABLE_SUPNP
+            NULL, /* NA */
+            NULL, /* NA */
+            #endif
 			Duration,
 			&msgs[0],
 			AddressFamily,
@@ -1850,7 +1868,10 @@ int DeviceShutdown(char *DevType,
 		Udn,
 		Udn,
 		Location,
-		NULL,
+		#if ENABLE_SUPNP
+        NULL, /* NA */
+        NULL, /* NA */
+        #endif
 		Duration,
 		&msgs[1],
 		AddressFamily,
@@ -1864,7 +1885,10 @@ int DeviceShutdown(char *DevType,
 		DevType,
 		Mil_Usn,
 		Location,
-		NULL,
+		#if ENABLE_SUPNP
+        NULL, /* NA */
+        NULL, /* NA */
+        #endif
 		Duration,
 		&msgs[2],
 		AddressFamily,
