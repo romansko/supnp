@@ -761,10 +761,17 @@ void TvCtrlPointAddDevice(IXML_Document *DescDoc, const char *location, int expi
 					SampleUtil_Print("Subscribing to "
 							 "EventURL %s...\n",
 						eventURL[service]);
+				    #if ENABLE_SUPNP
+				    ret = SUpnpSubscribe(ctrlpt_handle,
+                        eventURL[service],
+                        &TimeOut[service],
+                        eventSID[service]);
+				    #else
 					ret = UpnpSubscribe(ctrlpt_handle,
 						eventURL[service],
 						&TimeOut[service],
 						eventSID[service]);
+				    #endif
 					if (ret == UPNP_E_SUCCESS) {
 						SampleUtil_Print(
 							"Subscribed to "
@@ -1203,12 +1210,19 @@ int TvCtrlPointCallbackEventHandler(Upnp_EventType EventType, const void *Event,
 		UpnpEventSubscribe *es_event = (UpnpEventSubscribe *)Event;
 		int TimeOut = default_timeout;
 		Upnp_SID newSID;
-
+        #if ENABLE_SUPNP
+	    errCode = SUpnpSubscribe(ctrlpt_handle,
+            UpnpString_get_String(
+                UpnpEventSubscribe_get_PublisherUrl(es_event)),
+            &TimeOut,
+            newSID);
+	    #else
 		errCode = UpnpSubscribe(ctrlpt_handle,
 			UpnpString_get_String(
 				UpnpEventSubscribe_get_PublisherUrl(es_event)),
 			&TimeOut,
 			newSID);
+	    #endif
 		if (errCode == UPNP_E_SUCCESS) {
 			SampleUtil_Print(
 				"Subscribed to EventURL with SID=%s\n", newSID);

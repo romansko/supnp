@@ -256,7 +256,9 @@ UPNP_EXPORT_SPEC int SUpnpVerifySecureParams(
 	/*! [IN] Signature Name */
 	const char *name,
 	/*! [IN] SecureParams to verify */
-	const SecureParams *SParams);
+	const SecureParams *SParams,
+	/*! [IN] Appended string for signature verification */
+	const char *append);
 
 
 /******************************************************************************
@@ -423,7 +425,7 @@ int SUpnpSecureServiceDiscoveryVerify(
  ******************************************************************************/
 
 /*!
- * \name Control
+ * \name Secure Control
  *
  * @{
  */
@@ -528,6 +530,73 @@ UPNP_EXPORT_SPEC int SUpnpSecureControlVerify(
 	const SecureParams *SParams);
 
 /*! @} Secure Control */
+
+
+/******************************************************************************
+ ******************************************************************************
+ *                                                                            *
+ *                           SECURE EVENTING                                  *
+ *                                                                            *
+ ******************************************************************************
+ ******************************************************************************/
+
+/*!
+ * \name Secure Eventing
+ *
+ * @{
+ */
+
+
+UPNP_EXPORT_SPEC int SUpnpSubscribe(
+	/*! [in] The handle of the control point. */
+	int Hnd,
+	/*! [in] The URL of the service to subscribe to. */
+	const char *PublisherUrl,
+	/*! [in,out]Pointer to a variable containing the requested subscription
+	 * time. Upon return, it contains the actual subscription time returned
+	 * from the service. */
+	int *TimeOut,
+	/*! [out] Pointer to a variable to receive the subscription ID (SID). */
+	char *SubsId);
+
+
+UPNP_EXPORT_SPEC int SUpnpSubscribeAsync(
+	/*! The handle of the control point that is subscribing. */
+	int Hnd,
+	/*! The URL of the service to subscribe to. */
+	const char *PublisherUrl,
+	/*! The requested subscription time. Upon return, it contains the actual
+	 * subscription time returned from the service. */
+	int TimeOut,
+	/*! Pointer to the callback function for this subscribe request. */
+	void *Fun,
+	/*! A user data value passed to the callback function when invoked. */
+	const void *Cookie);
+
+
+/*!
+ * \brief Calculate Event Signature as sign_cp(callback||nonce)
+ */
+UPNP_EXPORT_SPEC int SUpnpCalculateEventSignature(
+	/*! [OUT] The calculated signature */
+	char *signature,
+	/*! [IN] hex nonce */
+    const char *hexNonce,
+    /*! [IN] callback string */
+    const char *callback);
+
+/*!
+ * \brief Secure Eventing verify.
+ */
+UPNP_EXPORT_SPEC int SUpnpSecureEventingVerify(
+	/*! [IN] SUPnP Secure Params */
+    const SecureParams *SParams,
+    /*! [IN] callback string */
+    const char *callback);
+
+
+/*! @} Secure Eventing */
+
 
 #ifdef __cplusplus
 }

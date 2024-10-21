@@ -154,6 +154,7 @@ typedef enum
 #define HDR_NONCE 40
 #define HDR_DISCOVERY_SIGNATURE 41
 #define HDR_ACTION_SIGNATURE 42
+#define HDR_EVENT_SIGNATURE 43
 #endif
 
 /*! status of parsing */

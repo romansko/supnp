@@ -1802,6 +1802,10 @@ UPNP_EXPORT_SPEC int UpnpSetMaxSubscriptionTimeOut(
 UPNP_EXPORT_SPEC int UpnpSubscribe(
 	/*! [in] The handle of the control point. */
 	UpnpClient_Handle Hnd,
+	#if ENABLE_SUPNP
+	/*! [in] Secure Event Subscription Params */
+	SecureParams *SParams,
+	#endif
 	/*! [in] The URL of the service to subscribe to. */
 	const char *PublisherUrl,
 	/*! [in,out]Pointer to a variable containing the requested subscription
@@ -1862,6 +1866,10 @@ UPNP_EXPORT_SPEC int UpnpSubscribe(
 UPNP_EXPORT_SPEC int UpnpSubscribeAsync(
 	/*! The handle of the control point that is subscribing. */
 	UpnpClient_Handle Hnd,
+	#if ENABLE_SUPNP
+	/*! [in] Secure Event Subscription Params */
+	SecureParams *SParams,
+	#endif
 	/*! The URL of the service to subscribe to. */
 	const char *PublisherUrl,
 	/*! The requested subscription time. Upon return, it contains the actual

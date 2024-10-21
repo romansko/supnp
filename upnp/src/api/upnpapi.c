@@ -2274,6 +2274,9 @@ int UpnpSetMaxSubscriptionTimeOut(
 
 	#ifdef INCLUDE_CLIENT_APIS
 int UpnpSubscribeAsync(UpnpClient_Handle Hnd,
+    #if ENABLE_SUPNP
+	SecureParams *SParams,
+	#endif
 	const char *EvtUrl_const,
 	int TimeOut,
 	Upnp_FunPtr Fun,
@@ -2331,6 +2334,9 @@ int UpnpSubscribeAsync(UpnpClient_Handle Hnd,
 	Param->TimeOut = TimeOut;
 	Param->Fun = Fun;
 	Param->Cookie = (void *)Cookie_const;
+    #if ENABLE_SUPNP
+    memcpy(&(Param->SecureParams), SParams, sizeof(SecureParams));
+    #endif
 
 	TPJobInit(&job, (start_routine)UpnpThreadDistribution, Param);
 	TPJobSetFreeFunction(&job, (free_routine)free);
@@ -2351,6 +2357,9 @@ int UpnpSubscribeAsync(UpnpClient_Handle Hnd,
 
 	#ifdef INCLUDE_CLIENT_APIS
 int UpnpSubscribe(UpnpClient_Handle Hnd,
+    #if ENABLE_SUPNP
+	SecureParams *SParams,
+	#endif
 	const char *EvtUrl_const,
 	int *TimeOut,
 	Upnp_SID SubsId)
@@ -2402,8 +2411,11 @@ int UpnpSubscribe(UpnpClient_Handle Hnd,
 		goto exit_function;
 	}
 	HandleUnlock();
-
+    #if ENABLE_SUPNP
+    retVal = genaSubscribe(Hnd, SParams, EvtUrl, TimeOut, SubsIdTmp);
+    #else
 	retVal = genaSubscribe(Hnd, EvtUrl, TimeOut, SubsIdTmp);
+    #endif
 	memset(SubsId, 0, sizeof(Upnp_SID));
 	strncpy(SubsId, UpnpString_get_String(SubsIdTmp), sizeof(Upnp_SID) - 1);
 
@@ -2551,7 +2563,9 @@ exit_function:
 
 	#ifdef INCLUDE_CLIENT_APIS
 int UpnpRenewSubscription(
-	UpnpClient_Handle Hnd, int *TimeOut, const Upnp_SID SubsId)
+	UpnpClient_Handle Hnd,
+    int *TimeOut,
+    const Upnp_SID SubsId)
 {
 	struct Handle_Info *SInfo = NULL;
 	int retVal;
@@ -2593,7 +2607,6 @@ int UpnpRenewSubscription(
 		goto exit_function;
 	}
 	HandleUnlock();
-
 	retVal = genaRenewSubscription(Hnd, SubsIdTmp, TimeOut);
 
 exit_function:
@@ -3178,7 +3191,7 @@ int UpnpSendActionAsync(UpnpClient_Handle Hnd,
 		ServiceType,
 		sizeof(Param->ServiceType) - 1);
     #if ENABLE_SUPNP
-    memcpy(&(Param->SUPnP), SParams, sizeof(SecureParams));
+    memcpy(&(Param->SecureParams), SParams, sizeof(SecureParams));
     #endif
 	rc = ixmlParseBufferEx(tmpStr, &(Param->Act));
 	if (rc != IXML_SUCCESS) {
@@ -3299,7 +3312,7 @@ int UpnpSendActionExAsync(UpnpClient_Handle Hnd,
 		ServiceType,
 		sizeof(Param->ServiceType) - 1);
     #if ENABLE_SUPNP
-    memcpy(&(Param->SUPnP), SParams, sizeof(SecureParams));
+    memcpy(&(Param->SecureParams), SParams, sizeof(SecureParams));
     #endif
 	retVal = ixmlParseBufferEx(headerStr, &(Param->Header));
 	if (retVal != IXML_SUCCESS) {
@@ -4160,10 +4173,18 @@ void UpnpThreadDistribution(struct UpnpNonblockParam *Param)
 		UpnpString *Sid = UpnpString_new();
 
 		UpnpEventSubscribe_strcpy_PublisherUrl(evt, Param->Url);
+	    #if ENABLE_SUPNP
+	    errCode = genaSubscribe(Param->Handle,
+	                &(Param->SecureParams),
+                    UpnpEventSubscribe_get_PublisherUrl(evt),
+                    (int *)&Param->TimeOut,
+                    Sid);
+	    #else
 		errCode = genaSubscribe(Param->Handle,
 			UpnpEventSubscribe_get_PublisherUrl(evt),
 			(int *)&Param->TimeOut,
 			Sid);
+	    #endif
 		UpnpEventSubscribe_set_ErrCode(evt, errCode);
 		UpnpEventSubscribe_set_TimeOut(evt, Param->TimeOut);
 		UpnpEventSubscribe_set_SID(evt, Sid);
@@ -4207,10 +4228,10 @@ void UpnpThreadDistribution(struct UpnpNonblockParam *Param)
 		int errCode;
 		if (Param->Header) {
 		    #if ENABLE_SUPNP
-            if (Param->SUPnP.CapTokenLocation[0] != '\0') { /* Secure Control */
+            if (Param->SecureParams.CapTokenLocation[0] != '\0') { /* Secure Control */
                 errCode = SoapSendActionExSUPnP(Param->Url,
                     Param->ServiceType,
-                    &(Param->SUPnP),
+                    &(Param->SecureParams),
                     Param->Header,
                     Param->Act,
                     &actionResult);
@@ -4230,10 +4251,10 @@ void UpnpThreadDistribution(struct UpnpNonblockParam *Param)
 		    #endif
 		} else {
 		    #if ENABLE_SUPNP
-		    if (Param->SUPnP.CapTokenLocation[0] != '\0') { /* Secure Control */
+		    if (Param->SecureParams.CapTokenLocation[0] != '\0') { /* Secure Control */
 		        errCode = SoapSendActionSUPnP(Param->Url,
                     Param->ServiceType,
-                    &(Param->SUPnP),
+                    &(Param->SecureParams),
                     Param->Act,
                     &actionResult);
 		    } else {

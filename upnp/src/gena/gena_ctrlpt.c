@@ -32,6 +32,10 @@
 
 #include "config.h"
 
+#if ENABLE_SUPNP
+#include "supnp.h"
+#endif
+
 /*!
  * \file
  */
@@ -281,6 +285,241 @@ static int gena_unsubscribe(
 
 	return return_code;
 }
+
+#if ENABLE_SUPNP
+/*!
+ * \brief Subscribes or renew subscription.
+ *
+ * \return 0 if successful, otherwise returns the appropriate error code.
+ */
+static int gena_subscribe_supnp(
+	/*! [in] URL of service to subscribe. */
+	const UpnpString *url,
+	/*! [in] Secure parameters for Secure Event Subscription . */
+	const SecureParams *params,
+	/*! [in,out] Subscription time desired (in secs). */
+	int *timeout,
+	/*! [in] for renewal, this contains a currently held subscription SID.
+	 * For first time subscription, this must be NULL. */
+	const UpnpString *renewal_sid,
+	/*! [out] SID returned by the subscription or renew msg. */
+	UpnpString *sid)
+{
+	int return_code;
+	int parse_ret = 0;
+	int local_timeout = CP_MINIMUM_SUBSCRIPTION_TIME;
+	memptr sid_hdr;
+	memptr timeout_hdr;
+	char timeout_str[25];
+	membuffer request;
+	uri_type dest_url;
+	http_parser_t response;
+	int rc = 0;
+
+	UpnpString_clear(sid);
+
+	/* request timeout to string */
+	if (timeout == NULL) {
+		timeout = &local_timeout;
+	}
+	if (*timeout < 0) {
+		memset(timeout_str, 0, sizeof(timeout_str));
+		strncpy(timeout_str, "infinite", sizeof(timeout_str) - 1);
+	} else if (*timeout < CP_MINIMUM_SUBSCRIPTION_TIME) {
+		rc = snprintf(timeout_str,
+			sizeof(timeout_str),
+			"%d",
+			CP_MINIMUM_SUBSCRIPTION_TIME);
+	} else {
+		rc = snprintf(timeout_str, sizeof(timeout_str), "%d", *timeout);
+	}
+	if (rc < 0 || (unsigned int)rc >= sizeof(timeout_str))
+		return UPNP_E_OUTOF_MEMORY;
+
+	/* parse url */
+	return_code = http_FixStrUrl(UpnpString_get_String(url),
+		UpnpString_get_Length(url),
+		&dest_url);
+	if (return_code != 0) {
+		return return_code;
+	}
+
+    /* Set Event Signature sign(callback||nonce) and not just sign(nonce) */
+    char callback[LOCATION_SIZE] = {0};
+    char eventSignature[HEXSIG_SIZE] = {0};
+    if (dest_url.hostport.IPaddress.ss_family == AF_INET6) {
+        struct sockaddr_in6 *destAddr6 =
+            (struct sockaddr_in6 *)&dest_url.hostport.IPaddress;
+        snprintf(callback, LOCATION_SIZE, "<http://[%s]:%d/>",
+            (IN6_IS_ADDR_LINKLOCAL(&destAddr6->sin6_addr) ||
+                strlen(gIF_IPV6_ULA_GUA) == 0)
+                    ? gIF_IPV6
+                    : gIF_IPV6_ULA_GUA,
+            (IN6_IS_ADDR_LINKLOCAL(&destAddr6->sin6_addr) ||
+                    strlen(gIF_IPV6_ULA_GUA) == 0)
+                    ? LOCAL_PORT_V6
+                    : LOCAL_PORT_V6_ULA_GUA);
+    } else {
+        snprintf(callback, LOCATION_SIZE, "<http://%s:%d/>",
+            gIF_IPV4, LOCAL_PORT_V4);
+    }
+    return_code = SUpnpCalculateEventSignature(eventSignature,
+        params->Nonce, callback);
+    if (return_code != SUPNP_E_SUCCESS) {
+        return return_code;  /* Error in calculating the signature */
+    }
+
+	/* make request msg */
+	membuffer_init(&request);
+	request.size_inc = 30;
+	if (renewal_sid) {
+		/* renew subscription */
+		return_code = http_MakeMessage(&request,
+			1,
+			1,
+			"q"
+			"ssc"
+			"sscc",
+			HTTPMETHOD_SUBSCRIBE,
+			&dest_url,
+			"SID: ",
+			UpnpString_get_String(renewal_sid),
+			"TIMEOUT: Second-",
+			timeout_str);
+	} else {
+		/* subscribe */
+		if (dest_url.hostport.IPaddress.ss_family == AF_INET6) {
+			struct sockaddr_in6 *DestAddr6 =
+				(struct sockaddr_in6 *)&dest_url.hostport
+					.IPaddress;
+			return_code = http_MakeMessage(&request,
+				1,
+				1,
+				"q"
+				"sssdsc"
+				"ssc"
+				"ssc"
+				"ssc"
+				"ssc"
+				"sc"
+				"sscc",
+				HTTPMETHOD_SUBSCRIBE,
+				&dest_url,
+				"CALLBACK: <http://[",
+				(IN6_IS_ADDR_LINKLOCAL(&DestAddr6->sin6_addr) ||
+					strlen(gIF_IPV6_ULA_GUA) == 0)
+					? gIF_IPV6
+					: gIF_IPV6_ULA_GUA,
+				"]:",
+				(IN6_IS_ADDR_LINKLOCAL(&DestAddr6->sin6_addr) ||
+					strlen(gIF_IPV6_ULA_GUA) == 0)
+					? LOCAL_PORT_V6
+					: LOCAL_PORT_V6_ULA_GUA,
+				"/>",
+                "NONCE: ",
+                params->Nonce,
+                "EVENT-SIG: ",
+                eventSignature,
+                "CAPTOKEN-LOCATION: ",
+                params->CapTokenLocation,
+                "CAPTOKEN-LOCATION-SIG: ",
+                params->CapTokenLocationSig,
+				"NT: upnp:event",
+				"TIMEOUT: Second-",
+				timeout_str);
+		} else {
+			return_code = http_MakeMessage(&request,
+				1,
+				1,
+				"q"
+				"sssdsc"
+				"ssc"
+				"ssc"
+				"ssc"
+				"ssc"
+				"sc"
+				"sscc",
+				HTTPMETHOD_SUBSCRIBE,
+				&dest_url,
+				"CALLBACK: <http://",
+				gIF_IPV4,
+				":",
+				LOCAL_PORT_V4,
+				"/>",
+				"NONCE: ",
+                params->Nonce,
+                "EVENT-SIG: ",
+                eventSignature,
+                "CAPTOKEN-LOCATION: ",
+                params->CapTokenLocation,
+                "CAPTOKEN-LOCATION-SIG: ",
+                params->CapTokenLocationSig,
+				"NT: upnp:event",
+				"TIMEOUT: Second-",
+				timeout_str);
+		}
+	}
+	if (return_code != 0) {
+		return return_code;
+	}
+
+	/* send request and get reply */
+	return_code = http_RequestAndResponse(&dest_url,
+		request.buf,
+		request.length,
+		HTTPMETHOD_SUBSCRIBE,
+		HTTP_DEFAULT_TIMEOUT,
+		&response);
+	membuffer_destroy(&request);
+
+	if (return_code != 0) {
+		httpmsg_destroy(&response.msg);
+
+		return return_code;
+	}
+	if (response.msg.status_code != HTTP_OK) {
+		httpmsg_destroy(&response.msg);
+
+		return UPNP_E_SUBSCRIBE_UNACCEPTED;
+	}
+
+	/* get SID and TIMEOUT */
+	if (httpmsg_find_hdr(&response.msg, HDR_SID, &sid_hdr) == NULL ||
+		sid_hdr.length == 0 ||
+		httpmsg_find_hdr(&response.msg, HDR_TIMEOUT, &timeout_hdr) ==
+			NULL ||
+		timeout_hdr.length == 0) {
+		httpmsg_destroy(&response.msg);
+
+		return UPNP_E_BAD_RESPONSE;
+	}
+
+	/* save timeout */
+	parse_ret = matchstr(
+		timeout_hdr.buf, timeout_hdr.length, "%iSecond-%d%0", timeout);
+	if (parse_ret == PARSE_OK) {
+		/* nothing to do */
+	} else if (memptr_cmp_nocase(&timeout_hdr, "Second-infinite") == 0) {
+		*timeout = -1;
+	} else {
+		httpmsg_destroy(&response.msg);
+
+		return UPNP_E_BAD_RESPONSE;
+	}
+
+	/* save SID */
+	UpnpString_set_StringN(sid, sid_hdr.buf, sid_hdr.length);
+	if (UpnpString_get_String(sid) == NULL) {
+		httpmsg_destroy(&response.msg);
+
+		return UPNP_E_OUTOF_MEMORY;
+	}
+	httpmsg_destroy(&response.msg);
+
+	return UPNP_E_SUCCESS;
+}
+#endif
+
 
 /*!
  * \brief Subscribes or renew subscription.
@@ -558,6 +797,9 @@ exit_function:
 
 		#ifdef INCLUDE_CLIENT_APIS
 int genaSubscribe(UpnpClient_Handle client_handle,
+    #if ENABLE_SUPNP
+	SecureParams *SParams,
+	#endif
 	const UpnpString *PublisherURL,
 	int *TimeOut,
 	UpnpString *out_sid)
@@ -591,7 +833,17 @@ int genaSubscribe(UpnpClient_Handle client_handle,
 
 	/* subscribe */
 	SubscribeLock();
-	return_code = gena_subscribe(PublisherURL, TimeOut, NULL, ActualSID);
+    #if ENABLE_SUPNP
+    if (SParams) {
+        return_code = gena_subscribe_supnp(PublisherURL, SParams,
+            TimeOut, NULL, ActualSID);
+    } else {
+        return_code = gena_subscribe(PublisherURL,
+            TimeOut, NULL, ActualSID);
+    }
+    #else
+    return_code = gena_subscribe(PublisherURL, TimeOut, NULL, ActualSID);
+    #endif
 	HandleLock();
 	if (return_code != UPNP_E_SUCCESS) {
 		UpnpPrintf(UPNP_CRITICAL,
@@ -651,8 +903,9 @@ error_handler:
 }
 		#endif /* INCLUDE_CLIENT_APIS */
 
-int genaRenewSubscription(
-	UpnpClient_Handle client_handle, const UpnpString *in_sid, int *TimeOut)
+int genaRenewSubscription(UpnpClient_Handle client_handle,
+    const UpnpString *in_sid,
+    int *TimeOut)
 {
 	int return_code = GENA_SUCCESS;
 	GenlibClientSubscription *sub = NULL;
@@ -696,13 +949,11 @@ int genaRenewSubscription(
 	GenlibClientSubscription_assign(sub_copy, sub);
 
 	HandleUnlock();
-
 	return_code =
 		gena_subscribe(GenlibClientSubscription_get_EventURL(sub_copy),
 			TimeOut,
 			GenlibClientSubscription_get_ActualSID(sub_copy),
 			ActualSID);
-
 	HandleLock();
 
 	if (GetHandleInfo(client_handle, &handle_info) != HND_CLIENT) {

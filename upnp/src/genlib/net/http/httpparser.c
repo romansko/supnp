@@ -72,7 +72,7 @@ static str_int_entry Http_Method_Table[NUM_HTTP_METHODS] = {
 	{"PUT", HTTPMETHOD_PUT}};
 
 #if ENABLE_SUPNP
-#define NUM_HTTP_HEADER_NAMES 39
+#define NUM_HTTP_HEADER_NAMES 40
 #else
 #define NUM_HTTP_HEADER_NAMES 33
 #endif
@@ -101,6 +101,7 @@ str_int_entry Http_Header_Names[NUM_HTTP_HEADER_NAMES] = {
 	{"DATE", HDR_DATE},
 #if ENABLE_SUPNP
     {"DISCOVERY-SIG", HDR_DISCOVERY_SIGNATURE},
+    {"EVENT-SIG", HDR_EVENT_SIGNATURE},
 #endif
 	{"EXT", HDR_EXT},
 	{"HOST", HDR_HOST},

@@ -38,6 +38,10 @@
 
 #include "gena_device.h"
 
+#if ENABLE_SUPNP
+#include "supnp.h"
+#endif
+
 #if EXCLUDE_GENA == 0
 	#ifdef INCLUDE_DEVICE_APIS
 
@@ -1346,11 +1350,11 @@ void gena_process_subscription_request(SOCKINFO *info, http_message_t *request)
 	memptr timeout_hdr;
 	int rc = 0;
 
-	UpnpPrintf(UPNP_INFO,
-		GENA,
-		__FILE__,
-		__LINE__,
-		"Subscription Request Received:\n");
+    UpnpPrintf(UPNP_INFO,
+        GENA,
+        __FILE__,
+        __LINE__,
+        "Subscription Request Received:\n");
 
 	if (httpmsg_find_hdr(request, HDR_NT, &nt_hdr) == NULL) {
 		error_respond(info, HTTP_BAD_REQUEST, request);
@@ -1378,6 +1382,65 @@ void gena_process_subscription_request(SOCKINFO *info, http_message_t *request)
 		error_respond(info, HTTP_INTERNAL_SERVER_ERROR, request);
 		goto exit_function;
 	}
+
+    #if ENABLE_SUPNP
+    /* Secure Eventing verifications is applicable only for SD */
+    if (SUpnpGetDeviceType() == eDeviceType_SD) {
+        EVP_PKEY *ra_pk = SUpnpGetRAPKey();
+        if (ra_pk == NULL) {
+            error_respond(info, HTTP_SERVICE_UNAVAILABLE, request);
+            goto exit_function;  /* Wait until SD registered with RA */
+        }
+        OpenSslFreePKey(&ra_pk);
+
+        /* Messages from RA are not applicable */
+        memptr callback;
+        memptr capTokenLocation;
+        memptr capTokenSignature;
+        memptr hexNonce;
+        memptr eventSig;
+        if(httpmsg_find_hdr(request, HDR_CALLBACK,
+            &callback) == NULL) {
+            error_respond(info, HTTP_BAD_REQUEST, request);
+            supnp_error("Secure Eventing: Expected 'CALLBACK' not found\n");
+            goto exit_function;
+        }
+        if(httpmsg_find_hdr(request, HDR_CAPTOKEN_LOCATION,
+            &capTokenLocation) == NULL) {
+            error_respond(info, HTTP_BAD_REQUEST, request);
+            supnp_error("Secure Control: Expected 'CAPTOKEN-LOCATION' not found\n");
+            goto exit_function;
+        }
+        if(httpmsg_find_hdr(request,
+            HDR_CAPTOKEN_LOCATION_SIGNATURE,
+            &capTokenSignature) == NULL) {
+            error_respond(info, HTTP_BAD_REQUEST, request);
+            supnp_error("Secure Eventing: Missing CapTokenLocationSignature\n");
+            goto exit_function;
+        }
+        if(httpmsg_find_hdr(request, HDR_NONCE,
+            &hexNonce) == NULL) {
+            error_respond(info, HTTP_BAD_REQUEST, request);
+            supnp_error("Secure Eventing: Expected 'NONCE' not found\n");
+            goto exit_function;
+        }
+        if(httpmsg_find_hdr(request, HDR_EVENT_SIGNATURE,
+            &eventSig) == NULL) {
+            error_respond(info, HTTP_BAD_REQUEST, request);
+            supnp_error("Secure Eventing: Expected 'EVENT-SIG' not found\n");
+            goto exit_function;
+        }
+        SecureParams params = {0};
+        SUPNP_PARAM_STRNCPY(params.CapTokenLocation, capTokenLocation.buf);
+        SUPNP_PARAM_STRNCPY(params.CapTokenLocationSig, capTokenSignature.buf);
+        SUPNP_PARAM_STRNCPY(params.Nonce, hexNonce.buf);
+        SUPNP_PARAM_STRNCPY(params.NonceSig, eventSig.buf);
+        if ( SUpnpSecureEventingVerify(&params, callback.buf) != SUPNP_E_SUCCESS) {
+            error_respond(info, HTTP_UNAUTHORIZED, request);
+            goto exit_function;
+        }
+    }
+    #endif
 
 	UpnpPrintf(UPNP_INFO,
 		GENA,

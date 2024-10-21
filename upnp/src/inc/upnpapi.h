@@ -263,7 +263,7 @@ struct UpnpNonblockParam
 	char ServiceVer[NAME_SIZE];
 	char Url[NAME_SIZE];
 	#if ENABLE_SUPNP
-	SecureParams SUPnP;
+	SecureParams SecureParams;
 	#endif
 	Upnp_SID SubsId;
 	char *Cookie;

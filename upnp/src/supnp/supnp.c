@@ -164,12 +164,13 @@ int SUpnpBuildLocation(char url[LOCATION_SIZE],
     supnp_verify(filename, cleanup, "NULL filename.\n");
 
     ret = SUPNP_E_INTERNAL_ERROR;
-    char *ip = UpnpGetServerIpAddress();
-    const unsigned short port = UpnpGetServerPort();
-    supnp_verify((ip != NULL) && (port > 0), cleanup, "UPnP SDK is not initialized.\n");
 
     switch (AF) {
-        case AF_INET:
+        case AF_INET: {
+            char *ip = UpnpGetServerIpAddress();
+            const unsigned short port = UpnpGetServerPort();
+            supnp_verify((ip != NULL) && (port > 0), cleanup,
+                "UPnP SDK is not initialized.\n");
             snprintf(url,
                 LOCATION_SIZE,
                 "http://%s:%d/%s",
@@ -178,7 +179,12 @@ int SUpnpBuildLocation(char url[LOCATION_SIZE],
                 filename);
             ret = SUPNP_E_SUCCESS;
             break;
-        case AF_INET6:
+        }
+        case AF_INET6: {
+            char *ip = UpnpGetServerIp6Address();
+            const unsigned short port = UpnpGetServerPort6();
+            supnp_verify((ip != NULL) && (port > 0), cleanup,
+                "UPnP SDK is not initialized.\n");
             snprintf(url,
                 LOCATION_SIZE,
                 "http://[%s]:%d/%s",
@@ -187,10 +193,12 @@ int SUpnpBuildLocation(char url[LOCATION_SIZE],
                 filename);
             ret = SUPNP_E_SUCCESS;
             break;
-        default:
+        }
+        default: {
             supnp_error("Invalid address family %d\n", AF);
             break;
         }
+    }
 cleanup:
     return ret;
 }
@@ -846,6 +854,8 @@ int SUpnpPrepareSecureParams(SecureParams *Params)
     char *nonce_sig_hex = NULL;
     size_t sig_len = 0;
 
+    memset(Params, 0, sizeof(SecureParams));
+
     /* Extract CapTokenLocation */
     SUpnpGetCapTokenLocation(Params->CapTokenLocation);
 
@@ -864,12 +874,16 @@ int SUpnpPrepareSecureParams(SecureParams *Params)
     supnp_verify(hexNonce, cleanup, "Error converting nonce to hex string.\n");
     SUPNP_PARAM_STRNCPY(Params->Nonce, hexNonce);
 
-    /* Nonce Signature */
+    /* Sign hex nonce */
     device_pkey = SUpnpGetDevicePKey();
-    nonce_sig = OpenSslSign(device_pkey, nonce, OPENSSL_CSPRNG_SIZE, &sig_len);
-    supnp_verify(nonce_sig, cleanup, "Error signing nonce.\n");
+    nonce_sig = OpenSslSign(device_pkey,
+        (unsigned char *)hexNonce,
+        strlen(hexNonce),
+        &sig_len);
+    supnp_verify(nonce_sig, cleanup, "Error signing hex nonce.\n");
     nonce_sig_hex = OpenSslBinaryToHexString(nonce_sig, sig_len);
-    supnp_verify(nonce_sig_hex, cleanup, "Error converting nonce signature to hex string.\n");
+    supnp_verify(nonce_sig_hex, cleanup,
+        "Error converting nonce signature to hex string.\n");
     SUPNP_PARAM_STRNCPY(Params->NonceSig, nonce_sig_hex);
 
     ret = SUPNP_E_SUCCESS;
@@ -884,7 +898,9 @@ cleanup:
     return ret;
 }
 
-int SUpnpVerifySecureParams(const char *name, const SecureParams *SParams)
+int SUpnpVerifySecureParams(const char *name,
+    const SecureParams *SParams,
+    const char *append)
 {
     int ret = SUPNP_E_SECURE_PARAMS_ERROR;;
     unsigned char *nonce = NULL;
@@ -906,6 +922,7 @@ int SUpnpVerifySecureParams(const char *name, const SecureParams *SParams)
     nonce = OpenSslHexStringToBinary(SParams->Nonce, &nonce_len);
     supnp_verify(nonce, cleanup, "Error converting nonce to binary\n");
 
+    ret = SUPNP_E_NONCE_EXISTS;
     supnp_verify(OpenSslInsertNonce(nonce, nonce_len) == OPENSSL_SUCCESS,
         cleanup, "nonce already exists. Dropping message..\n");
 
@@ -930,15 +947,28 @@ int SUpnpVerifySecureParams(const char *name, const SecureParams *SParams)
     cp_pkey = OpenSslLoadPublicKeyFromHex(cp_pk);
     supnp_verify(cp_pkey, cleanup, "Error loading CP Public Key\n");
 
-    /* Verify Discovery Signature */
+    /* Verify Signature */
     ret = SUPNP_E_INVALID_SIGNATURE;
-    supnp_verify(OPENSSL_SUCCESS == OpenSslVerifySignature(name,
-        cp_pkey,
-        SParams->NonceSig,
-        nonce,
-        nonce_len),
-        cleanup,
-        "Error verifying %s\n", name);
+    if (append == NULL) {  /* Verify signature on nonce */
+        supnp_verify(OPENSSL_SUCCESS == OpenSslVerifySignature(name,
+                cp_pkey,
+                SParams->NonceSig,
+                SParams->Nonce,
+                strlen(SParams->Nonce)),
+                cleanup,
+                "Error verifying %s\n", name);
+    } else {
+        char concatenated[2*LOCATION_SIZE] = {0};
+        strncpy(concatenated, SParams->Nonce, LOCATION_SIZE);
+        strncat(concatenated, append, LOCATION_SIZE);
+        supnp_verify(OPENSSL_SUCCESS == OpenSslVerifySignature(name,
+                cp_pkey,
+                SParams->NonceSig,
+                concatenated,
+                strlen(concatenated)),
+                cleanup,
+                "Error verifying %s\n", name);
+    }
 
     ret = SUPNP_E_SUCCESS;
 
@@ -1106,10 +1136,11 @@ cleanup:
 int SUpnpSecureServiceDiscoveryVerify(const SecureParams *SParams)
 {
     supnp_log("Secure Service Discovery verification..\n");
-    const int ret = SUpnpVerifySecureParams("DiscoverySignature", SParams);
+    const int ret = SUpnpVerifySecureParams("DiscoverySignature",
+        SParams, NULL);
     if (ret == SUPNP_E_SUCCESS) {
         supnp_log("Secure Service Discovery successful.\n");
-    } else if (ret == SUPNP_E_NONCE_EXISTS) {
+    } else {
         supnp_error("Secure Service Discovery failed!!! -- %d\n", ret);
     }
     return ret;
@@ -1251,11 +1282,120 @@ int SUpnpSendActionExAsync(const int Hnd,
 int SUpnpSecureControlVerify(const SecureParams *SParams)
 {
     supnp_log("Secure Control verification..\n");
-    const int ret = SUpnpVerifySecureParams("ActionSignature", SParams);
+    const int ret = SUpnpVerifySecureParams("ActionSignature",
+        SParams, NULL);
     if (ret == SUPNP_E_SUCCESS) {
         supnp_log("Secure Control successful.\n");
     } else {
         supnp_error("Secure Control failed!!!\n");
+    }
+    return ret;
+}
+
+
+/******************************************************************************
+ ******************************************************************************
+ *                                                                            *
+ *                           SECURE EVENTING                                  *
+ *                                                                            *
+ ******************************************************************************
+ ******************************************************************************/
+
+
+UPNP_EXPORT_SPEC int SUpnpSubscribe(
+    const int Hnd,
+    const char *PublisherUrl,
+    int *TimeOut,
+    char *SubsId)
+{
+    SecureParams params = {0};
+
+    supnp_log("Secure Eventing: Subscribing..\n");
+
+    int ret = SUpnpPrepareSecureParams(&params);
+    supnp_verify(ret == SUPNP_E_SUCCESS, cleanup,
+        "Error preparing Secure Event Subscription Params\n");
+
+    ret = UpnpSubscribe(Hnd, &params, PublisherUrl, TimeOut, SubsId);
+    supnp_verify(ret == SUPNP_E_SUCCESS, cleanup,
+        "Error in UpnpSubscribe -- %d\n", ret);
+
+    cleanup:
+        return ret;
+}
+
+
+UPNP_EXPORT_SPEC int SUpnpSubscribeAsync(const int Hnd,
+    const char *PublisherUrl,
+    int TimeOut,
+    void *Fun,
+    const void *Cookie)
+{
+    SecureParams params = {0};
+
+    supnp_log("Secure Eventing: Subscribing..\n");
+
+    int ret = SUpnpPrepareSecureParams(&params);
+    supnp_verify(ret == SUPNP_E_SUCCESS, cleanup,
+        "Error preparing Secure Event Subscription Params\n");
+
+    ret = UpnpSubscribeAsync(Hnd, &params, PublisherUrl, TimeOut, Fun, Cookie);
+    supnp_verify(ret == SUPNP_E_SUCCESS, cleanup,
+        "Error in UpnpSubscribe -- %d\n", ret);
+
+    cleanup:
+        return ret;
+}
+
+int SUpnpCalculateEventSignature(char *signature,
+    const char *hexNonce,
+    const char *callback)
+{
+    int ret = SUPNP_E_SECURE_PARAMS_ERROR;
+    char concatenated[2*LOCATION_SIZE] = {0};
+    EVP_PKEY *device_pkey = NULL;
+    size_t sig_len;
+    unsigned char *sig = NULL;
+    char *sig_hex = NULL;
+
+    supnp_verify(signature, cleanup, "NULL signature\n");
+    supnp_verify(hexNonce, cleanup, "NULL hexNonce\n");
+    supnp_verify(callback, cleanup, "NULL callback\n");
+
+    strncpy(concatenated, hexNonce, LOCATION_SIZE);
+    strncat(concatenated, callback, LOCATION_SIZE);
+
+    ret = SUPNP_E_INVALID_SIGNATURE;
+    device_pkey = SUpnpGetDevicePKey();
+    sig = OpenSslSign(device_pkey, concatenated, strlen(concatenated),
+        &sig_len);
+    supnp_verify(sig, cleanup, "Error signing '%s'.\n", concatenated);
+    sig_hex = OpenSslBinaryToHexString(sig, sig_len);
+    supnp_verify(sig_hex, cleanup,
+        "Error converting Event Signature to hex string.\n");
+
+    memset(signature, 0, HEXSIG_SIZE);
+    strncpy(signature, sig_hex, HEXSIG_SIZE);
+    ret = SUPNP_E_SUCCESS;
+
+cleanup:
+    freeif(sig_hex);
+    freeif(sig);
+    OpenSslFreePKey(&device_pkey);
+    return ret;
+}
+
+
+int SUpnpSecureEventingVerify(const SecureParams *SParams, const char *callback)
+{
+    supnp_log("Secure Event Subscription verification..\n");
+    const int ret = SUpnpVerifySecureParams("EventSignature",
+        SParams,
+        callback);
+    if (ret == SUPNP_E_SUCCESS) {
+        supnp_log("Secure Event Subscription successful.\n");
+    } else {
+        supnp_error("Secure Event Subscription failed!!! -- %d\n", ret);
     }
     return ret;
 }

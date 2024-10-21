@@ -30,6 +30,7 @@
  ******************************************************************************/
 
 #include "config.h"
+
 #if EXCLUDE_GENA == 0
 	#include "gena.h"
 	#include "gena_ctrlpt.h"

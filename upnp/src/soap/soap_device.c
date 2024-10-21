@@ -812,28 +812,28 @@ void soap_device_callback(
         memptr capTokenLocation;
         memptr capTokenSignature;
         memptr hexNonce;
-        memptr discoverySignature;
+        memptr actionSig;
         if (httpmsg_find_hdr(request, HDR_CAPTOKEN_LOCATION,
             &capTokenLocation) == NULL) {
-            supnp_error("Expected 'CAPTOKEN-LOCATION' header not found\n");
+            supnp_error("Secure Eventing: Expected 'CAPTOKEN-LOCATION' not found\n");
             err_code = HTTP_UNAUTHORIZED;
             goto error_handler;
         }
         if (httpmsg_find_hdr(request, HDR_CAPTOKEN_LOCATION_SIGNATURE,
             &capTokenSignature) == NULL) {
-            supnp_error("Expected 'CAPTOKEN-LOCATION-SIG' header not found\n");
+            supnp_error("Secure Eventing: Expected 'CAPTOKEN-LOCATION-SIG' not found\n");
             err_code = HTTP_UNAUTHORIZED;
             goto error_handler;
         }
         if (httpmsg_find_hdr(request, HDR_NONCE,
             &hexNonce) == NULL) {
-            supnp_error("Expected 'NONCE' header not found\n");
+            supnp_error("Secure Control: Expected 'NONCE' not found\n");
             err_code = HTTP_UNAUTHORIZED;
             goto error_handler;
         }
         if (httpmsg_find_hdr(request, HDR_ACTION_SIGNATURE,
-            &discoverySignature) == NULL) {
-            supnp_error("Expected 'ACTION-SIG' header not found\n");
+            &actionSig) == NULL) {
+            supnp_error("Secure Control: Expected 'ACTION-SIG' not found\n");
             err_code = HTTP_UNAUTHORIZED;
             goto error_handler;
         }
@@ -841,7 +841,7 @@ void soap_device_callback(
         SUPNP_PARAM_STRNCPY(params.CapTokenLocation, capTokenLocation.buf);
         SUPNP_PARAM_STRNCPY(params.CapTokenLocationSig, capTokenSignature.buf);
         SUPNP_PARAM_STRNCPY(params.Nonce, hexNonce.buf);
-        SUPNP_PARAM_STRNCPY(params.NonceSig, discoverySignature.buf);
+        SUPNP_PARAM_STRNCPY(params.NonceSig, actionSig.buf);
         if (SUpnpSecureControlVerify(&params) != SUPNP_E_SUCCESS) {
             err_code = HTTP_UNAUTHORIZED;
             goto error_handler;

@@ -166,6 +166,10 @@ EXTERN_C void genaCallback(
 EXTERN_C int genaSubscribe(
 	/*! [in] The client handle. */
 	UpnpClient_Handle client_handle,
+	#if ENABLE_SUPNP
+	/*! [in] Secure Event Subscription Params */
+	SecureParams *SParams,
+	#endif
 	/*! [in] Of the form: "http://134.134.156.80:4000/RedBulb/Event */
 	const UpnpString *PublisherURL,
 	/*! [in,out] requested Duration:
