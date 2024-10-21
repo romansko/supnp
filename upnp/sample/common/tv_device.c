@@ -1437,7 +1437,9 @@ int TvDeviceStart(char *iface,
 {
 	int ret = UPNP_E_SUCCESS;
 	char desc_doc_url[MAX_URL_SIZE];
+	#if ENABLE_SUPNP
     char cap_token_url[MAX_URL_SIZE];
+	#endif
 	char *ip_address = NULL;
 	int address_family = AF_INET;
 
@@ -1547,7 +1549,7 @@ int TvDeviceStart(char *iface,
 		desc_doc_url, cap_token_url);
 #else
     SampleUtil_Print("Registering the RootDevice\n"
-         "\t with desc_doc_url: %s\n"
+         "\t with desc_doc_url: %s\n",
     desc_doc_url);
 #endif
 
