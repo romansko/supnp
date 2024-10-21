@@ -310,9 +310,6 @@ UPNP_EXPORT_SPEC int SUpnpRegisterDevice(
 /* Internal */
 int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl);
 
-/*! \brief Free registration parameters content. */
-UPNP_EXPORT_SPEC void SUpnpFreeRegistrationParamsContent(RegistrationParams *Params);
-
 /*! \brief Free registration parameters. */
 UPNP_EXPORT_SPEC void SUpnpFreeRegistrationParams(RegistrationParams **Params);
 

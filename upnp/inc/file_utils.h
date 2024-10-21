@@ -18,29 +18,33 @@ extern "C" {
 #define FILE_OP_ERR  0
 #define FILE_OP_OK   1
 
-/**
- * Helper macro for opening a file. Remember to fclose(file).
- * @param fp FILE * pointer
- * @param filepath file path to open
- * @param mode file mode to open
- * @param label label to jump to in case of failure
+/*!
+ * \brief Helper macro for opening a file. Remember to fclose(file).
+ *
+ * \param fp returned file pointer.
+ * \param filepath file path to open.
+ * \param mode file opening mode.
+ * \param label label to jump to in case of error.
  */
 #define macro_file_open(fp, filepath, mode, label) \
 { \
     if (filepath == NULL) { \
-        printf("[File Error] %s:%s(%d): Empty filepath provided.\n", __FILE__, __func__, __LINE__); \
+        printf("[File Error] %s:%s(%d): Empty filepath provided.\n", \
+            __FILE__, __func__, __LINE__); \
 	    goto label; \
     } \
     _fopen(fp, filepath, mode); \
     if (fp == NULL) { \
-        printf("[File Error] %s:%s(%d): Error opening file: %s\n", __FILE__, __func__, __LINE__, filepath); \
+        printf("[File Error] %s:%s(%d): Error opening file: %s\n", \
+            __FILE__, __func__, __LINE__, filepath); \
         goto label; \
     } \
 }
 
-/**
- * Helper macro for closing a file.
- * @param fp FILE * pointer
+/*!
+ * \brief Helper macro for closing a file.
+ *
+ * \param fp file pointer to close.
  */
 #define macro_file_close(fp) \
 { \
@@ -53,31 +57,39 @@ extern "C" {
 /*!
  * \brief Retrieve file size.
  *
- * \param fp file pointer.
- *
  * \return file size.
  */
-UPNP_EXPORT_SPEC size_t get_file_size(FILE* fp);
+UPNP_EXPORT_SPEC size_t get_file_size(
+    /*! [IN] Opened file pointer. */
+    FILE* fp);
 
 /*!
  * \brief Read file content.
  *
- * \Note Remember to free the returned pointer.
+ * \note Remember to free the returned pointer.
  *
  * \return file content on success, NULL on failure.
  */
-UPNP_EXPORT_SPEC char* read_file(const char* filepath, const char* mode, size_t* file_size);
+UPNP_EXPORT_SPEC char* read_file(
+    /*! [IN] File path to read */
+    const char* filepath,
+    /*! [IN] file opening mode */
+    const char* mode,
+    /*! [OUT] read file size */
+    size_t* file_size);
 
 /*!
  * \brief Write data to file.
  *
- * \param filepath file path to write.
- * \param data data to write.
- * \param size size of data.
- *
  * \return FILE_OP_OK on success, FILE_OP_ERR on failure.
  */
-UPNP_EXPORT_SPEC int write_file(const char* filepath, const unsigned char* data, size_t size);
+UPNP_EXPORT_SPEC int write_file(
+    /*! [IN] File path to write to */
+    const char* filepath,
+    /*! [IN] data to write */
+    const unsigned char* data,
+    /*! [IN] data size to write */
+    size_t size);
 
 #ifdef __cplusplus
 }

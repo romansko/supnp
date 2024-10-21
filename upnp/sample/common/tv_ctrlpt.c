@@ -61,10 +61,10 @@ const char *RegisterDocsDefaultFilepathCP[SUPNP_DOCS_ON_DEVICE] = {
     "../../simulation/UCA/certificate.pem"
 };
 
-/* todo: make configurable */
 #define CAPTOKEN_CP "captoken_cp.json"
 #define CAPTOKEN_CP_FPATH ("./web/"CAPTOKEN_CP)
-#define CAPTOKEN_AF AF_INET
+#define CAPTOKEN_AF (AF_INET)
+#define WEBDIR_CP "./web"
 
 #endif
 
@@ -259,7 +259,6 @@ int TvCtrlPointRefresh(void)
     /* Search for all devices of type tvdevice version 1,
 	 * waiting for up to 5 seconds for the response */
     #if ENABLE_SUPNP
-    // todo supnp: to supnp.c
     char *captoken = read_file(CAPTOKEN_CP_FPATH, "r",  NULL);
     rc = SUpnpSearchAsync(ctrlpt_handle, SEARCH_TIME, TvDeviceType,
         captoken);
@@ -1338,7 +1337,7 @@ int RegistrationCallbackCP(void *Cookie)
     SampleUtil_Print("Control Point Registered with RA\n");
 
     /* Set Web Directory */
-    const int rc = UpnpSetWebServerRootDir("./web");  // todo supnp: make configurable.
+    const int rc = UpnpSetWebServerRootDir(WEBDIR_CP);
     sample_verify(rc == UPNP_E_SUCCESS, error_handler, "Error specifying webserver root directory -- %d\n", rc);
 
     TvCtrlPointRefresh();

@@ -39,7 +39,7 @@ UPNP_EXPORT_SPEC int OpenSslInitializeWrapper();
  * \brief Helper function to free a PKEY.
  */
 UPNP_EXPORT_SPEC void OpenSslFreePKey(
-    /*! [in] PKEY to free */
+    /*! [IN] PKEY to free */
     EVP_PKEY **pKey);
 
 /*!
@@ -50,9 +50,9 @@ UPNP_EXPORT_SPEC void OpenSslFreePKey(
  * \return pointer on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC char *OpenSslBinaryToHexString(
-    /*! [in] binary data */
+    /*! [IN] binary data */
     const unsigned char *data,
-    /*! [in] size of binary data */
+    /*! [IN] size of binary data */
     size_t size);
 
 /*!
@@ -63,9 +63,9 @@ UPNP_EXPORT_SPEC char *OpenSslBinaryToHexString(
  * \return pointer on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC unsigned char *OpenSslHexStringToBinary(
-    /*! [in] hex string */
+    /*! [IN] hex string */
     const char *hex,
-    /*! [out] pointer to store the size of the binary data */
+    /*! [OUT] pointer to store the size of the binary data */
     size_t *pSize);
 
 /*!
@@ -76,7 +76,7 @@ UPNP_EXPORT_SPEC unsigned char *OpenSslHexStringToBinary(
  * \return EVP_PKEY* on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC EVP_PKEY *OpenSslLoadPublicKeyFromHex(
-    /*! [in] hex string */
+    /*! [IN] hex string */
     const char *hex);
 
 /*!
@@ -87,7 +87,7 @@ UPNP_EXPORT_SPEC EVP_PKEY *OpenSslLoadPublicKeyFromHex(
  * \return EVP_PKEY* on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC EVP_PKEY *OpenSslLoadPrivateKeyFromHex(
-    /*! [in] hex string */
+    /*! [IN] hex string */
     const char *hex);
 
 /*!
@@ -98,9 +98,9 @@ UPNP_EXPORT_SPEC EVP_PKEY *OpenSslLoadPrivateKeyFromHex(
  * \return pointer to public key bytes on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC unsigned char *OpenSslPublicKeyToBytes(
-    /*! [in] public key */
+    /*! [IN] public key */
     EVP_PKEY *pPublicKey,
-    /*! [out] pointer to store the size of the public key */
+    /*! [OUT] pointer to store the size of the public key */
     size_t *pKeySize);
 
 /*!
@@ -111,9 +111,9 @@ UPNP_EXPORT_SPEC unsigned char *OpenSslPublicKeyToBytes(
  * \return pointer to private key bytes on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC unsigned char *OpenSslPrivateKeyToBytes(
-    /*! [in] private key */
+    /*! [IN] private key */
     EVP_PKEY *pPrivateKey,
-    /*! [out] pointer to store the size of the private key */
+    /*! [OUT] pointer to store the size of the private key */
     size_t *pKeySize);
 
 /*!
@@ -124,7 +124,7 @@ UPNP_EXPORT_SPEC unsigned char *OpenSslPrivateKeyToBytes(
  * \return EVP_PKEY* on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC EVP_PKEY *OpenSslLoadPublicKeyFromPEM(
-    /*! [in] path to PEM file */
+    /*! [IN] path to PEM file */
     const char *filepathPEM);
 
 /*!
@@ -135,7 +135,7 @@ UPNP_EXPORT_SPEC EVP_PKEY *OpenSslLoadPublicKeyFromPEM(
  * \return EVP_PKEY* on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC EVP_PKEY *OpenSslLoadPrivateKeyFromPEM(
-    /*! [in] path to PEM file */
+    /*! [IN] path to PEM file */
     const char *filepathPEM);
 
 /*!
@@ -146,7 +146,7 @@ UPNP_EXPORT_SPEC EVP_PKEY *OpenSslLoadPrivateKeyFromPEM(
  * \return X509 * certificate on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC X509 *OpenSslLoadCertificateFromString(
-    /*! [in] certificate in PEM format */
+    /*! [IN] certificate in PEM format */
     const char *certString);
 
 /*!
@@ -157,7 +157,7 @@ UPNP_EXPORT_SPEC X509 *OpenSslLoadCertificateFromString(
  * \return X509 * certificate on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC X509 *OpenSslLoadCertificateFromPEM(
-    /*! [in] path to PEM file */
+    /*! [IN] path to PEM file */
     const char *filepathPEM);
 
 /*!
@@ -166,11 +166,11 @@ UPNP_EXPORT_SPEC X509 *OpenSslLoadCertificateFromPEM(
  * \return OPENSSL_SUCCESS on success, OPENSSL_FAILURE on failure.
  */
 UPNP_EXPORT_SPEC int OpenSslVerifyCertificate(
-    /*! [in] name of the certificate */
+    /*! [IN] name of the certificate */
     const char *name,
-    /*! [in] certificate */
+    /*! [IN] certificate */
     X509 *pCertificate,
-    /*! [in] public key */
+    /*! [IN] public key */
     EVP_PKEY *pPublicKey);
 
 /*!
@@ -179,15 +179,15 @@ UPNP_EXPORT_SPEC int OpenSslVerifyCertificate(
  * \return OPENSSL_SUCCESS on success, OPENSSL_FAILURE on failure.
  */
 UPNP_EXPORT_SPEC int OpenSslVerifySignature(
-    /*! [in] name of the certificate */
+    /*! [IN] name of the certificate */
     const char *name,
-    /*! [in] public key corresponding to the signature */
+    /*! [IN] public key corresponding to the signature */
     EVP_PKEY *pPublicKey,
-    /*! [in] hex signature to verify */
+    /*! [IN] hex signature to verify */
     const char *hexSignature,
-    /*! [in] the data that was signed */
+    /*! [IN] the data that was signed */
     const unsigned char *data,
-    /*! [in] size of the data */
+    /*! [IN] size of the data */
     size_t size);
 
 /*!
@@ -198,13 +198,13 @@ UPNP_EXPORT_SPEC int OpenSslVerifySignature(
  * \return pointer to encrypted data on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC unsigned char *OpenSslSymmetricEncryption(
-    /*! [in] symmetric key */
+    /*! [IN] symmetric key */
     const unsigned char *pKey,
-    /*! [out] pointer to store the size of the encrypted data */
+    /*! [OUT] pointer to store the size of the encrypted data */
     int *pEncryptionSize,
-    /*! [in] data to encrypt */
+    /*! [IN] data to encrypt */
     const unsigned char *data,
-    /*! [in] size of the data */
+    /*! [IN] size of the data */
     size_t size);
 
 /*!
@@ -215,13 +215,13 @@ UPNP_EXPORT_SPEC unsigned char *OpenSslSymmetricEncryption(
  * \return pointer to decrypted data on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC unsigned char *OpenSslSymmetricDecryption(
-    /*! [in] symmetric key */
+    /*! [IN] symmetric key */
     const unsigned char *pkey,
-    /*! [out] pointer to store the size of the decrypted data */
+    /*! [OUT] pointer to store the size of the decrypted data */
     int *pDecryptionSize,
-    /*! [in] encrypted data */
+    /*! [IN] encrypted data */
     const unsigned char *encrypted,
-    /*! [in] size of the encrypted data */
+    /*! [IN] size of the encrypted data */
     size_t size);
 
 /*!
@@ -232,13 +232,13 @@ UPNP_EXPORT_SPEC unsigned char *OpenSslSymmetricDecryption(
  * \return pointer to encrypted data on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC unsigned char *OpenSslAsymmetricEncryption(
-    /*! [in] public key */
+    /*! [IN] public key */
     EVP_PKEY *pPublicKey,
-    /*! [out] pointer to store the size of the encrypted data */
+    /*! [OUT] pointer to store the size of the encrypted data */
     size_t *pEncryptionSize,
-    /*! [in] data to encrypt */
+    /*! [IN] data to encrypt */
     const unsigned char *data,
-    /*! [in] size of the data */
+    /*! [IN] size of the data */
     size_t size);
 
 /*!
@@ -249,13 +249,13 @@ UPNP_EXPORT_SPEC unsigned char *OpenSslAsymmetricEncryption(
  * \return pointer to decrypted data on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC unsigned char *OpenSslAsymmetricDecryption(
-    /*! [in] private key */
+    /*! [IN] private key */
     EVP_PKEY *pPrivateKey,
-    /*! [out] pointer to store the size of the decrypted data */
+    /*! [OUT] pointer to store the size of the decrypted data */
     size_t *pDecryptionSize,
-    /*! [in] encrypted data */
+    /*! [IN] encrypted data */
     const unsigned char *data,
-    /*! [in] size of the encrypted data */
+    /*! [IN] size of the encrypted data */
     size_t size);
 
 
@@ -266,11 +266,11 @@ UPNP_EXPORT_SPEC unsigned char *OpenSslAsymmetricDecryption(
  * \return OPENSSL_SUCCESS on success, OPENSSL_FAILURE on failure.
  */
 UPNP_EXPORT_SPEC int OpenSslDoSHA256(
-    /*! [out] pointer to store the hash */
+    /*! [OUT] pointer to store the hash */
     unsigned char hash[SHA256_DIGEST_LENGTH],
-    /*! [in] data to hash */
+    /*! [IN] data to hash */
     const unsigned char *data,
-    /*! [in] size of the data */
+    /*! [IN] size of the data */
     size_t size);
 
 /*!
@@ -281,13 +281,13 @@ UPNP_EXPORT_SPEC int OpenSslDoSHA256(
  * \return pointer to signature on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC unsigned char *OpenSslSign(
-    /*! [in] private key to sign with */
+    /*! [IN] private key to sign with */
     EVP_PKEY *pPrivateKey,
-    /*! [in] data to sign */
+    /*! [IN] data to sign */
     const unsigned char *data,
-    /*! [in] size of the data */
+    /*! [IN] size of the data */
     size_t size,
-    /*! [out] pointer to store the size of the generated signature */
+    /*! [OUT] pointer to store the size of the generated signature */
     size_t *pSignatureLength);
 
 #endif /* UPNP_ENABLE_OPEN_SSL */

@@ -70,6 +70,8 @@ ithread_rwlock_t gRAKeyLock;
 ithread_rwlock_t gCapTokenLocationLock;
 /**/
 
+#define SUPNP_WEBDIR "web"
+
 #define supnp_extract_json_string(doc, key, value, label) \
 { \
     value = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(doc, key)); \
@@ -221,7 +223,6 @@ int SUpnpInit(const char *IfName, const unsigned short DestPort,
     }
 
     /* Initialize OpenSSL Wrapper */
-    // todo supnp: maybe UpnpInitSslContext ?
     supnp_verify(OpenSslInitializeWrapper() == OPENSSL_SUCCESS, cleanup,
         "Error initializing OpenSSL.\n");
 
@@ -267,11 +268,13 @@ char *SUpnpGetFirstElementItem(IXML_Element *element, const char *item)
     supnp_verify(nodeList, cleanup, "Error finding %s in XML Node\n", item);
 
 	tmpNode = ixmlNodeList_item(nodeList, 0);
-    supnp_verify(tmpNode, cleanup, "Error finding %s value in XML Node\n", item);
+    supnp_verify(tmpNode, cleanup, "Error finding %s value in XML Node\n",
+        item);
 
 	textNode = ixmlNode_getFirstChild(tmpNode);
 	ret = strdup(ixmlNode_getNodeValue(textNode));
-    supnp_verify(ret, cleanup, "Error allocating memory for %s in XML Node\n", item);
+    supnp_verify(ret, cleanup, "Error allocating memory for %s in XML Node\n",
+        item);
 
 cleanup:
     freeif2(nodeList, ixmlNodeList_free);
@@ -325,8 +328,10 @@ int SUpnpVerifyDocument(EVP_PKEY* PublicKeyCA, supnp_device_t* p_dev)
     /* Read SUPnP document name & type */
     ret = SUPNP_E_INVALID_DOCUMENT;
     supnp_verify(p_dev->specDocument, cleanup, "NULL SAD/DSD provided.\n");
-    supnp_extract_json_string(p_dev->specDocument, SUPNP_DOC_NAME, dev_name, cleanup);
-    supnp_extract_json_string(p_dev->specDocument, SUPNP_DOC_TYPE, dev_type, cleanup);
+    supnp_extract_json_string(p_dev->specDocument, SUPNP_DOC_NAME, dev_name,
+        cleanup);
+    supnp_extract_json_string(p_dev->specDocument, SUPNP_DOC_TYPE, dev_type,
+        cleanup);
     if (!strcmp("CP", dev_type)) {
         p_dev->type = eDeviceType_CP;
     } else if (!strcmp("SD", dev_type)) {
@@ -339,32 +344,42 @@ int SUpnpVerifyDocument(EVP_PKEY* PublicKeyCA, supnp_device_t* p_dev)
     /* Fig.15 step 2 - Verify UCA Certificate using CA's public key */
     ret = SUPNP_E_INVALID_CERTIFICATE;
     supnp_verify(p_dev->certUCA, cleanup, "NULL UCA Certificate provided.\n");
-    supnp_verify(OpenSslVerifyCertificate("UCA", p_dev->certUCA, PublicKeyCA) == OPENSSL_SUCCESS, cleanup, "Invalid UCA cert.\n");
+    supnp_verify(OpenSslVerifyCertificate("UCA", p_dev->certUCA,
+        PublicKeyCA) == OPENSSL_SUCCESS, cleanup, "Invalid UCA cert.\n");
 
     /* Fig.15 step 2 - Verify Device Certificate using UCA's public key */
-    supnp_verify(OpenSslVerifyCertificate(dev_name, p_dev->certDevice, p_dev->pkeyUCA) == OPENSSL_SUCCESS, cleanup, "Invalid Device cert.\n");
+    supnp_verify(OpenSslVerifyCertificate(dev_name, p_dev->certDevice,
+        p_dev->pkeyUCA) == OPENSSL_SUCCESS, cleanup, "Invalid Device cert.\n");
 
     /* Verify Device Public Key */
     ret = SUPNP_E_INVALID_DOCUMENT;
-    supnp_extract_json_string(p_dev->specDocument, SUPNP_DOC_PUBLIC_KEY, in_doc_pkey, cleanup);
+    supnp_extract_json_string(p_dev->specDocument, SUPNP_DOC_PUBLIC_KEY,
+        in_doc_pkey, cleanup);
     doc_pk = OpenSslLoadPublicKeyFromHex(in_doc_pkey);
-    supnp_verify(doc_pk, cleanup, "Error loading public key from '%s'.\n", SUPNP_DOC_PUBLIC_KEY);
-    supnp_verify(EVP_PKEY_eq(doc_pk, p_dev->pkeyDevice) == OPENSSL_SUCCESS, cleanup,
-                 "Document's device public key doesn't match Device certificate's public key.\n");
+    supnp_verify(doc_pk, cleanup, "Error loading public key from '%s'.\n",
+        SUPNP_DOC_PUBLIC_KEY);
+    supnp_verify(EVP_PKEY_eq(doc_pk, p_dev->pkeyDevice) == OPENSSL_SUCCESS,
+        cleanup,
+        "Document's device public key doesn't match Device certificate's public key.\n");
 
     /* Retrieve signature verification conditions */
-    supnp_extract_json_string(p_dev->specDocument, SUPNP_DOC_SIG_CON, sig_ver_con, cleanup);
+    supnp_extract_json_string(p_dev->specDocument, SUPNP_DOC_SIG_CON,
+        sig_ver_con, cleanup);
     supnp_verify(sscanf(sig_ver_con, "%d-of-%d", &x, &y) == 2, cleanup,
-                 "Error parsing Signature Verification Conditions '%s'.\n", SUPNP_DOC_SIG_CON);
-    supnp_verify(x >= 0 && y >= 0 && x <= y, cleanup, "Invalid Signature Verification Conditions '%s'.\n",
+                 "Error parsing Signature Verification Conditions '%s'.\n",
                  SUPNP_DOC_SIG_CON);
+    supnp_verify(x >= 0 && y >= 0 && x <= y, cleanup,
+        "Invalid Signature Verification Conditions '%s'.\n", SUPNP_DOC_SIG_CON);
     supnp_log("Signature Verification Conditions: %d-of-%d\n", x, y);
 
     /* Retrieve Signatures */
-    const cJSON* sigs = cJSON_GetObjectItemCaseSensitive(p_dev->specDocument, SUPNP_DOC_SIGNATURES);
-    supnp_verify(cJSON_IsArray(sigs), cleanup, "Unexpected '%s'\n", SUPNP_DOC_SIGNATURES);
+    const cJSON* sigs = cJSON_GetObjectItemCaseSensitive(p_dev->specDocument,
+        SUPNP_DOC_SIGNATURES);
+    supnp_verify(cJSON_IsArray(sigs), cleanup, "Unexpected '%s'\n",
+        SUPNP_DOC_SIGNATURES);
     supnp_verify(cJSON_GetArraySize(sigs) == y, cleanup,
-                 "Unexpected number of signatures in '%s'\n", SUPNP_DOC_SIGNATURES);
+                 "Unexpected number of signatures in '%s'\n",
+                 SUPNP_DOC_SIGNATURES);
     if (x == 0)
     {
         ret = SUPNP_E_SUCCESS;
@@ -374,14 +389,17 @@ int SUpnpVerifyDocument(EVP_PKEY* PublicKeyCA, supnp_device_t* p_dev)
 
     /* Delete signatures from document, leaving only the content. */
     cJSON* doc_content = cJSON_Duplicate(p_dev->specDocument, 1);
-    cJSON_DeleteItemFromObjectCaseSensitive(doc_content, SUPNP_DOC_SIG_OWNER);
-    cJSON_DeleteItemFromObjectCaseSensitive(doc_content, SUPNP_DOC_SIG_UCA);
+    cJSON_DeleteItemFromObjectCaseSensitive(doc_content,
+        SUPNP_DOC_SIG_OWNER);
+    cJSON_DeleteItemFromObjectCaseSensitive(doc_content,
+        SUPNP_DOC_SIG_UCA);
     data = cJSON_PrintUnformatted(doc_content);
 
     /* Verify Signatures */
     for (int sig_index = 0; sig_index < cJSON_GetArraySize(sigs); ++sig_index)
     {
-        char* sig_name = cJSON_GetStringValue(cJSON_GetArrayItem(sigs, sig_index));
+        char* sig_name = cJSON_GetStringValue(cJSON_GetArrayItem(sigs,
+            sig_index));
         if (strcmp(sig_name, SUPNP_DOC_SIG_OWNER) == 0)
         {
             pkey = p_dev->pkeyDevice;
@@ -399,7 +417,8 @@ int SUpnpVerifyDocument(EVP_PKEY* PublicKeyCA, supnp_device_t* p_dev)
         /* Extract the hex string signature and convert it to bytes */
         const char* signature = cJSON_GetStringValue(
             cJSON_GetObjectItemCaseSensitive(p_dev->specDocument, sig_name));
-        if (OpenSslVerifySignature(sig_name, pkey, signature, (unsigned char*)data, strlen(data)) != OPENSSL_SUCCESS)
+        if (OpenSslVerifySignature(sig_name, pkey, signature,
+            (unsigned char*)data, strlen(data)) != OPENSSL_SUCCESS)
         {
             ret = SUPNP_E_INVALID_DOCUMENT;
             break;
@@ -421,7 +440,7 @@ int SUpnpVerifyDocument(EVP_PKEY* PublicKeyCA, supnp_device_t* p_dev)
      * The RA matches the services provided by the SD with its HW and SW specification included in the DSD.
      * The RA uses an attribute ledger to perform the validation.
      * The ledger maintains a mapping between a service type and the HW and SW attributes require to provide the service.
-     * todo supnp: verify that the capability of an SD matches its DDD. Maintain Ledger.
+     * It's left to verify that the capability of an SD matches its DDD (Maintain Ledger).
      */
     supnp_verify(strlen(p_dev->descDocLocation) > 0, cleanup,
         "NULL description URL.\n");
@@ -442,19 +461,26 @@ int SUpnpVerifyDocument(EVP_PKEY* PublicKeyCA, supnp_device_t* p_dev)
                  json_count, services_number);
 
     ret = SUPNP_E_SUCCESS;
-    for (const service_info * service = services.serviceList; service != NULL; service = service->next)
+    for (const service_info * service = services.serviceList; service != NULL;
+        service = service->next)
     {
-        cJSON* _json_service = cJSON_GetObjectItemCaseSensitive(json_services, service->serviceId);
-        supnp_verify(_json_service, error, "Couldn't find service id '%s' in SUPnP Document.\n", service->serviceId);
-        supnp_verify(strcmp(_json_service->valuestring, service->serviceType) == 0, error,
-                     "Unexpected service type for service id '%s': '%s' vs '%s'\n", service->serviceId,
-                     _json_service->valuestring, service->serviceType);
+        cJSON* _json_service = cJSON_GetObjectItemCaseSensitive(json_services,
+            service->serviceId);
+        supnp_verify(_json_service, error,
+            "Couldn't find service id '%s' in SUPnP Document.\n",
+            service->serviceId);
+        supnp_verify(strcmp(_json_service->valuestring,
+            service->serviceType) == 0, error,
+            "Unexpected service type for service id '%s': '%s' vs '%s'\n",
+            service->serviceId,
+            _json_service->valuestring, service->serviceType);
         continue;
     error:
         ret = SUPNP_E_INVALID_DOCUMENT;
         break;
     }
-    supnp_verify(ret == SUPNP_E_SUCCESS, cleanup, "Services verification failed (SD).\n");
+    supnp_verify(ret == SUPNP_E_SUCCESS, cleanup,
+        "Services verification failed (SD).\n");
     supnp_log("SD Services ok.\n");
     supnp_log("Service Device's DSD ok.\n");
 
@@ -508,19 +534,25 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
     unsigned char * pkb = OpenSslPublicKeyToBytes(device_pkey, &pkb_size);
     pk_hex = OpenSslBinaryToHexString(pkb, pkb_size);
     freeif(pkb);
-    supnp_verify(pk_hex, cleanup, "Error converting public key to hex string.\n");
+    supnp_verify(pk_hex, cleanup,
+        "Error converting public key to hex string.\n");
 
     for (int i = 0; i < SUPNP_DOCS_ON_DEVICE; ++i) {
-        docs[i] = read_file(Params->RegistrationDocsPath[i], "rb", &docs_size[i]);
-        supnp_verify(docs[i] != NULL, cleanup, "Error reading Registration Document ID %d\n", i);
-        docs_hex[i] = OpenSslBinaryToHexString((unsigned char *)docs[i], docs_size[i]);
-        supnp_verify(docs_hex[i] != NULL, cleanup, "Error converting to hex string Registration Document ID %d\n", i);
+        docs[i] = read_file(Params->RegistrationDocsPath[i], "rb",
+            &docs_size[i]);
+        supnp_verify(docs[i] != NULL, cleanup,
+            "Error reading Registration Document ID %d\n", i);
+        docs_hex[i] = OpenSslBinaryToHexString((unsigned char *)docs[i],
+            docs_size[i]);
+        supnp_verify(docs_hex[i] != NULL, cleanup,
+            "Error converting to hex string Registration Document ID %d\n", i);
         rc = UpnpAddToAction(&actionNode,
             RaRegistrationAction[eRegisterServiceAction_Register],
             RaServiceType[eRegistrationAuthorityService_Register],
             RaRegisterActionVarName[i],
             docs_hex[i]);
-        supnp_verify(rc == UPNP_E_SUCCESS, cleanup, "Error trying to add registration action param\n");
+        supnp_verify(rc == UPNP_E_SUCCESS, cleanup,
+            "Error trying to add registration action param\n");
     }
 
     /* Add Description Document Location, if applicable. */
@@ -535,7 +567,8 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
     }
 
     /* Add CapToken Location */
-    supnp_verify(Params->capTokenLocation, cleanup, "NULL CapToken Filename.\n");
+    supnp_verify(Params->capTokenLocation, cleanup,
+        "NULL CapToken Filename.\n");
     rc = UpnpAddToAction(&actionNode,
         RaRegistrationAction[eRegisterServiceAction_Register],
         RaServiceType[eRegistrationAuthorityService_Register],
@@ -551,7 +584,8 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
         NULL, /* SecureParams ignored */
         actionNode,
         &respNode);
-    supnp_verify(rc == UPNP_E_SUCCESS, cleanup, "Error in UpnpSendAction -- %d\n", rc);
+    supnp_verify(rc == UPNP_E_SUCCESS, cleanup,
+        "Error in UpnpSendAction -- %d\n", rc);
 
     rc = SUPNP_E_INTERNAL_ERROR;
 
@@ -564,7 +598,8 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
     /* Decrypt the challenge using the participant's private key */
     nonce = OpenSslAsymmetricDecryption(device_pkey, &nonce_len, challenge, size);
     supnp_verify(nonce, cleanup, "Error decrypting nonce.\n");
-    supnp_verify(nonce_len == SHA256_DIGEST_LENGTH, cleanup, "Unexpected nonce length.\n");
+    supnp_verify(nonce_len == SHA256_DIGEST_LENGTH, cleanup,
+        "Unexpected nonce length.\n");
 
     /* Signature = E(sk, H(nonce)) */
     signature = OpenSslSign(device_pkey, nonce, nonce_len, &sig_len);
@@ -581,14 +616,16 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
         RaServiceType[eRegistrationAuthorityService_Register],
         RaChallengeActionVarName[eChallengeActionVar_Challenge],
         hex_sig);
-    supnp_verify(rc == UPNP_E_SUCCESS, cleanup, "Error trying to add challenge action challenge param.\n");
+    supnp_verify(rc == UPNP_E_SUCCESS, cleanup,
+        "Error trying to add challenge action challenge param.\n");
 
     rc = UpnpAddToAction(&actionNode,
         RaRegistrationAction[eRegisterServiceAction_Challenge],
         RaServiceType[eRegistrationAuthorityService_Register],
         RaChallengeActionVarName[eChallengeActionVar_PublicKey],
         pk_hex);
-    supnp_verify(rc == UPNP_E_SUCCESS, cleanup, "Error trying to add challenge action public key param.\n");
+    supnp_verify(rc == UPNP_E_SUCCESS, cleanup,
+        "Error trying to add challenge action public key param.\n");
 
     rc = UpnpSendAction(Params->handle,
             ControlUrl,
@@ -597,11 +634,13 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
             NULL, /* SecureParams ignored */
             actionNode,
             &respNode);
-    supnp_verify(rc == UPNP_E_SUCCESS, cleanup, "Error in UpnpSendAction -- %d\n", rc);
+    supnp_verify(rc == UPNP_E_SUCCESS, cleanup,
+        "Error in UpnpSendAction -- %d\n", rc);
 
     /* Check Challenge Response Status */
     freeif(response);
-    response = SUpnpGetFirstElementItem((IXML_Element*)respNode, ActionResponseVarName);
+    response = SUpnpGetFirstElementItem((IXML_Element*)respNode,
+        ActionResponseVarName);
     supnp_verify(response, cleanup, "Error extracting response.\n");
     if (strcmp(response, ActionSuccess) == 0) {
         rc = eRegistrationStatus_DeviceRegistered;
@@ -618,7 +657,8 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
         CapTokenResponseVarName);
     supnp_verify(response, cleanup, "Error extracting CapToken.\n");
     capToken = SUpnpCapTokenFromHexString(response);
-    supnp_verify(capToken, cleanup, "Error converting CapToken from hex string.\n");
+    supnp_verify(capToken, cleanup,
+        "Error converting CapToken from hex string.\n");
 
     // Find the last occurrence of '/'
     const char *filename = strrchr( Params->capTokenLocation, '/');
@@ -629,7 +669,7 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
         goto cleanup;
     }
     char filepath[256];
-    sprintf(filepath, "web/%s", filename); // todo supnp: configure filepath in SUPnP init
+    sprintf(filepath, "%s/%s", SUPNP_WEBDIR, filename);
     supnp_verify(SUpnpStoreCapToken(capToken, filepath) == SUPNP_E_SUCCESS,
         cleanup, "Error storing CapToken.\n");
 
@@ -663,7 +703,8 @@ cleanup:
     return rc;
 }
 
-int RegistrationCallbackEventHandler(Upnp_EventType eventType, const void *event, void *cookie)
+int RegistrationCallbackEventHandler(Upnp_EventType eventType,
+    const void *event, void *cookie)
 {
     service_table services;
     static ERegistrationStatus status = eRegistrationStatus_DeviceUnregistered;
@@ -685,10 +726,12 @@ int RegistrationCallbackEventHandler(Upnp_EventType eventType, const void *event
 
     /* Retrieve RA Description Document */
     errCode = UpnpDiscovery_get_ErrCode(d_event);
-    supnp_verify(errCode == UPNP_E_SUCCESS, cleanup, "Error in Discovery Callback -- %d\n", errCode);
+    supnp_verify(errCode == UPNP_E_SUCCESS, cleanup,
+        "Error in Discovery Callback -- %d\n", errCode);
     location = UpnpString_get_String(UpnpDiscovery_get_Location(d_event));
     errCode = UpnpDownloadXmlDoc(location, &ra_desc_doc);
-    supnp_verify(errCode == UPNP_E_SUCCESS, cleanup, "Error in UpnpDownloadXmlDoc -- %d\n", errCode);
+    supnp_verify(errCode == UPNP_E_SUCCESS, cleanup,
+        "Error in UpnpDownloadXmlDoc -- %d\n", errCode);
 
     /* Register the device if it is not already registered */
     deviceType = SUpnpGetFirstElementItem((IXML_Element*)ra_desc_doc,
@@ -702,11 +745,16 @@ int RegistrationCallbackEventHandler(Upnp_EventType eventType, const void *event
         supnp_verify(errCode, cleanup, "Couldn't fill service table.\n");
 
         /* Iterate Services and parse registration service */
-        for (const service_info * service = services.serviceList; service != NULL; service = service->next) {
+        for (const service_info * service = services.serviceList;
+            service != NULL;
+            service = service->next) {
             char* controlURL = NULL;
-            if (UpnpResolveURL2(location, service->controlURL, &controlURL) != UPNP_E_SUCCESS) {
-                supnp_error("Error generating controlURL from %s + %s\n", location, service->controlURL);
-            } else if (strcmp(service->serviceType, RaServiceType[eRegistrationAuthorityService_Register]) == 0) {
+            if (UpnpResolveURL2(location,
+                service->controlURL, &controlURL) != UPNP_E_SUCCESS) {
+                supnp_error("Error generating controlURL from %s + %s\n",
+                    location, service->controlURL);
+            } else if (strcmp(service->serviceType,
+                RaServiceType[eRegistrationAuthorityService_Register]) == 0) {
                 // Send the DSD to the RA
                 errCode = sendRAActionRegister(params, controlURL);
                 break;
@@ -728,7 +776,6 @@ cleanup:
     freeif(deviceType);
     freeServiceTable(&services);
     freeif2(ra_desc_doc, ixmlDocument_free);
-    SUpnpFreeRegistrationParamsContent(params);
     return errCode;
 }
 
@@ -744,17 +791,21 @@ int SUpnpRegisterDevice(
     int ret = SUPNP_E_SUCCESS;
 
     /* Verify Params */
-    supnp_verify(RegistrationDocsPath, cleanup, "NULL Registration Docs Paths.\n");
-    supnp_verify(CapTokenFilename, cleanup, "NULL CapToken Filename.\n");
+    supnp_verify(RegistrationDocsPath, cleanup,
+        "NULL Registration Docs Paths.\n");
+    supnp_verify(CapTokenFilename, cleanup,
+        "NULL CapToken Filename.\n");
 
     /* Set Registration Params */
     RegistrationParams *params = malloc(sizeof(RegistrationParams));
-    supnp_verify(params, cleanup, "Error allocating memory for registration params.\n");
+    supnp_verify(params, cleanup,
+        "Error allocating memory for registration params.\n");
     params->handle = -1;
     params->callback = Callback;
     params->callback_cookie = callback_cookie;
     for (int i = 0; i < SUPNP_DOCS_ON_DEVICE; ++i) {
-        supnp_verify(RegistrationDocsPath[i], cleanup, "NULL %s.\n", RaRegisterActionVarName[i]);
+        supnp_verify(RegistrationDocsPath[i], cleanup, "NULL %s.\n",
+            RaRegisterActionVarName[i]);
         params->RegistrationDocsPath[i] = RegistrationDocsPath[i];
     }
     ret = SUpnpBuildLocation(params->capTokenLocation, AF, CapTokenFilename);
@@ -770,8 +821,10 @@ int SUpnpRegisterDevice(
     }
 
     /* Register registration handle with UPnP SDK */
-    ret = UpnpRegisterClient(RegistrationCallbackEventHandler, params, &(params->handle));
-    supnp_verify(ret == UPNP_E_SUCCESS, cleanup, "Error registering registration handle with sdk: %d\n", ret);
+    ret = UpnpRegisterClient(RegistrationCallbackEventHandler, params,
+        &(params->handle));
+    supnp_verify(ret == UPNP_E_SUCCESS, cleanup,
+        "Error registering registration handle with sdk: %d\n", ret);
 
     /* Send RA Non-Secure Discovery Message */
     ret = UpnpSearchAsync(params->handle,
@@ -779,7 +832,8 @@ int SUpnpRegisterDevice(
         RaDeviceType,
         NULL,  /* Secure Discovery Not Applicable */
         params);
-    supnp_verify(ret == UPNP_E_SUCCESS, cleanup, "Error sending RA discovery message (%d)\n", ret);
+    supnp_verify(ret == UPNP_E_SUCCESS, cleanup,
+        "Error sending RA discovery message (%d)\n", ret);
 
     return SUPNP_E_SUCCESS; /* Success */
 
@@ -790,33 +844,8 @@ cleanup:
     return ret;
 }
 
-/**
- * Free Registration Params Content
- * @param Params Registration Params
- */
-void SUpnpFreeRegistrationParamsContent(RegistrationParams *Params)
-{
-    if (!Params)
-        return;
-    // todo supnp: consider strdup instead of const paths
-#if 0
-    freeif(params->publicKeyPath);
-    freeif(params->privateKeyPath);
-    for (int i = 0; i < SUPNP_DOCS_ON_DEVICE; ++i) {
-        freeif(params->RegistrationDocsPath[i]);
-    }
-#endif
-    memset(Params->capTokenLocation, 0, sizeof(Params->capTokenLocation));
-    memset(Params->descDocLocation, 0, sizeof(Params->descDocLocation));
-}
-
-/**
- * Free Registration Params
- * @param Params Registration Params
- */
 void SUpnpFreeRegistrationParams(RegistrationParams **Params)
 {
-    SUpnpFreeRegistrationParamsContent(*Params);
     freeif(*Params);
 }
 
@@ -860,7 +889,8 @@ int SUpnpPrepareSecureParams(SecureParams *Params)
     SUpnpGetCapTokenLocation(Params->CapTokenLocation);
 
     /* Extract CapTokenLocation Signature */
-    hexCapTokenLocationSig = SUpnpExtractCapTokenFieldValue2(Params->CapTokenLocation,
+    hexCapTokenLocationSig = SUpnpExtractCapTokenFieldValue2(
+        Params->CapTokenLocation,
         eCapTokenSignatureLocation);
     supnp_verify(hexCapTokenLocationSig, cleanup,
         "Error extracting CapTokenLocation Signature\n");
@@ -942,7 +972,8 @@ int SUpnpVerifySecureParams(const char *name,
 
     /* Retrieve CP Public Key from CapToken */
     ret = SUPNP_E_CAPTOKEN_ERROR;
-    cp_pk = SUpnpExtractCapTokenFieldValue2(SParams->CapTokenLocation, eCapTokenPublicKeyCP);
+    cp_pk = SUpnpExtractCapTokenFieldValue2(SParams->CapTokenLocation,
+        eCapTokenPublicKeyCP);
     supnp_verify(cp_pk, cleanup, "Error extracting CP Public Key\n");
     cp_pkey = OpenSslLoadPublicKeyFromHex(cp_pk);
     supnp_verify(cp_pkey, cleanup, "Error loading CP Public Key\n");
@@ -996,7 +1027,8 @@ int SUpnpSendAdvertisement(const int Hnd, const int Exp)
 
     /* Secure Advertisement not applicable for RA */
     if (SUpnpGetDeviceType() == eDeviceType_RA) {
-        ret = UpnpSendAdvertisement(Hnd, NULL, NULL, Exp);
+        ret = UpnpSendAdvertisement(Hnd, NULL, NULL,
+            Exp);
         supnp_verify(ret == SUPNP_E_SUCCESS, cleanup,
             "Error in UpnpSendAdvertisement -- %d\n", ret);
         goto cleanup;
@@ -1055,11 +1087,13 @@ int SUpnpSecureServiceAdvertisementVerify(const char *descDocLocation,
 
     /* Download Description Document */
     ret = UpnpDownloadXmlDoc(descDocLocation, &pDescDoc);
-    supnp_verify(ret == UPNP_E_SUCCESS, cleanup, "Error in UpnpDownloadXmlDoc -- %d\n", ret);
+    supnp_verify(ret == UPNP_E_SUCCESS, cleanup,
+        "Error in UpnpDownloadXmlDoc -- %d\n", ret);
 
     /* Download CapToken */
     ret = SUpnpDownloadCapToken(capTokenLocation, &pTargetCapToken);
-    supnp_verify(ret == UPNP_E_SUCCESS, cleanup, "Error in downloadCapToken -- %d\n", ret);
+    supnp_verify(ret == UPNP_E_SUCCESS, cleanup,
+        "Error in downloadCapToken -- %d\n", ret);
 
     /* Secure Device Description - Fig17, SUPnP paper. */
     desc_doc_content = ixmlDocumenttoString(pDescDoc);

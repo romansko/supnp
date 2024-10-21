@@ -32,10 +32,10 @@ const char *OpenSslGetLastError()
     return err;
 }
 
-
 // Obviously change in your apps..
 const char *IV = "SUPNP_CHANGE_IV!"; /* 16 bytes IV for AES-256-CBC */
 
+int gOpenSslInitialized = 0;
 
 /**
  * Initialize SUPnP secure layer.
@@ -43,10 +43,15 @@ const char *IV = "SUPNP_CHANGE_IV!"; /* 16 bytes IV for AES-256-CBC */
  */
 int OpenSslInitializeWrapper()
 {
+    if (gOpenSslInitialized == 1) {
+        w_log("OpenSSL already initialized.\n");
+        return OPENSSL_FAILURE;
+    }
     w_log("Initializing OpenSSL Wrapper..\n");
     SSL_load_error_strings();
     SSL_library_init();
     OpenSSL_add_all_algorithms();
+    gOpenSslInitialized = 1;
     return OPENSSL_SUCCESS;
 }
 
@@ -442,10 +447,8 @@ unsigned char *OpenSslSymmetricDecryption(const unsigned char *pkey,
     // Initialize context
     ctx = EVP_CIPHER_CTX_new();
     w_verify(ctx, cleanup, "Error creating EVP_CIPHER_CTX.\n");
-    w_verify(EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, pkey, iv) ==
-                 OPENSSL_SUCCESS,
-        cleanup,
-        "Decryption error.\n");
+    w_verify(EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, pkey,
+        iv) ==  OPENSSL_SUCCESS, cleanup, "Decryption error.\n");
 
     // Decryption
     w_verify(EVP_DecryptUpdate(ctx, buffer, &dec_size, encrypted, size) ==

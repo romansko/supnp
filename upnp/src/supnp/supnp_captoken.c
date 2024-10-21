@@ -232,7 +232,8 @@ captoken_t* SUpnpGenerateCapToken(const supnp_device_t* dev, EVP_PKEY* pkeyRA)
      */
     supnp_verify(dev->specDocument != NULL, cleanup,
         "NULL supnp specification document\n");
-    const cJSON* service_list = cJSON_GetObjectItemCaseSensitive(dev->specDocument,
+    const cJSON* service_list = cJSON_GetObjectItemCaseSensitive(
+        dev->specDocument,
         "SERVICES");
     supnp_verify(service_list, cleanup,
         "Couldn't find services tagname in SUPnP Document.\n");
@@ -367,7 +368,8 @@ int SUpnpDownloadCapToken(const char *capTokenUrl, captoken_t **p_capToken)
         &capTokenBuf,
         &dummy,
         content_type);
-    supnp_verify(ret == SUPNP_E_SUCCESS, cleanup, "Error downloading CapToken\n");
+    supnp_verify(ret == SUPNP_E_SUCCESS, cleanup,
+        "Error downloading CapToken\n");
 
     *p_capToken = cJSON_Parse(capTokenBuf);
     supnp_verify(*p_capToken, cleanup, "Error parsing CapToken\n");
@@ -379,30 +381,37 @@ cleanup:
 }
 
 
-char *SUpnpExtractCapTokenFieldValue(const captoken_t *capToken, const ECapTokenFieldType type)
+char *SUpnpExtractCapTokenFieldValue(const captoken_t *capToken,
+    const ECapTokenFieldType type)
 {
     supnp_verify(capToken != NULL, error_handle, "NULL CapToken\n");
-    supnp_verify((uint)type < eCatTokenFieldTypesCount, error_handle, "Invalid field type\n");
+    supnp_verify((uint)type < eCatTokenFieldTypesCount, error_handle,
+        "Invalid field type\n");
     const char *fieldName = CapTokenFields[type];
     const cJSON *field = cJSON_GetObjectItemCaseSensitive(capToken, fieldName);
-    supnp_verify(field != NULL, error_handle, "Field '%s' not found\n", fieldName);
+    supnp_verify(field != NULL, error_handle, "Field '%s' not found\n",
+        fieldName);
     const char *fieldValue = cJSON_GetStringValue(field);
-    supnp_verify(fieldValue != NULL, error_handle, "Field '%s' has no value\n", fieldName);
+    supnp_verify(fieldValue != NULL, error_handle, "Field '%s' has no value\n",
+        fieldName);
     return strdup(fieldValue);
 error_handle:
     return NULL;
 }
 
 
-char *SUpnpExtractCapTokenFieldValue2(const char *capTokenUrl, const ECapTokenFieldType type)
+char *SUpnpExtractCapTokenFieldValue2(const char *capTokenUrl,
+    const ECapTokenFieldType type)
 {
     int ret = SUPNP_E_INVALID_ARGUMENT;
     char *fieldValue = NULL;
     captoken_t *capToken = NULL;
     supnp_verify(capTokenUrl != NULL, cleanup, "NULL capTokenUrl\n");
-    supnp_verify((uint)type < eCatTokenFieldTypesCount, cleanup, "Invalid field type\n");
+    supnp_verify((uint)type < eCatTokenFieldTypesCount, cleanup,
+        "Invalid field type\n");
     ret = SUpnpDownloadCapToken(capTokenUrl, &capToken);
-    supnp_verify(ret == SUPNP_E_SUCCESS, cleanup, "Error Retrieving CapToken\n");
+    supnp_verify(ret == SUPNP_E_SUCCESS, cleanup,
+        "Error Retrieving CapToken\n");
     fieldValue = SUpnpExtractCapTokenFieldValue(capToken, type);
 cleanup:
     freeif2(capToken, cJSON_Delete);
@@ -426,21 +435,27 @@ int SUpnpVerifyCapToken(const captoken_t *capToken,
 
     supnp_verify(capToken != NULL, cleanup, "NULL CapToken\n");
     supnp_verify(pkeyRA != NULL, cleanup, "NULL RA Public Key\n");
-    supnp_verify(descDocContent != NULL, cleanup, "NULL Description Document\n");
+    supnp_verify(descDocContent != NULL, cleanup,
+        "NULL Description Document\n");
 
 
     /* Verify RA Public Key is the same */
-    ra_pk_hex = SUpnpExtractCapTokenFieldValue(capToken, eCapTokenPublicKeyRA);
-    supnp_verify(ra_pk_hex, cleanup, "Error extracting RA Public Key from CapToken.\n");
+    ra_pk_hex = SUpnpExtractCapTokenFieldValue(capToken,
+        eCapTokenPublicKeyRA);
+    supnp_verify(ra_pk_hex, cleanup,
+        "Error extracting RA Public Key from CapToken.\n");
     ra_pk_cpy = OpenSslLoadPublicKeyFromHex(ra_pk_hex);
-    supnp_verify(ra_pk_cpy, cleanup, "Error loading RA Public Key from hex string.\n");
+    supnp_verify(ra_pk_cpy, cleanup,
+        "Error loading RA Public Key from hex string.\n");
     ret = EVP_PKEY_eq(pkeyRA, ra_pk_cpy);
     supnp_verify(ret == OPENSSL_SUCCESS, cleanup, "RA Public Key mismatch.\n");
 
     /* Verify RA-SIG */
     supnp_log("Verifying RA Signature..\n");
-    ra_sig = SUpnpExtractCapTokenFieldValue(capToken, eCapTokenSignatureRA);
-    supnp_verify(ra_sig, cleanup, "Error extracting RA Signature from CapToken.\n");
+    ra_sig = SUpnpExtractCapTokenFieldValue(capToken,
+        eCapTokenSignatureRA);
+    supnp_verify(ra_sig, cleanup,
+        "Error extracting RA Signature from CapToken.\n");
     cap_token_cpy = cJSON_Duplicate(capToken, 1);
     supnp_verify(cap_token_cpy, cleanup, "Error duplicating CapToken.\n");
     cJSON_DeleteItemFromObject(cap_token_cpy, CT_RA_SIG);
@@ -457,7 +472,8 @@ int SUpnpVerifyCapToken(const captoken_t *capToken,
 
     /* Verify DESCRIPTION-SIG */
     supnp_log("Verifying Description Signature..\n");
-    desc_sig = SUpnpExtractCapTokenFieldValue(capToken, eCapTokenSignatureDescription);
+    desc_sig = SUpnpExtractCapTokenFieldValue(capToken,
+        eCapTokenSignatureDescription);
     OpenSslVerifySignature(CT_DESC_SIG,
         pkeyRA,
         desc_sig,

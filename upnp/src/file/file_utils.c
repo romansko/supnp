@@ -8,7 +8,7 @@ extern "C" {
 
 
 /**
- * Internal error logging macro
+ * \brief Internal error logging macro.
  */
 #define file_error(...) { \
 	fprintf(stderr, "[File Utils Error] [tid %lu] %s::%s(%d): ", \
@@ -20,7 +20,7 @@ extern "C" {
 }
 
 /**
- * Internal message logging macro
+ * \brief Internal message logging macro.
  */
 #define file_log(...) { \
     fprintf(stdout, "[File Utils] [tid %lu] %s(%d): ", \
@@ -31,9 +31,10 @@ extern "C" {
 }
 
 /**
- * Internal verification macro
- * @param test condition to check
- * @label label to jump to in case of failure
+ * \brief Internal verification macro.
+ *
+ * \param test test condition to check.
+ * \param label label to jump to in case of failure.
  */
 #define file_verify(test, label, ...) { \
     if (!(test)) { \
@@ -43,8 +44,9 @@ extern "C" {
 }
 
 /**
- * Free a ponter if it is not NULL.
- * @param ptr pointer to free
+ * \brief Free a ponter if it is not NULL.
+ *
+ * \param ptr pointer to free.
  */
 #define file_freeif(ptr) { \
     if (ptr != NULL) { \
@@ -54,9 +56,11 @@ extern "C" {
 }
 
 /**
- * Return file size
- * @param fp file pointer
- * @return file size
+ * \brief Return file size.
+ *
+ * \param fp file pointer.
+ *
+ * \return file size
  */
 size_t get_file_size(FILE* fp)
 {
@@ -69,13 +73,6 @@ error:
     return size;
 }
 
-/**
- * Read file content
- * @param filepath given file path to read
- * @param mode file mode to open
- * @param file_size Optional argument to update file size
- * @return file content
- */
 char* read_file(const char* filepath, const char* mode, size_t* file_size)
 {
     size_t size = 0;
@@ -87,11 +84,13 @@ char* read_file(const char* filepath, const char* mode, size_t* file_size)
 
     // Retrieve file size
     size = get_file_size(fp);
-    file_verify(size > 0, error, "Error getting file size for file %s\n", filepath);
+    file_verify(size > 0, error, "Error getting file size for file %s\n",
+        filepath);
 
     // Allocate memory for file content
     content = (char*)malloc(size);
-    file_verify(content != NULL, error, "Error allocating memory for file %s\n", filepath);
+    file_verify(content != NULL, error, "Error allocating memory for file %s\n",
+        filepath);
 
     // Verify whole file was read
     file_verify(fread(content, sizeof(char), size, fp) == size, error,
@@ -108,19 +107,14 @@ cleanup:
     return content; /* remember to free(content) */
 }
 
-/**
- * Write file content
- * @param filepath given file path to write
- * @param data file content to write
- * @param size file content size
- * @return FILE_OP_OK on success, FILE_OP_ERR on failure
- */
-int write_file(const char* filepath, const unsigned char* data, const size_t size)
+int write_file(const char* filepath, const unsigned char* data,
+    const size_t size)
 {
     int ret = FILE_OP_ERR;
     FILE* fp = NULL;
     macro_file_open(fp, filepath, "wb", cleanup);
-    file_verify(fwrite(data, sizeof(unsigned char), size, fp) == size, cleanup,
+    file_verify(fwrite(data, sizeof(unsigned char), size, fp) == size,
+        cleanup,
                 "Error writing file %s\n", filepath);
     ret = FILE_OP_OK;
 cleanup:

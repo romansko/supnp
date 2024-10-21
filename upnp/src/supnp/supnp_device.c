@@ -126,8 +126,10 @@ void SupnpFreeDevice(supnp_device_t **p_dev)
     freeif2((*p_dev)->descDocument, ixmlDocument_free);
     freeif2((*p_dev)->specDocument, cJSON_Delete);
     freeif2((*p_dev)->capToken, cJSON_Delete);
-    memset((*p_dev)->descDocLocation, 0, sizeof((*p_dev)->descDocLocation));
-    memset((*p_dev)->capTokenLocation, 0, sizeof((*p_dev)->capTokenLocation));
+    memset((*p_dev)->descDocLocation, 0,
+        sizeof((*p_dev)->descDocLocation));
+    memset((*p_dev)->capTokenLocation, 0,
+        sizeof((*p_dev)->capTokenLocation));
     memset((*p_dev)->nonce, 0, sizeof((*p_dev)->nonce));
 
     /* Free pointer */

@@ -62,9 +62,9 @@ typedef enum ECapTokenFieldType
  * \return CapToken for the device.
  */
 UPNP_EXPORT_SPEC captoken_t* SUpnpGenerateCapToken(
-    /*! [in] Device for which CapToken is generated. */
+    /*! [IN] Device for which CapToken is generated. */
     const supnp_device_t *dev,
-    /*! [in] RA Public Key. */
+    /*! [IN] RA Public Key. */
     EVP_PKEY *pkeyRA);
 
 
@@ -72,7 +72,7 @@ UPNP_EXPORT_SPEC captoken_t* SUpnpGenerateCapToken(
  * \brief Free a CapToken.
  */
 UPNP_EXPORT_SPEC void SUpnpFreeCapToken(
-    /*! [in] CapToken to free. */
+    /*! [IN] CapToken to free. */
     captoken_t **p_capToken);
 
 
@@ -84,7 +84,7 @@ UPNP_EXPORT_SPEC void SUpnpFreeCapToken(
  * \return String representation of CapToken.
  */
 UPNP_EXPORT_SPEC char *SUpnpCapTokenToString(
-    /*! [in] CapToken to convert. */
+    /*! [IN] CapToken to convert. */
     const captoken_t *capToken);
 
 
@@ -96,7 +96,7 @@ UPNP_EXPORT_SPEC char *SUpnpCapTokenToString(
  * \return Hex string representation of CapToken.
  */
 UPNP_EXPORT_SPEC char *SUpnpCapTokenToHexString(
-    /*! [in] CapToken to convert. */
+    /*! [IN] CapToken to convert. */
     const captoken_t *capToken);
 
 
@@ -109,7 +109,7 @@ UPNP_EXPORT_SPEC char *SUpnpCapTokenToHexString(
  * \return CapToken object.
  */
 UPNP_EXPORT_SPEC captoken_t *SUpnpCapTokenFromHexString(
-    /*! [in] Hex string to convert. */
+    /*! [IN] Hex string to convert. */
     const char *hex);
 
 
@@ -119,9 +119,9 @@ UPNP_EXPORT_SPEC captoken_t *SUpnpCapTokenFromHexString(
  * \return SUPNP_E_SUCCESS on success, ret code on failure.
  */
 UPNP_EXPORT_SPEC int SUpnpStoreCapToken(
-    /*! [in] CapToken to store. */
+    /*! [IN] CapToken to store. */
     const captoken_t *capToken,
-    /*! [in] File path to store the CapToken. */
+    /*! [IN] File path to store the CapToken. */
     const char *filepath);
 
 
@@ -134,9 +134,9 @@ UPNP_EXPORT_SPEC int SUpnpStoreCapToken(
  * \return CapToken object.
  */
 UPNP_EXPORT_SPEC int SUpnpDownloadCapToken(
-    /*! [in] URL to download CapToken from. */
+    /*! [IN] URL to download CapToken from. */
     const char *capTokenUrl,
-    /*! [out] CapToken object. */
+    /*! [OUT] CapToken object. */
     captoken_t **p_capToken);
 
 
@@ -148,9 +148,9 @@ UPNP_EXPORT_SPEC int SUpnpDownloadCapToken(
  * \return Field value.
  */
 UPNP_EXPORT_SPEC char *SUpnpExtractCapTokenFieldValue(
-    /*! [in] CapToken to extract field value from. */
+    /*! [IN] CapToken to extract field value from. */
     const captoken_t *capToken,
-    /*! [in] Field type to extract. */
+    /*! [IN] Field type to extract. */
     ECapTokenFieldType type);
 
 
@@ -162,20 +162,20 @@ UPNP_EXPORT_SPEC char *SUpnpExtractCapTokenFieldValue(
  * \return Field value.
  */
 UPNP_EXPORT_SPEC char *SUpnpExtractCapTokenFieldValue2(
-    /*! [in] URL to download CapToken from. */
+    /*! [IN] URL to download CapToken from. */
     const char *capTokenUrl,
-    /*! [in] Field type to extract. */
+    /*! [IN] Field type to extract. */
     ECapTokenFieldType type);
 
 /*!
  * \brief Verify a CapToken. Required by Secure Device Description.
  */
 UPNP_EXPORT_SPEC int SUpnpVerifyCapToken(
-    /*! [in] CapToken to verify. */
+    /*! [IN] CapToken to verify. */
     const captoken_t *capToken,
-    /*! [in] RA Public Key. */
+    /*! [IN] RA Public Key. */
     EVP_PKEY *pkeyRA,
-    /*! [in] Description Document Content. */
+    /*! [IN] Description Document Content. */
     const char *descDocContent);
 
 #ifdef __cplusplus

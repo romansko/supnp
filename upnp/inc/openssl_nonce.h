@@ -33,24 +33,24 @@ typedef struct NonceEntry
 /*!
  * \brief Free a nonce entry.
  */
-void OpenSslFreeNonceEntry(NonceEntry *entry);
+void OpenSslFreeNonceEntry(
+    /*! [IN] nonce entry to free */
+    NonceEntry *entry);
 
 /*!
- * \brief Free global nonce list.
- *
- * \note User is responsible for mutex handling.
+ * \brief Free the global nonce list.
  */
 void OpenSslFreeNonceList();
 
 /*!
- * \brief Generate a nonce if a given size.
+ * \brief Generate a nonce of a given size.
  *
  * \note Remember to free the returned nonce.
  *
  * \return a nonce on success, NULL on failure.
  */
 UPNP_EXPORT_SPEC unsigned char *OpenSslGenerateNonce(
-    /*! [in] size of the requested nonce */
+    /*! [IN] size of the requested nonce */
     size_t size);
 
 /*!
@@ -60,9 +60,9 @@ UPNP_EXPORT_SPEC unsigned char *OpenSslGenerateNonce(
  * \return OPENSSL_SUCCESS on success, OPENSSL_FAILURE on failure.
  */
 UPNP_EXPORT_SPEC int OpenSslInsertNonce(
-    /*! [in] nonce to insert */
+    /*! [IN] nonce to insert */
     const unsigned char *nonce,
-    /*! [in] size of the nonce */
+    /*! [IN] size of the nonce */
     size_t size);
 
 #endif /* UPNP_ENABLE_OPEN_SSL */

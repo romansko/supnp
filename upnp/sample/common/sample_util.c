@@ -283,7 +283,6 @@ char *SampleUtil_GetFirstDocumentItem(IXML_Document *doc, const char *item)
 						 "memory for XML Node value\n",
 					__FILE__,
 					__LINE__);
-				ret = strdup("");
 			}
 		} else
 			SampleUtil_Print("%s(%d): ixmlNodeList_item(nodeList, "

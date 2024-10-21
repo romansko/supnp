@@ -61,9 +61,10 @@ extern const char *OpenSslGetLastError();
 }
 
 /*!
- * \brief Internal verification macro
- * [in] test condition to check
- * [in] label to jump to in case of failure
+ * \brief Internal verification macro.
+ *
+ * \param test test to verify.
+ * \param label label to jump to if test fails.
  */
 #define w_verify(test, label, ...) \
 { \
@@ -74,9 +75,10 @@ extern const char *OpenSslGetLastError();
 }
 
 /*!
- * \brief Free a pointer if it is not NULL with a given function
- * [in] ptr pointer to free
- * [in] free_func function to free pointer
+ * \brief Free a pointer if it is not NULL with a given function.
+ *
+ * \param ptr pointer to free.
+ * \param free_func the freeing function.
  */
 #define w_freeif(ptr, free_func) \
 { \
