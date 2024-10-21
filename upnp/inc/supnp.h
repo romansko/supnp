@@ -71,7 +71,6 @@ extern ithread_rwlock_t gRAKeyLock;
 extern ithread_rwlock_t gCapTokenLocationLock;
 /**/
 
-
 /* Helper macro */
 #define SUPNP_PARAM_STRNCPY(dst, src) { \
     if (src) { \
@@ -149,8 +148,6 @@ UPNP_EXPORT_SPEC EVP_PKEY *SUpnpGetRAPKey();
  * \brief Set CapToken location global variable.
  */
 UPNP_EXPORT_SPEC void SUpnpSetCapTokenLocation(
-	/*! [IN] Address Family to use */
-	int AF,
 	/*! [IN] CapToken Name */
 	const char *CapTokenLocation);
 

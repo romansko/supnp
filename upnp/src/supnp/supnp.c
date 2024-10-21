@@ -135,7 +135,7 @@ EVP_PKEY *SUpnpGetRAPKey()
     return pkey;
 }
 
-void SUpnpSetCapTokenLocation(const int AF, const char *CapTokenLocation)
+void SUpnpSetCapTokenLocation(const char *CapTokenLocation)
 {
     ithread_rwlock_wrlock(&gCapTokenLocationLock);
     memset(gCapTokenLocation, 0, sizeof(gCapTokenLocation));
@@ -556,7 +556,7 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
     }
 
     /* Add Description Document Location, if applicable. */
-    if (Params->descDocLocation) {
+    if (strlen(Params->descDocLocation) > 0) {
         rc = UpnpAddToAction(&actionNode,
             RaRegistrationAction[eRegisterServiceAction_Register],
             RaServiceType[eRegistrationAuthorityService_Register],
@@ -800,6 +800,7 @@ int SUpnpRegisterDevice(
     RegistrationParams *params = malloc(sizeof(RegistrationParams));
     supnp_verify(params, cleanup,
         "Error allocating memory for registration params.\n");
+    memset(params, 0, sizeof(RegistrationParams));
     params->handle = -1;
     params->callback = Callback;
     params->callback_cookie = callback_cookie;
@@ -811,7 +812,7 @@ int SUpnpRegisterDevice(
     ret = SUpnpBuildLocation(params->capTokenLocation, AF, CapTokenFilename);
     supnp_verify(ret == SUPNP_E_SUCCESS, cleanup,
         "Error building CapTokenLocation.\n");
-    SUpnpSetCapTokenLocation(AF, params->capTokenLocation); /* Set global */
+    SUpnpSetCapTokenLocation(params->capTokenLocation); /* Set global */
 
     /* Applicable only for SD, for CP set NULL */
     if (DescDocName != NULL) {
@@ -965,7 +966,7 @@ int SUpnpVerifySecureParams(const char *name,
         "CapTokenLocationSignature",
         ra_pkey,
         SParams->CapTokenLocationSig,
-        SParams->CapTokenLocation,
+        (unsigned char *)SParams->CapTokenLocation,
         strlen(SParams->CapTokenLocation)),
         cleanup,
         "Error verifying CapToken Location Signature\n");
@@ -984,7 +985,7 @@ int SUpnpVerifySecureParams(const char *name,
         supnp_verify(OPENSSL_SUCCESS == OpenSslVerifySignature(name,
                 cp_pkey,
                 SParams->NonceSig,
-                SParams->Nonce,
+                (unsigned char *)SParams->Nonce,
                 strlen(SParams->Nonce)),
                 cleanup,
                 "Error verifying %s\n", name);
@@ -995,7 +996,7 @@ int SUpnpVerifySecureParams(const char *name,
         supnp_verify(OPENSSL_SUCCESS == OpenSslVerifySignature(name,
                 cp_pkey,
                 SParams->NonceSig,
-                concatenated,
+                (unsigned char *)concatenated,
                 strlen(concatenated)),
                 cleanup,
                 "Error verifying %s\n", name);
@@ -1080,7 +1081,7 @@ int SUpnpSecureServiceAdvertisementVerify(const char *descDocLocation,
         "Advertisement Signature",
         ra_pk,
         AdvertisementSig,
-        concatenate_url,
+        (unsigned char *)concatenate_url,
         strlen(concatenate_url)),
         cleanup,
         "Advertisement signature is forged !!!\n");
@@ -1401,7 +1402,9 @@ int SUpnpCalculateEventSignature(char *signature,
 
     ret = SUPNP_E_INVALID_SIGNATURE;
     device_pkey = SUpnpGetDevicePKey();
-    sig = OpenSslSign(device_pkey, concatenated, strlen(concatenated),
+    sig = OpenSslSign(device_pkey,
+        (unsigned char *)concatenated,
+        strlen(concatenated),
         &sig_len);
     supnp_verify(sig, cleanup, "Error signing '%s'.\n", concatenated);
     sig_hex = OpenSslBinaryToHexString(sig, sig_len);

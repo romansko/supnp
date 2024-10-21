@@ -23,7 +23,7 @@ extern "C" {
 /* Location string - same as LINE_SIZE @ upnp.h */
 #define LOCATION_SIZE (180)
 
-/* Hash sig = 256 bytes /*
+/* Hash sig = 256 bytes */
 #define SIGNATURE_SIZE (256)
 
 /* sig hex string = 512 bytes; +1 for null terminator */
@@ -262,6 +262,7 @@ typedef struct _RegistrationParams
 	char capTokenLocation[LOCATION_SIZE];
 }RegistrationParams;
 
+
 static const char *RaDeviceType = "urn:schemas-upnp-org:device:ra:1";
 static const char *RaServiceType[eRegistrationAuthorityServiceCount] = {
 	"urn:schemas-upnp-org:service:registration:1"
@@ -284,7 +285,6 @@ static const char *RaChallengeActionVarName[eChallengeActionVarCount] = {
 static const char *ActionResponseVarName = "ActionResponse";
 static const char *CapTokenResponseVarName = "CapToken";
 static const char *ActionSuccess = "1";
-
 
 #ifdef __cplusplus
 }

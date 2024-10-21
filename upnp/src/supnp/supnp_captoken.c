@@ -197,7 +197,7 @@ captoken_t* SUpnpGenerateCapToken(const supnp_device_t* dev, EVP_PKEY* pkeyRA)
     if (dev->type == eDeviceType_CP)
     {
         bytes = OpenSslSign(pkeyRA,
-            dev->capTokenLocation,
+            (unsigned char *)dev->capTokenLocation,
             strlen(dev->capTokenLocation), &size);
         cJSON* _uri_sig = bytesToJsonString(bytes, size);
         bytes = NULL; /* Freed in bytes_to_json_string */

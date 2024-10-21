@@ -531,7 +531,7 @@ int SoapSendActionSUPnP(char *action_url,
 	memptr name;
 	membuffer request;
 	membuffer responsename;
-	int err_code;
+	int err_code = UPNP_E_INVALID_ARGUMENT;
 	int ret_code;
 	http_parser_t response;
 	uri_type url;
@@ -556,8 +556,6 @@ int SoapSendActionSUPnP(char *action_url,
     supnp_verify(response_node, error_handler, "NULL response_node pointer\n");
 
 	*response_node = NULL; /* init */
-
-    err_code = UPNP_E_INVALID_ARGUMENT;
 
     supnp_verify(action_url, error_handler, "NULL action_url\n");
     supnp_verify(service_type, error_handler, "NULL service_type\n");
@@ -888,7 +886,7 @@ int SoapSendActionExSUPnP(char *action_url,
 	memptr name;
 	membuffer request;
 	membuffer responsename;
-	int err_code;
+	int err_code = UPNP_E_INVALID_ARGUMENT;;
 	int ret_code;
 	http_parser_t response;
 	uri_type url;
@@ -918,8 +916,6 @@ int SoapSendActionExSUPnP(char *action_url,
     supnp_verify(response_node, error_handler, "NULL response_node pointer\n");
 
     *response_node = NULL; /* init */
-
-    err_code = UPNP_E_INVALID_ARGUMENT;
 
     supnp_verify(action_url, error_handler, "NULL action_url\n");
     supnp_verify(service_type, error_handler, "NULL service_type\n");

@@ -419,7 +419,7 @@ and control point searches will not function.
 It's possible to use automation scripts:
 
 ```bash
-
+./scripts/set_interface.sh eth0
 ```
 
 
