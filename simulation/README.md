@@ -76,9 +76,15 @@ The following SAD structure is presented by the paper in the paper [Kayas, G., H
 
 ### Usage example
 
-```sh
+```bash
+supnp/simulation$ make
+[*] Initializing python venv for UCA Simulation..
+python3 -m venv venv
+venv/bin/pip install -r requirements.txt
+...
+[*] Generating Artifacts from libupnp sample..
+rm -rf CA CP RA SD UCA 
 ./venv/bin/python3 ./device_enrollment.py ../upnp/sample/web/tvdevicedesc.xml
-
 ~~~ Device Enrollment simulation ~~~
 [*] Initialized Device('../upnp/sample/web/tvdevicedesc.xml')
 [*] Initializing CA..
@@ -99,6 +105,11 @@ The following SAD structure is presented by the paper in the paper [Kayas, G., H
         Generated 'SD/public_key.pem'
         UCA signs SD's certificate..
         Generated 'SD/certificate.pem'
+[*] Initializing RA..
+        Generated 'RA/private_key.pem'
+        Generated 'RA/public_key.pem'
+        UCA signs RA's certificate..
+        Generated 'RA/certificate.pem'
 [*] Generating documents..
         Generated 'CP/sad.json'
         Generated 'SD/dsd.json'
@@ -114,29 +125,7 @@ The following SAD structure is presented by the paper in the paper [Kayas, G., H
         Verifying UCA's certificate..   certificate ok.
         Verifying CP's certificate..    certificate ok.
         Verifying SD's certificate..    certificate ok.
+        Verifying RA's certificate..    certificate ok.
 [*] Done.
-
-
-tree CA UCA CP SD
-
-CA
-├── private_key.pem
-└── public_key.pem
-UCA
-├── certificate.pem
-├── private_key.pem
-└── public_key.pem
-CP
-├── certificate.pem
-├── private_key.pem
-├── public_key.pem
-└── sad.json
-SD
-├── certificate.pem
-├── dsd.json
-├── private_key.pem
-└── public_key.pem
-
-4 directories, 13 files
 
 ```

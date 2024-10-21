@@ -1,196 +1,33 @@
-# The Portable SDK for UPnP\* Devices (libupnp) <!-- omit in toc -->
+# SUPnP Fork of the portable SDK for UPnP\* Devices (libupnp)
 
-- [The GitHub project page](https://github.com/pupnp/pupnp) is where all the real action happens.
-- [The old Source Forge project page is linked here.](https://sourceforge.net/projects/pupnp)
+This repository is a fork of [libupnp](https://github.com/pupnp/pupnp) with a secure layer extension as described in 
+the paper [SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things](https://ieeexplore.ieee.org/document/9352973) 
+by Kayas, G., Hossain, M., Payton, J., & Islam, S. R. (2021), IEEE Internet of Things Journal, 8(14), 11561-11580.
 
-| branch        | status                                                                                              |
-| ------------- | --------------------------------------------------------------------------------------------------- |
-| main (use 1.14.x) | ![master](https://github.com/pupnp/pupnp/workflows/Build/badge.svg)                                 |
-| branch-1.14.x | ![1.14.x](https://github.com/pupnp/pupnp/workflows/Build/badge.svg?branch=branch-1.14.x)            |
-| branch-1.12.x | ![1.12.x](https://github.com/pupnp/pupnp/workflows/C%2FC%2B%2B%20CI/badge.svg?branch=branch-1.12.x) |
-| branch-1.10.x | ![1.10.x](https://github.com/pupnp/pupnp/workflows/C%2FC%2B%2B%20CI/badge.svg?branch=branch-1.10.x) |
-| branch-1.8.x  | ![1.8.x](https://github.com/pupnp/pupnp/workflows/C%2FC%2B%2B%20CI/badge.svg?branch=branch-1.8.x)   |
-| branch-1.6.x  | ![1.6.x](https://github.com/pupnp/pupnp/workflows/C%2FC%2B%2B%20CI/badge.svg?branch=branch-1.6.x)   |
-| branch-1.4.x  | ![1.4.x](https://github.com/pupnp/pupnp/workflows/C%2FC%2B%2B%20CI/badge.svg?branch=branch-1.4.x)   |
+To read more about `libupnp`, its usage, and licencing, please refer to the original repository [here](https://github.com/pupnp/pupnp).
+It's strongly recommended to read the original README file before continuing with this one.
 
-Copyright (c) 2000-2003 Intel Corporation - All Rights Reserved.
+## Important Notice
 
-Copyright (c) 2005-2006 Rémi Turboult <r3mi@users.sourceforge.net>
+The SUPnP secure layer implementation for `libupnp` is a school project as part of my MSc studies in computer science.
+One should not use this implementation in a production environment as it is not fully tested and might have security 
+flaws.
 
-Copyright (c) 2006 Michel Pfeiffer and others <virtual_worlds@gmx.de>
+The current README file was edited to include the SUPnP secure layer build instructions and usage.
+Some information was removed to keep the README file relevant to the SUPnP secure layer.
 
-See [LICENSE](site/LICENSE) for details.
+The Portable SDK for UPnP&trade; Devices is distributed under the BSD (Berkeley Standard Distribution) license.
+This license allows you to use the source code royalty free and does not place any restrictions on what you do with
+source code derived from the SDK. For full details on the license conditions, please consult the [LICENSE](site/LICENSE)
+file located inside the SDK distribution.
 
-## Table of Contents <!-- omit in toc -->
+## SUPnP Package Contents
 
-- [1. Overview](#1-overview)
-- [2. General Information](#2-general-information)
-- [3. Changelog](#3-changelog)
-- [4. Documentation](#4-documentation)
-- [5. Other projects that are using the SDK](#5-other-projects-that-are-using-the-sdk)
-- [6. License Conditions](#6-license-conditions)
-- [7. Release List](#7-release-list)
-- [8. Package Contents](#8-package-contents)
-- [9. System Requirements](#9-system-requirements)
-- [10. Build Instructions](#10-build-instructions)
-  - [10.1. Pre-requisites](#101-pre-requisites)
-  - [10.2. Core Libraries](#102-core-libraries)
-  - [10.3. Cross Compilation](#103-cross-compilation)
-  - [10.4. Samples](#104-samples)
-  - [10.5. Solaris Build](#105-solaris-build)
-  - [10.6. Windows Build](#106-windows-build)
-  - [10.7. CMake Build](#107-cmake-build)
-- [11. Install/Uninstall Instructions](#11-installuninstall-instructions)
-  - [11.1. Install](#111-install)
-  - [11.2. Uninstall](#112-uninstall)
-- [12. Product Release Notes](#12-product-release-notes)
-- [13. New Features](#13-new-features)
-- [14. Support and Contact Information](#14-support-and-contact-information)
-- [15. IXML support for scripting languages](#15-ixml-support-for-scripting-languages)
-- [16. SourceForge Badges](#16-sourceforge-badges)
-- [17. Thanks](#17-thanks)
-
-## 1. Overview
-
-The Portable SDK for UPnP&trade; Devices is an SDK for development of UPnP device and control point applications. It consists of the core UPnP protocols along with a UPnP-specific eXtensible Markup Language (XML) parser supporting the Document Object Model (DOM) Level 2 API and an optional, integrated mini web server for serving UPnP related documents. It provides developers with an API and open source code for building control points, devices, and bridges that are compliant with Version 1.0 of the [Universal Plug and Play Device Architecture Specification](http://www.upnp.org/resources/upnpresources.zip) and supports several operating systems like Linux, *BSD, Solaris and others.
-
-## 2. General Information
-
-UPnP&trade; is an architecture that enables discovery, event notification, and control of devices on a network, independent of operating system, programming language, or physical network connection.&nbsp; UPnP&trade; is based on common Internet standards and specifications such as TCP/IP, HTTP, and XML. For detailed information about UPnP&trade;, including the UPnP&trade; Device Architecture Specification, please visit the [UPnP&trade; Forum web site](http://www.upnp.org/).
-
-In 2000, Intel created the first version of the Linux SDK for UPnP&trade; Devices and subsequently released it to the open source community to foster growth of UPnP&trade;.&nbsp; To learn more about&nbsp; Intel's involvement with both UPnP&trade; and the SDK, please visit [Intel's Universal Plug and Play web site](http://www.intel.com/cd/ids/developer/asmo-na/eng/downloads/upnp/index.htm").
-
-In 2006 this 100% compatible fork of the original project was created to
-support further development. This way, the project now continues using the name "Portable UPnP&trade;" and as a project that is more open to contributions of the community. The main goal is the availability of the project for all important platforms to become a standard for UPnP&trade;.
-
-## 3. [Changelog](ChangeLog)
-
-## 4. Documentation
-
-Documentation is available in PDF format from the [downloads](http://sourceforge.net/project/showfiles.php?group_id=166957) section. The documentation actually resides inside the source code itself and is built into the PDF file by an automated process using [Doxygen](https://www.doxygen.nl). Documentation for each function resides in a comment section immediately preceding the function.
-
-## 5. Other projects that are using the SDK
-
-This is a list of some of the projects and products that are based on the SDK for UPnP&trade; Devices.&nbsp; Please let us know if you are working on a project and would like to see it listed here!
-
-- [aMule](http://www.amule.org) has libupnp support to perform port forwarding.
-- [Gerbera](https://gerbera.io) UPnP&trade; media server.
-- [libmcupnp](http://sourceforge.net/projects/libmcupnp) is a Free UPnP(v1) library for easy "MediaServer:1 Client" implementations. The library is built on top of libupnp.
-- [eMule Morph](http://emulemorph.sourceforge.net) uses libupnp to forward ports automatically.
-- [PeerStream Audio Video Server](http://www.peerstream.net).
-- [GeeXboX uShare&trade;](https://github.com/ddugovic/uShare) A/V media server.
-- [MediaTomb](http://mediatomb.sourceforge.net) UPnP&trade; media server.
-- The [Linux UPnP&trade; Internet Gateway Device](http://linux-igd.sourceforge.net) This project is a daemon that emulates Microsoft's Internet Connection Service (ICS). It implements the UPnP&trade; Internet Gateway Device (IGD) specification and allows UPnP&trade;-aware clients, such as MSN Messenger, to work properly from behind a NAT firewall.
-- FreeBSD ports of both the [SDK for UPnP&trade; Devices](http://www.freebsd.org/cgi/cvsweb.cgi/ports/devel/upnp)"> and the [Linux UPnP&trade; IGD](http://www.freebsd.org/cgi/query-pr.cgi?pr=41295)" were contributed to the FreeBSD ports collection by [Yen-Ming Lee](http://www.leeym.com).
-- [PseudoICSD](http://pseudoicsd.sf.net) is another daemon that provides UPnP&trade; Internet Gateway Device functionality on Linux systems.
-- [IGD2 for linux](https://github.com/Orange-OpenSource/igd2-for-linux) is an updated version of [Linux-IGD implementation](http://linux-igd.sourceforge.net>http://linux-igd.sourceforge.net). This new version is created on top of UPnP IGD:2 specifications available from [https://openconnectivity.org/developer/specifications/upnp-resources/upnp/internet-gateway-device-igd-v-2-0](https://openconnectivity.org/developer/specifications/upnp-resources/upnp/internet-gateway-device-igd-v-2-0).
-- [gmrender-resurrect](https://github.com/hzeller/gmrender-resurrect) is a resource efficient UPnP/DLNA renderer, optimal for Raspberry Pi, CuBox or a general MediaServer. Fork of GMediaRenderer to add some features to make it usable.
-- [Music Player Daemon](https://github.com/MusicPlayerDaemon/MPD) uses libupnp to browse and play music stored on an UPnP Media Server.
-- [VLC media player](http://www.videolan.org/vlc) uses libupnp for services discovery.
-
-The links listed here point to external pages that are not under our control, that means we do not have any influence on their contents. Some jurisdictions have the point of view that the owner of a internet page is responsible for links to other webpages and the contents that can be found there. (Landgericht Hamburg, Judgement from 12th May 1998, 312 O 85/98).
-
-Because of that, the operator of these pages is dissociating explicitly from all links made from here. If we are informed about pages with penal relevant names, links, contents or something else we'll remove links to these pages immediately in case that is technically possible and reasonable.
-
-## 6. License Conditions
-
-The Portable SDK for UPnP&trade; Devices is distributed under the BSD (Berkeley Standard Distribution) license. This license allows you to use the source code royalty free and does not place any restrictions on what you do with source code derived from the SDK. For full details on the license conditions, please consult the [LICENSE](site/LICENSE) file located inside the SDK distribution.
-
-## 7. Release List
-
-| Release Number | Date       | History                                  |
-| -------------- | ---------- | ---------------------------------------- |
-| 1.18.0         | TBA ?      | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.16.0         | aborted    | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.21        | TBA        | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.20        | 2024-10-07 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.19        | 2024-04-22 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.18        | 2023-08-21 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.17        | 2023-04-30 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.16        | 2023-03-30 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.15        | 2022-11-18 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.14        | 2022-10-05 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.13        | 2022-08-03 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.12        | 2021-09-26 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.11        | 2021-08-20 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.10        | 2021-08-17 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.9         | 2021-08-08 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.8         | 2021-08-07 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.7         | 2021-05-08 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.6         | 2021-04-19 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.5         | 2021-04-06 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.4         | 2021-03-29 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.3         | 2021-03-29 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.2         | 2021-02-28 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.1         | 2021-02-08 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.14.0         | 2020-07-20 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.12.1         | 2020-04-07 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.12.0         | 2020-01-22 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.10.1         | 2019-11-20 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.10.0         | 2019-11-01 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.8.7          | 2020-04-07 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.8.6          | 2019-11-20 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.8.5          | 2019-11-01 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.8.4          | 2018-10-25 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.8.3          | 2017-11-12 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.8.2          | 2017-11-12 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.8.1          | 2017-05-24 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.8.0          | 2017-01-04 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.25         | 2016-02-10 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.24         | 2017-11-19 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.23         | 2017-11-19 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.22         | 2017-05-30 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.21         | 2016-12-21 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.20         | 2016-07-07 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.19         | 2013-11-15 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.18         | 2013-01-29 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.17         | 2012-04-03 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.16         | 2012-03-21 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.15         | 2012-01-25 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.14         | 2011-11-17 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.13         | 2011-03-17 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.12         | 2011-02-08 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.11         | 2011-02-07 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.10         | 2011-01-30 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.9          | 2010-11-07 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.8          | 2010-10-21 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.7          | 2010-10-04 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.6          | 2008-04-25 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.5          | 2008-02-02 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.4          | 2008-01-26 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.3          | 2007-12-26 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.2          | 2007-12-10 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.1          | 2007-11-08 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.6.0          | 2007-06-23 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.4.6          | 2007-04-30 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.4.5          | 2007-04-28 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.4.4          | 2007-04-17 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.4.3          | 2007-03-06 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.4.2          | 2007-02-16 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.4.1          | 2006-08-11 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.4.0          | 2006-06-12 | [Portable UPnP SDK][Portable UPnP SDK]   |
-| 1.3.1          | 2006-03-05 | [UPnP SDK for Linux][UPnP SDK for Linux] |
-| 1.3.0          | 2006-03-04 | [UPnP SDK for Linux][UPnP SDK for Linux] |
-| 1.2.1a         | 2003-11-08 | [UPnP SDK for Linux][UPnP SDK for Linux] |
-| 1.2.1          | 2003-02-13 | [UPnP SDK for Linux][UPnP SDK for Linux] |
-| 1.0.4          | 2001-08-15 | [UPnP SDK for Linux][UPnP SDK for Linux] |
-| 1.0.3          | 2001-06-12 | [UPnP SDK for Linux][UPnP SDK for Linux] |
-| 1.0.2          | 2001-02-07 | [UPnP SDK for Linux][UPnP SDK for Linux] |
-| 1.0.1          | 2000-10-13 | [UPnP SDK for Linux][UPnP SDK for Linux] |
-| 1.0.0          | 2000-08-31 | [UPnP SDK for Linux][UPnP SDK for Linux] |
-| 0.9.1          | 2000-08-17 | [UPnP SDK for Linux][UPnP SDK for Linux] |
-| 0.9.0          | 2000-08-01 | [UPnP SDK for Linux][UPnP SDK for Linux] |
-
-[UPnP SDK for Linux]: https://sourceforge.net/projects/upnp/
-[Portable UPnP SDK]: https://sourceforge.net/projects/pupnp/
-
-## 8. Package Contents
-
-The SDK for UPnP Devices contains the following:
+The original SDK for UPnP Devices contains the following:
 
 | Path/File   | Description                                                                       |
-| ----------- | --------------------------------------------------------------------------------- |
-| README      | This file.  Contains the installation and build instructions.                     |
+| ----------- |-----------------------------------------------------------------------------------|
+| README      | The original README Contains the installation and build instructions.             |
 | LICENSE     | The licensing terms the SDK is distributed under.                                 |
 | NEWS        | Changes and new features.                                                         |
 | ixml/doc    | The files for generating the XML parser documentation from the source code.       |
@@ -201,16 +38,367 @@ The SDK for UPnP Devices contains the following:
 | upnp/src    | The source files comprising the SDK, libupnp.so.                                  |
 | upnp/sample | A sample device and control point application, illustrating the usage of the SDK. |
 
-## 9. System Requirements
+**SUPnP Additional Package Contents:**
 
-The SDK for UPnP Devices is designed to compile and run under several operating systems.  It does, however, have dependencies on some packages that may not be installed by default.  All packages that it requires are listed below.
+| Path/File        | Description                                                            |
+|------------------|------------------------------------------------------------------------|
+| README           | This file. Contains the installation and build instructions for SUPnP. |
+| cJSON            | Package for handling JSON files and content.                           |
+| simulation       | Python simulation script to simulate UPnP CA Device Enrollment.        |
+| upnp/inc         | Contains supnp, openssl & file_utils include files.                    |
+| upnp/src/supnp   | SUPnP source files.                                                    |
+| upnp/src/opensll | OpenSSL wrapper source files.                                          |
+| upnp/src/file    | file utils source files.                                               |
+| upnp/sample      | Has an addition - Registration Authority                               |
+| upnp/scripts     | SUPnP build automation scripts                                         |
+
+
+## SUPnP Demonstration
+
+This section demonstrates the SUPnP secure layer usage for Registration Authority (RA), 
+Service Device (SD) and Control Point (CP).
+For build and usage please proceed to the next sections.
+
+
+### UCA Simulation run log
+
+For UPnP Certification Authority (UCA) device enrollment simulation, refer to [simulation/README.md](simulation/README.md).
+
+
+### SUPnP protocol messages - captured by wireshark
+
+This section shows the SUPnP protocol messages captured by Wireshark for the RA, SD, and CP.
+
+#### RA Discovery
+
+```html
+M-SEARCH * HTTP/1.1
+HOST: 239.255.255.250:1900
+MAN: "ssdp:discover"
+MX: 10
+ST: urn:schemas-upnp-org:device:ra:1
+```
+
+
+#### RA discovery responses
+
+```html
+NOTIFY * HTTP/1.1
+HOST: 239.255.255.250:1900
+CACHE-CONTROL: max-age=100
+LOCATION: http://192.168.1.100:49152/radesc.xml
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-NLS: ad697988-8fd9-11ef-a561-da1b695d95fc
+NT: upnp:rootdevice
+NTS: ssdp:alive
+SERVER: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+X-User-Agent: redsonic
+USN: uuid:SUpnp-RA-1_0-1234567890001::upnp:rootdevice
+```
+
+```html
+NOTIFY * HTTP/1.1
+HOST: 239.255.255.250:1900
+CACHE-CONTROL: max-age=100
+LOCATION: http://192.168.1.100:49152/radesc.xml
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-NLS: ad697988-8fd9-11ef-a561-da1b695d95fc
+NT: uuid:SUpnp-RA-1_0-1234567890001
+NTS: ssdp:alive
+SERVER: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+X-User-Agent: redsonic
+USN: uuid:SUpnp-RA-1_0-1234567890001
+```
+
+```html
+NOTIFY * HTTP/1.1
+HOST: 239.255.255.250:1900
+CACHE-CONTROL: max-age=100
+LOCATION: http://192.168.1.100:49152/radesc.xml
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-NLS: ad697988-8fd9-11ef-a561-da1b695d95fc
+NT: urn:schemas-upnp-org:device:ra:1
+NTS: ssdp:alive
+SERVER: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+X-User-Agent: redsonic
+USN: uuid:SUpnp-RA-1_0-1234567890001::urn:schemas-upnp-org:device:ra:1
+```
+
+```html
+NOTIFY * HTTP/1.1
+HOST: 239.255.255.250:1900
+CACHE-CONTROL: max-age=100
+LOCATION: http://192.168.1.100:49152/radesc.xml
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-NLS: ad697988-8fd9-11ef-a561-da1b695d95fc
+NT: urn:schemas-upnp-org:service:registration:1
+NTS: ssdp:alive
+SERVER: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+X-User-Agent: redsonic
+USN: uuid:SUpnp-RA-1_0-1234567890001::urn:schemas-upnp-org:service:registration:1
+```
+
+#### Registration message
+
+Messages sent to RA by CP or SD.
+
+1st message:
+
+```html
+POST /upnp/control/registration1 HTTP/1.1
+HOST: 192.168.1.100:49152
+CONTENT-LENGTH: 9168
+Accept-Ranges: bytes
+CONTENT-TYPE: text/xml; charset="utf-8"
+SOAPACTION: "urn:schemas-upnp-org:service:registration:1#Register"
+USER-AGENT: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+<s:Body><u:Register xmlns:u="urn:schemas-upnp-org:service:registration:1">
+<SpecificationDocument>...</SpecificationDocument>
+<CertificateDevice>...</CertificateDevice>
+<CertificateUCA>...</CertificateUCA>
+<DescriptionDocumentLocation>http://192.168.1.100:49153/tvdevicedesc.xml</DescriptionDocumentLocation>
+<CapTokenLocation>http://192.168.1.100:49153/captoken_sd.json</CapTokenLocation>
+</u:Register>
+</s:Body>
+</s:Envelope>
+```
+
+response: 
+
+```html
+HTTP/1.1 200 OK
+CONTENT-LENGTH: 792
+Accept-Ranges: bytes
+CONTENT-TYPE: text/xml; charset="utf-8"
+DATE: Mon, 21 Oct 2024 18:24:17 GMT
+EXT:
+SERVER: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+X-User-Agent: redsonic
+
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body>
+<u:RegisterResponse xmlns:u="urn:schemas-upnp-org:service:registration:1">
+<Challenge>...</Challenge>
+</u:RegisterResponse>
+</s:Body> </s:Envelope>
+```
+
+2nd message - challenge response:
+
+```html
+POST /upnp/control/registration1 HTTP/1.1
+HOST: 192.168.1.100:49152
+CONTENT-LENGTH: 1397
+Accept-Ranges: bytes
+CONTENT-TYPE: text/xml; charset="utf-8"
+SOAPACTION: "urn:schemas-upnp-org:service:registration:1#Challenge"
+USER-AGENT: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+<s:Body><u:Challenge xmlns:u="urn:schemas-upnp-org:service:registration:1">
+<Challenge>...</Challenge>
+<PublicKey>...</PublicKey>
+</u:Challenge>
+</s:Body>
+</s:Envelope>
+```
+
+response: 
+
+```html
+HTTP/1.1 200 OK
+CONTENT-LENGTH: 8356
+Accept-Ranges: bytes
+CONTENT-TYPE: text/xml; charset="utf-8"
+DATE: Mon, 21 Oct 2024 18:24:17 GMT
+EXT:
+SERVER: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+X-User-Agent: redsonic
+
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body>
+<u:ChallengeResponse xmlns:u="urn:schemas-upnp-org:service:registration:1">
+<CapToken>...</CapToken>
+<ActionResponse>1</ActionResponse>
+</u:ChallengeResponse>
+</s:Body> </s:Envelope>
+```
+
+
+#### Secure Service Advertisements
+
+Messages sent by SD, after successful registration with RA.
+
+```html
+NOTIFY * HTTP/1.1
+HOST: 239.255.255.250:1900
+CACHE-CONTROL: max-age=100
+LOCATION: http://192.168.1.100:49153/tvdevicedesc.xml
+CAPTOKEN-LOCATION: http://192.168.1.100:49153/captoken_sd.json
+ADVERTISEMENT-SIG: ...
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-NLS: ae892cc8-8fd9-11ef-8fba-85cd853f2837
+NT: upnp:rootdevice
+NTS: ssdp:alive
+SERVER: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+X-User-Agent: redsonic
+USN: uuid:Upnp-TVEmulator-1_0-1234567890001::upnp:rootdevice
+```
+
+```html
+NOTIFY * HTTP/1.1
+HOST: 239.255.255.250:1900
+CACHE-CONTROL: max-age=100
+LOCATION: http://192.168.1.100:49153/tvdevicedesc.xml
+CAPTOKEN-LOCATION: http://192.168.1.100:49153/captoken_sd.json
+ADVERTISEMENT-SIG: ...
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-NLS: ae892cc8-8fd9-11ef-8fba-85cd853f2837
+NT: uuid:Upnp-TVEmulator-1_0-1234567890001
+NTS: ssdp:alive
+SERVER: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+X-User-Agent: redsonic
+USN: uuid:Upnp-TVEmulator-1_0-1234567890001
+```
+
+```html
+NOTIFY * HTTP/1.1
+HOST: 239.255.255.250:1900
+CACHE-CONTROL: max-age=100
+LOCATION: http://192.168.1.100:49153/tvdevicedesc.xml
+CAPTOKEN-LOCATION: http://192.168.1.100:49153/captoken_sd.json
+ADVERTISEMENT-SIG: ...
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-NLS: ae892cc8-8fd9-11ef-8fba-85cd853f2837
+NT: urn:schemas-upnp-org:device:tvdevice:1
+NTS: ssdp:alive
+SERVER: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+X-User-Agent: redsonic
+USN: uuid:Upnp-TVEmulator-1_0-1234567890001::urn:schemas-upnp-org:device:tvdevice:1
+```
+
+```html
+NOTIFY * HTTP/1.1
+HOST: 239.255.255.250:1900
+CACHE-CONTROL: max-age=100
+LOCATION: http://192.168.1.100:49153/tvdevicedesc.xml
+CAPTOKEN-LOCATION: http://192.168.1.100:49153/captoken_sd.json
+ADVERTISEMENT-SIG: ...
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-NLS: ae892cc8-8fd9-11ef-8fba-85cd853f2837
+NT: urn:schemas-upnp-org:service:tvcontrol:1
+NTS: ssdp:alive
+SERVER: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+X-User-Agent: redsonic
+USN: uuid:Upnp-TVEmulator-1_0-1234567890001::urn:schemas-upnp-org:service:tvcontrol:1
+```
+
+##### Secure Service Discovery
+
+Message sent by CP, after successful registration with RA.
+
+```html
+M-SEARCH * HTTP/1.1
+HOST: 239.255.255.250:1900
+MAN: "ssdp:discover"
+MX: 10
+ST: urn:schemas-upnp-org:device:tvdevice:1
+CAPTOKEN-LOCATION: http://192.168.1.100:49154/captoken_cp.json
+CAPTOKEN-LOCATION-SIG: ...
+NONCE: ded2b674fcaf534606525ee4c90b6d77c35ed5f97e0f645598e27b994ec582c9
+DISCOVERY-SIG: ...
+```
+
+
+#### Secure Control
+
+Message sent by CP, by a requested command, after successful registration with RA.
+
+```html
+POST /upnp/control/tvcontrol1 HTTP/1.1
+HOST: 192.168.1.100:49153
+CONTENT-LENGTH: 238
+Accept-Ranges: bytes
+CONTENT-TYPE: text/xml; charset="utf-8"
+CAPTOKEN-LOCATION: http://192.168.1.100:49154/captoken_cp.json
+CAPTOKEN-LOCATION-SIG: 929cd5ebf3d16c08e10ee68f50d44a11e9cdf782843c01945c28695c007bb68562e794a8201e4e2206395af9dc08bdc2052b11ae56c8016e562908e8e386d853a8a9bd9c53144f05678ee4e94e9016bf034ce13ad777f3dc64262b21a4a4179ce379e9da1b13d85a311be5b154910261dd15080629effccfa4ca89b191168626c762dd8fa1e36f827a99a78b8ae88be67847db56219674bfc0212633ddeb3d358137758da6ea8e6fa9d42d4edf4a0c72537a840ff3bd0b1544b6b1f64b0a99d31ab9f1e15db7162c5208fe0c36bac9d1b796b2d9a0a5565f5cc521d6390335f0da13057b463936f74ec1433c167c799fead86c4173edcc4f22305747d5af4099
+NONCE: cea37ac1b3b460726afed5e9ec9669099890ae5b550406ec0bfb5c4d66f494c2
+ACTION-SIG: 8aab6ccd497cf97b1a527ee3490082ac9e408610043b8b414ca95fb510fce84eab2da08f53f74d75996a143ff273c0794a57dc16eed91ae89e0de2bd800e2219508720c51203da1d59d1890007f939df650956e21c907111e26f54dc1909dac466f5ed216fe05c1dff65c4c66276f6f1596f97d71f86695208cd5122621a0f1d5c8a5dabff698782b9d1d22e952fbddef6a8de33b197729696999453d05c55c8ab371e603df977c775c00514f1577c2a1ac54fab56755f7fe4c91e643b835540cce529f43dd9b11e6c7d333b570b332622234be854bdb74f68063e769b23ed211a71e4ee01bf3f350576d7b0b5bd40395dc29a0ff8eaf8be7388127c291af127
+SOAPACTION: "urn:schemas-upnp-org:service:tvcontrol:1#PowerOn"
+USER-AGENT: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+<s:Body><u:PowerOn xmlns:u="urn:schemas-upnp-org:service:tvcontrol:1"></u:PowerOn>
+</s:Body>
+</s:Envelope>
+```
+
+response:
+
+```html
+HTTP/1.1 200 OK
+CONTENT-LENGTH: 268
+Accept-Ranges: bytes
+CONTENT-TYPE: text/xml; charset="utf-8"
+DATE: Mon, 21 Oct 2024 18:24:40 GMT
+EXT:
+SERVER: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+X-User-Agent: redsonic
+
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body>
+<u:PowerOnResponse xmlns:u="urn:schemas-upnp-org:service:tvcontrol:1">
+<Power>1</Power>
+</u:PowerOnResponse>
+</s:Body> </s:Envelope>
+```
+
+#### Secure Event Subscription
+
+Message sent by CP, to subscribe to SD events.
+
+```html
+SUBSCRIBE /upnp/event/tvcontrol1 HTTP/1.1
+HOST: 192.168.1.100:49153
+CALLBACK: <http://192.168.1.100:49154/>
+NONCE: 95be6089641d2d677dba8d9fc6b450655f6bd1f5821a9d9d3b731de3dfa54840
+EVENT-SIG: ...
+CAPTOKEN-LOCATION: http://192.168.1.100:49154/captoken_cp.json
+CAPTOKEN-LOCATION-SIG: ...
+NT: upnp:event
+TIMEOUT: Second-1801
+```
+
+response: 
+
+```html
+HTTP/1.1 200 OK
+DATE: Mon, 21 Oct 2024 18:24:37 GMT
+SERVER: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+CONTENT-LENGTH: 0
+Accept-Ranges: bytes
+X-User-Agent: redsonic
+SID: uuid:ba7a77f8-8fd9-11ef-8fba-85cd853f2837
+TIMEOUT: Second-1801
+```
+
+### Run Logs
+
+For RA, SD, and CP run logs, refer to [upnp/sample/README.md](upnp/sample/README.md).
+
+
+## System Requirements
+
+The SDK for UPnP Devices is designed to compile and run under several operating systems.  It does, however, have 
+dependencies on some packages that may not be installed by default.  All packages that it requires are listed below.
 
 | Dependency | Description                                                                              |
 | ---------- | ---------------------------------------------------------------------------------------- |
 | libpthread | The header and library are installed as part of the glibc-devel package (or equivalent). |
 | libssl-dev | Required by [OpenSSL](#configure-openssl) / [SUPnP](#configure-supnp) only.              | 
 
-Additionally, the documentation for the SDK can be auto-generated from the upnp.h header file using Doxygen, a documentation system for C, C++, IDL, and Java\*.  Doxygen generates the documentation in HTML or TeX format. Using some additional tools, the TeX output can be converted into a PDF file. To generate the documentation these tools are required:
+Additionally, the documentation for the SDK can be auto-generated from the upnp.h header file using Doxygen, 
+a documentation system for C, C++, IDL, and Java\*.  Doxygen generates the documentation in HTML or TeX format. 
+Using some additional tools, the TeX output can be converted into a PDF file. To generate the documentation these tools are required:
 
 | Package   | Description                                                                                                                                                                                                 |
 | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -225,11 +413,19 @@ For the UPnP library to function correctly, networking must be configured proper
 % route add -net 239.0.0.0 netmask 255.0.0.0 eth0
 ```
 
-where 'eth0' is the network adapter that the UPnP library will use.  Without this addition, device advertisements and control point searches will not function.
+where 'eth0' is the network adapter that the UPnP library will use.  Without this addition, device advertisements 
+and control point searches will not function.
 
-## 10. Build Instructions
+It's possible to use automation scripts:
 
-### 10.1. Pre-requisites
+```bash
+
+```
+
+
+## Build Instructions
+
+### Pre-requisites
 
 Some packages/tools are required to build the library. Here's a minimal 'inspirational example'
 that builds the library using a Docker Ubuntu image.
@@ -240,15 +436,18 @@ that builds the library using a Docker Ubuntu image.
 # libssl-dev is required by SUPnP & OpenSSL layers.
 % apt update \
   && apt install -y build-essential autoconf libtool pkg-config git shtool libssl-dev \
-  && git clone http://github.com/pupnp/pupnp.git \
-  && cd pupnp \
-  && ./bootstrap
+  && git clone https://github.com/romansko/supnp.git \
+  && cd pupnp
 
-% ./configure
-% make
+% ./scripts/cmake_build.sh   # cmake build
+# OR
+% ./scripts/make_supnp.sh    # autotools build
+
+# Cleaning:
+# ./scripts/clean.sh
 ```
 
-### 10.2. Core Libraries
+### Core Libraries
 
 Note: On a git checkout, you need to run `./bootstrap` to generate the configure script.
 
@@ -257,7 +456,8 @@ Note: On a git checkout, you need to run `./bootstrap` to generate the configure
 % make
 ```
 
-will build a version of the binaries without debug support, and with default options enabled (see below for options available at configure time).
+will build a version of the binaries without debug support, and with default options enabled (see below for
+options available at configure time).
 
 ```bash
 % ./configure CFLAGS="-DSPARC_SOLARIS -mtune=<cputype> -mcpu=<cputype>"
@@ -280,7 +480,9 @@ To generate the PDF file:
 % make pdf
 ```
 
-A few options are available at configure time. Use "./configure --help" to display a complete list of options. Note that these options may be combined in any order. After installation, the file \<upnp/upnpconfig.h\> will provide a summary of the optional features that have been included in the library.
+A few options are available at configure time. Use "./configure --help" to display a complete list of options. 
+Note that these options may be combined in any order. After installation, the file \<upnp/upnpconfig.h\> will provide a 
+summary of the optional features that have been included in the library.
 
 ```bash
 % ./configure --enable-debug
@@ -298,14 +500,16 @@ make
 ```
 
 <a name="configure-supnp"></a>
-To build the library with SUPnP secure layer as presented by the paper [Kayas, G., Hossain, M., Payton, J., & Islam, S. R. (2021). SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things. IEEE Internet of Things Journal, 8(14), 11561-11580](https://ieeexplore.ieee.org/document/9352973):
+To build the library with SUPnP secure layer as presented by the paper 
+[Kayas, G., Hossain, M., Payton, J., & Islam, S. R. (2021). SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things. IEEE Internet of Things Journal, 8(14), 11561-11580](https://ieeexplore.ieee.org/document/9352973):
 
 ```bash
 % ./configure --enable-supnp
 % make
 ```
 
-Note that SUPnP requires OpenSSL. Hence, The `--enable-open_ssl` flag is set automatically. However, the installation of `libssl-dev` should be done manually by:
+Note that SUPnP requires OpenSSL. Hence, The `--enable-open_ssl` flag is set automatically. 
+However, the installation of `libssl-dev` should be done manually by:
 ```bash
 % apt install libssl-dev
 ```
@@ -324,7 +528,8 @@ To build without:
 % make
 ```
 
-The SDK also contains some additional helper APIs, declared in inc/tools/upnptools.h.  If these additional tools are not required, they can be compiled out:
+The SDK also contains some additional helper APIs, declared in inc/tools/upnptools.h. 
+If these additional tools are not required, they can be compiled out:
 
 ```bash
 % ./configure --disable-tools
@@ -333,7 +538,8 @@ The SDK also contains some additional helper APIs, declared in inc/tools/upnptoo
 
 By default, the tools are included in the library.
 
-To further remove code that is not required, the library can be build with or with out the control point (client) or device specific code.  To remove this code:
+To further remove code that is not required, the library can be build with or with out the control point (client) or 
+device specific code.  To remove this code:
 
 ```bash
 % ./configure --disable-client
@@ -349,7 +555,8 @@ to remove client only code or:
 
 to remove device only code.
 
-By default, both client and device code is included in the library. The integrated web server is automatically removed when configuring with --disable-device.
+By default, both client and device code is included in the library. 
+The integrated web server is automatically removed when configuring with --disable-device.
 
 To build the library without large-file support (enabled by default):
 
@@ -364,7 +571,9 @@ To remove all the targets, object files, and built documentation:
 % make clean
 ```
 
-### 10.3. Cross Compilation
+or by `./scripts/clean.sh` script.
+
+### Cross Compilation
 
 To cross compile the SDK, a special "configure" directive is all that is required:
 
@@ -375,9 +584,10 @@ To cross compile the SDK, a special "configure" directive is all that is require
 
 This will invoke the "arm-linux-gcc" cross compiler to build the library.
 
-### 10.4. Samples
+### Samples
 
-The SDK contains two samples: a TV device application and a control point that talks with the TV device.  They are found in the $(LIBUPNP)/upnp/sample directory.
+The SDK contains two samples: a TV device application and a control point that talks with the TV device.  
+They are found in the $(LIBUPNP)/upnp/sample directory.
 
 To build the samples (note: this is the default behavior):
 
@@ -386,18 +596,22 @@ To build the samples (note: this is the default behavior):
 % make
 ```
 
-will build the sample device "$(LIBUPNP)/upnp/tv_device" and sample control point "$(LIBUPNP)/upnp/tv_ctrlpt". Note : the sample device won't be built if --disable-device has been configured, and the sample control point won't be build if --disable-client has been configured.
+will build the sample device "$(LIBUPNP)/upnp/tv_device" and sample control point "$(LIBUPNP)/upnp/tv_ctrlpt".
+Note : the sample device won't be built if --disable-device has been configured, and the sample control point won't be 
+build if --disable-client has been configured.
 
-To run the sample device, you need to create a tvdevice directory and move the web directory there, giving: "$(LIBUPNP)/upnp/sample/tvdevice/web". To run the sample invoke from the command line as follows:
+To run the sample device, you need to create a tvdevice directory and move the web directory there,
+giving: "$(LIBUPNP)/upnp/sample/tvdevice/web". To run the sample invoke from the command line as follows:
 
 ```bash
 % cd ./upnp/sample/tvdevice
 % ../tv_device
 ```
 
-### 10.5. Solaris Build
+### Solaris Build
 
-The building process for the Solaris operating system is similar to the one described above. Only the call to ./configure has to be done using an additional parameter:
+The building process for the Solaris operating system is similar to the one described above. 
+Only the call to ./configure has to be done using an additional parameter:
 
 ```bash
 % ./configure CFLAGS="-mcpu=<cputype> -mtune=<cputype> -DSPARC_SOLARIS"
@@ -412,20 +626,21 @@ where \<cputype\> has to be replaced by the appropriate CPU tuning flag (e.g. "s
 
 can be called as described above.
 
-### 10.6. Windows Build
+### Windows Build
 
 See the section `CMake Build`
 
-### 10.7. CMake Build
+### CMake Build
 
 In Order to build everything using the cmake build system, you just need to install cmake for your platform.
 Standalone cmake is recommended, IDE's like Visual Studio have built-in support which works, but as cmake in general
 encourages out-of-source builds and VS writes it's config into the source, cmake-gui should be used on windows.
 
-All known options have the same meaning as stated in point 10.2. In Addition 2 options have been added.
+All known options have the same meaning as stated in point 10.2. In Addition, 2 options have been added.
 
-- DOWNLOAD_AND_BUILD_DEPS: This option is only available if a useable git program was found on your system.
-  With this option on, the pthread4w package will be downloaded while configuring the build-env, then it will be build and installed along with upnp.
+- DOWNLOAD_AND_BUILD_DEPS: This option is only available if a usable git program was found on your system.
+  With this option on, the pthread4w package will be downloaded while configuring the build-env, then it will be build 
+- and installed along with upnp.
 
 - BUILD_TESTING: This option activates the tests.
 
@@ -435,15 +650,16 @@ cmake -DENABLE_SUPNP=ON .
 make
 ```
 
-
-If you don't want to build pthreads4w in the same build as upnp, you can download it from <https://github.com/Vollstrecker/pthreads4w>.
-Just build and install it. The libs and headers will be found, if you set CMAKE_INSTALL_PREFIX (the base install dir) to the same location.
+If you don't want to build pthreads4w in the same build as upnp, 
+you can download it from <https://github.com/Vollstrecker/pthreads4w>.
+Just build and install it. The libs and headers will be found, 
+if you set CMAKE_INSTALL_PREFIX (the base install dir) to the same location.
 
 For information on general usage of the cmake build system see: <https://cmake.org/cmake/help/v3.19/guide/user-interaction/index.html>
 
-## 11. Install/Uninstall Instructions
+## Install/Uninstall Instructions
 
-### 11.1. Install
+### Install
 
 The top-level makefile for the UPnP SDK contains rules to install the necessary components.  To install the SDK, as root:
 
@@ -451,7 +667,7 @@ The top-level makefile for the UPnP SDK contains rules to install the necessary 
 % make install
 ```
 
-### 11.2. Uninstall
+### Uninstall
 
 Likewise, the top-level makefile contains an uninstall rule, reversing the steps in the install:
 
@@ -459,18 +675,7 @@ Likewise, the top-level makefile contains an uninstall rule, reversing the steps
 % make uninstall
 ```
 
-## 12. Product Release Notes
-
-The SDK for UPnP Devices v1.2.1a has these known issues:
-
-- The UPnP library may not work with older versions of gcc and libstdc++, causing a segmentation fault when the library loads.  It is recommended that gcc version 2.9 or later be used in building library.
-- The UPnP library does not work the glibc 2.1.92-14 that ships with Red Hat 7.0.  For the library to function, you must updated the glibc and glibc-devel packages to 2.1.94-3 or later.  There is some issue with libpthreads that has been resolved in the 2.1.94 version.
-
-## 13. New Features
-
-See [ChangeLog file](https://github.com/pupnp/pupnp/blob/master/ChangeLog).
-
-## 14. Support and Contact Information
+## Support and Contact Information
 
 Intel is not providing support for the SDK for UPnP Devices. Mailing lists and discussion boards can be found at <https://github.com/pupnp/pupnp/discussions>.
 
@@ -478,47 +683,7 @@ If you find this SDK useful, please send an email to <upnp@intel.com> and let us
 
 \* Other brands, names, and trademarks are the property of their respective owners.
 
-## 15. IXML support for scripting languages
-
-The tree structure of XML documents created by IXML is hard to maintain when creating a binding for a scripting language. Even when many elements may never be used on the script side, it requires copying the entire tree structure once you start accessing elements several levels deep.Hence scriptsupport was added. To enable it compile while IXML_HAVE_SCRIPTSUPPORT has been defined (enabled by default). This allows control using only a list instead of a tree-like structure, and only nodes actually accessed need to be created instead of all the nodes in the tree.
-
-Here's how its supposed to work:
-
-- The scriptsupport allows you to add a callback when a node is freed on the C side, so appropriate action can be taken on the script side, see function ixmlSetBeforeFree().
-- Instead of recreating the tree structure, an intermediate object should be created only for the nodes actually accessed. The object should be containing a pointer to the node and a 'valid flag' which is initially set to TRUE (the valid flag, can simply be the pointer to the node being NULL or not). Before creating the intermediate object, the custom tag 'ctag' can be used to check whether one was already created.
-- the node object gets an extra 'void\* ctag' field, a custom tag to make a cross reference to the script side intermediate object. It can be set using ixmlNode_setCTag(), and read using ixmlNode_getCTag(). Whenever a new intermediate object is created, the ctag of the corresponding node should be set to point to this intermediate object.
-- The tree structure traversal is done on the C side (looking up parents, children and siblings)
-- Every intermediate object created should be kept in a list (preferably a key-value list, where the key is the pointer to the node and the value is the pointer to the intermediate object)
-- when the callback is called, the node should be looked up in the list, the flag set to false, the pointer to the C-side node be cleared and on the C-side the ctag should be cleared.
-- whenever the intermediate object is accessed and its flag is set to False, an error should be thrown that the XML document has been closed.
-
-Freeing resources can be done in 2 ways, C side by simply calling the free node methods, or script side by the garbage collector of the script engine.
-
-Script side steps:
-
-- if the valid flag is set to False (XML document is closed), then the intermediate object can be destroyed, no further action.
-- if the node has a parent, then the intermediate object can be destroyed after the ctag on the corresponding node has been cleared. Nothing needs to be freed on the C-side.
-- if the node has no parent, then the node must be freed on the C side by calling the corresponding free node methods. This will result in a chain of callbacks closing the node and all underlying nodes.
-
-## 16. SourceForge Badges
-
-<!-- markdownlint-capture -->
-<!-- markdownlint-disable MD033 -->
-<div>
-    <img src="https://b.sf-syn.com/badge_img/166957/oss-users-love-us-black" style="width:125px" alt="oss-users-love-us"/>
-    <img src="https://b.sf-syn.com/badge_img/166957/oss-community-choice-black?achievement=oss-community-choice" style="width:125px" alt="oss-community-choice"/>
-    <img src="https://b.sf-syn.com/badge_img/166957/oss-sf-favorite-black?achievement=oss-sf-favorite" style="width:125px" alt="oss-sf-favorite"/>
-    <img src="https://b.sf-syn.com/badge_img/166957/oss-community-leader-black?achievement=oss-community-leader" style="width:125px" alt="oss-community-leader"/>
-    <img src="https://b.sf-syn.com/badge_img/166957/oss-open-source-excellence-black?achievement=oss-open-source-excellence" style="width:125px" alt="oss-open-source-excellence"/>
-</div>
-<!-- markdownlint-restore -->
-
-[![Download Portable UPnP SDK](https://img.shields.io/sourceforge/dm/pupnp.svg)](https://sourceforge.net/projects/pupnp/files/latest/download)
-[![Download Portable UPnP SDK](https://img.shields.io/sourceforge/dw/pupnp.svg)](https://sourceforge.net/projects/pupnp/files/latest/download)
-[![Download Portable UPnP SDK](https://img.shields.io/sourceforge/dd/pupnp.svg)](https://sourceforge.net/projects/pupnp/files/latest/download)
-[![Download Portable UPnP SDK](https://img.shields.io/sourceforge/dt/pupnp.svg)](https://sourceforge.net/projects/pupnp/files/latest/download)
-
-## 17. Thanks
+## Thanks
 
 - To all the people listed in [the THANKS file](THANKS).
 - To [JetBrains](https://www.jetbrains.com/?from=pupnp) for kindly providing us with open source licenses of their amazing products.
