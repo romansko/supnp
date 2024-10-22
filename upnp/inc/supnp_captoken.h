@@ -1,5 +1,5 @@
 /*!
-* \addtogroup SUPnP
+ * \addtogroup SUPnP
  *
  * \file supnp_captoken.h
  *
@@ -10,8 +10,8 @@
 #ifndef SUPNP_CAPTOKEN_H
 #define SUPNP_CAPTOKEN_H
 
-#include "UpnpGlobal.h" /* for UPNP_EXPORT_SPEC */
 #include "upnpconfig.h"
+#include "UpnpGlobal.h" /* for UPNP_EXPORT_SPEC */
 
 #if ENABLE_SUPNP
 

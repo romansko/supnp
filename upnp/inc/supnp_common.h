@@ -1,18 +1,19 @@
-#ifndef SUPNP_ERR_H
-#define SUPNP_ERR_H
-
 /*!
  * \addtogroup SUPnP
  *
  * \file supnp_common.h
  *
- * \brief Header file for SUPnP error codes.
+ * \brief Header file for SUPnP common logics.
  *
  * \author Roman Koifman
  */
-#include "stdio.h"
+#ifndef SUPNP_ERR_H
+#define SUPNP_ERR_H
+
+#include "upnpconfig.h"
 #include "UpnpGlobal.h" /* for UPNP_EXPORT_SPEC */
-#include "ithread.h"
+#include <stdio.h>      /* fprinf */
+#include <ithread.h>    /* ithread_self */
 
 #if ENABLE_SUPNP
 
@@ -262,29 +263,15 @@ typedef struct _RegistrationParams
 	char capTokenLocation[LOCATION_SIZE];
 }RegistrationParams;
 
-
-static const char *RaDeviceType = "urn:schemas-upnp-org:device:ra:1";
-static const char *RaServiceType[eRegistrationAuthorityServiceCount] = {
-	"urn:schemas-upnp-org:service:registration:1"
-};
-static const char *RaRegistrationAction[eRegisterServiceActionCount] = {
-	"Register",
-	"Challenge"
-};
-static const char *RaRegisterActionVarName[eRegisterActionVarCount] = {
-	"SpecificationDocument",
-	"CertificateDevice",
-	"CertificateUCA",
-	"DescriptionDocumentLocation", /* Applicable only for SD */
-	"CapTokenLocation"
-};
-static const char *RaChallengeActionVarName[eChallengeActionVarCount] = {
-	"Challenge",
-	"PublicKey"
-};
-static const char *ActionResponseVarName = "ActionResponse";
-static const char *CapTokenResponseVarName = "CapToken";
-static const char *ActionSuccess = "1";
+/* Strings */
+UPNP_EXPORT_SPEC extern const char *SUpnpRaDeviceTypeString;
+UPNP_EXPORT_SPEC extern const char *SUpnpRaServiceTypeStrings[eRegistrationAuthorityServiceCount];
+UPNP_EXPORT_SPEC extern const char *SUpnpRaRegistrationActionString[eRegisterServiceActionCount];
+UPNP_EXPORT_SPEC extern const char *SUpnpRaRegisterActionVarName[eRegisterActionVarCount];
+UPNP_EXPORT_SPEC extern const char *SUpnpRaChallengeActionVarName[eChallengeActionVarCount];
+UPNP_EXPORT_SPEC extern const char *SUpnpActionResponseVarName;
+UPNP_EXPORT_SPEC extern const char *SUpnpCapTokenResponseVarName;
+UPNP_EXPORT_SPEC extern const char *SUpnpActionSuccessString;
 
 #ifdef __cplusplus
 }

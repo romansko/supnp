@@ -283,6 +283,10 @@ int AdvertiseAndReply(int AdFlag,
 						i == 0lu,
 						UDNstr,
 						SInfo->DescURL,
+						#if ENABLE_SUPNP
+						CapTokenLocation,
+						AdvertisementSig,
+						#endif
 						Exp,
 						SInfo->DeviceAf,
 						SInfo->PowerState,
@@ -489,6 +493,10 @@ int AdvertiseAndReply(int AdFlag,
 						ServiceShutdown(UDNstr,
 							servType,
 							SInfo->DescURL,
+							#if ENABLE_SUPNP
+                            CapTokenLocation,
+                            AdvertisementSig,
+                            #endif
 							Exp,
 							SInfo->DeviceAf,
 							SInfo->PowerState,

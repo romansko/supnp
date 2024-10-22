@@ -69,6 +69,9 @@ For UPnP Certification Authority (UCA) device enrollment simulation, refer to [s
 
 This section shows the SUPnP protocol messages captured by Wireshark for the RA, SD, and CP.
 
+The signatures, CapTokens, etc. are represented as hex strings. However, for simplicity of this file, they've been
+truncated to `...`
+
 #### RA Discovery
 
 ```html
@@ -291,6 +294,23 @@ NTS: ssdp:alive
 SERVER: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
 X-User-Agent: redsonic
 USN: uuid:Upnp-TVEmulator-1_0-1234567890001::urn:schemas-upnp-org:service:tvcontrol:1
+```
+
+When RA device shuts down, it signs only the description URL, since RA doen't have CapToken:
+```html
+NOTIFY * HTTP/1.1
+HOST: 239.255.255.250:1900
+CACHE-CONTROL: max-age=100
+LOCATION: http://192.168.1.100:49152/radesc.xml
+CAPTOKEN-LOCATION: ra
+ADVERTISEMENT-SIG: ...
+OPT: "http://schemas.upnp.org/upnp/1/0/"; ns=01
+01-NLS: 02d61eba-9072-11ef-8724-d4a63343a7f8
+NT: urn:schemas-upnp-org:service:registration:1
+NTS: ssdp:byebye
+SERVER: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+X-User-Agent: redsonic
+USN: uuid:SUpnp-RA-1_0-1234567890001::urn:schemas-upnp-org:service:registration:1
 ```
 
 ##### Secure Service Discovery

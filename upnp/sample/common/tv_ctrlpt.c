@@ -1107,7 +1107,7 @@ int TvCtrlPointCallbackEventHandler(Upnp_EventType EventType, const void *Event,
             #if ENABLE_SUPNP
 		    char *deviceType = SUpnpGetFirstElementItem((IXML_Element*)DescDoc,
 		        "deviceType");
-		    if (strcmp(deviceType, RaDeviceType) == 0) {
+		    if (strcmp(deviceType, SUpnpRaDeviceTypeString) == 0) {
 		        freeif(deviceType);
 		        freeif2(DescDoc, ixmlDocument_free);
 		        break; /* ignore RA device at this point */

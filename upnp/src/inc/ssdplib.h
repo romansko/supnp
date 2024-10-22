@@ -530,6 +530,12 @@ int ServiceShutdown(
 	char *ServType,
 	/* [in] Location of Device description document. */
 	char *Location,
+	#if ENABLE_SUPNP
+	/* [in] CapToken Location. If NULL non-secure adv. will be performed. */
+    const char *CapTokenLocation,
+    /* [in] Advertisement Signature. If NULL non-secure adv. will be performed. */
+    const char *AdvertisementSig,
+    #endif
 	/* [in] Service duration in sec. */
 	int Duration,
 	/* [in] Device address family. */
@@ -556,6 +562,12 @@ int DeviceShutdown(
 	char *Udn,
 	/* [in] Location URL. */
 	char *Location,
+	#if ENABLE_SUPNP
+	/* [in] CapToken Location. If NULL non-secure adv. will be performed. */
+    const char *CapTokenLocation,
+    /* [in] Advertisement Signature. If NULL non-secure adv. will be performed. */
+    const char *AdvertisementSig,
+    #endif
 	/* [in] Device duration in sec. */
 	int Duration,
 	/* [in] Device address family. */

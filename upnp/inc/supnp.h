@@ -42,8 +42,8 @@
 #ifndef SUPNP_H
 #define SUPNP_H
 
-#include "UpnpGlobal.h" /* for UPNP_EXPORT_SPEC */
 #include "upnpconfig.h"
+#include "UpnpGlobal.h" /* for UPNP_EXPORT_SPEC */
 #include "supnp_common.h"
 #include "supnp_device.h"
 #include "ixml.h"
@@ -339,19 +339,30 @@ UPNP_EXPORT_SPEC int SUpnpSendAdvertisement(
 	int Exp);
 
 /*!
- * \brief Handles Secure Service Advertisement verification which includes:
- *    1. Secure Advertisement Verification.
- *    2. Secure Device Description Verification.
+ * \brief Secure Advertisement Verification. (Fig. 17, SUPnP paper).
  *
  * \return SUPNP_E_SUCCESS on success, ret code on failure.
  */
-UPNP_EXPORT_SPEC int SUpnpSecureServiceAdvertisementVerify(
+UPNP_EXPORT_SPEC int SUpnpSecureAdvertisementVerify(
 	/*! [IN] Description document URL */
 	const char *descDocLocation,
 	/*! [IN] Target Device (SD) CapToken URL */
 	const char *capTokenLocation,
 	/*! [IN] Advertisement signature in hex format */
 	const char *AdvertisementSig);
+
+
+/*!
+ * \brief Secure Device Description verification. (Fig. 17, SUPnP paper).
+ *
+ * \return SUPNP_E_SUCCESS on success, ret code on failure.
+ */
+UPNP_EXPORT_SPEC int SUpnpSecureDeviceDescriptionVerify(
+    /*! [IN] Description document URL */
+    const char *descDocLocation,
+    /*! [IN] CapToken URL */
+    const char *capTokenLocation);
+
 
 /*!
  * \brief Unregisters an SD device. The function sends secure advertisement.
@@ -396,9 +407,10 @@ UPNP_EXPORT_SPEC int SUpnpSearchAsync(
 
 
 /*!
- * \brief Secure Service Discovery logics SD. This function is called by multiple threads. Hence, some errors are silent.
- * The function that invokes SUpnpSecureServiceDiscoveryVerify will simply discard the thread upon failure.
- * Verify the discovery request and send the response.
+ * \brief Secure Service Discovery verification.  (Fig. 18, SUPnP paper).
+ * This function is called by multiple threads. Hence, some errors are silent.
+ * The function that invokes SUpnpSecureServiceDiscoveryVerify will simply
+ * discard the thread upon failure.
  *
  * \return UPNP_E_SUCCESS on success, ret code on failure.
  */
@@ -514,8 +526,9 @@ UPNP_EXPORT_SPEC int SUpnpSendActionExAsync(
 	const void *Cookie);
 
 /*!
- * \brief Secure Control verify.
- * This function is to be called by SD device to verify Secure control message from CP device.
+ * \brief Secure Control verification. (Fig. 19, SUPnP paper).
+ * This function to be called by an SD device to verify a Secure control message
+ * from a CP device.
  *
  * \return SUPNP_E_SUCCESS on success, ret code on failure.
  */
@@ -580,7 +593,12 @@ UPNP_EXPORT_SPEC int SUpnpCalculateEventSignature(
     const char *callback);
 
 /*!
- * \brief Secure Eventing verify.
+ * \brief Secure Eventing verify. (Fig. 19, SUPnP paper).
+ *
+ * This function to be called by an SD device to verify a Secure event
+ * subscription request from a CP device.
+ *
+ * \return SUPNP_E_SUCCESS on success, ret code on failure.
  */
 UPNP_EXPORT_SPEC int SUpnpSecureEventingVerify(
 	/*! [IN] SUPnP Secure Params */

@@ -253,41 +253,68 @@ void ssdp_handle_ctrlpt_msg(
 			HandleUnlock();
 
 		    #if ENABLE_SUPNP
-		    /* Secure Advertisement verified only by CP device */
+		    /* Secure Service Advertisement can be only verified by a CP device */
 		    if (SUpnpGetDeviceType() == eDeviceType_CP) {
+
+		        /* get params */
 		        const char *location = UpnpString_get_String(
                     UpnpDiscovery_get_Location(param));
-		        if (location == NULL) {
+		        const char *capTokenUrl = UpnpString_get_String(
+                            UpnpDiscovery_get_CapTokenLocation(param));
+		        const char *advSignature = UpnpString_get_String(
+                    UpnpDiscovery_get_AdvSignature(param));
+
+		        if (location == NULL) { /* mandatory for all, RA included */
 		            supnp_error("UpnpDiscovery_get_Location resulted in NULL.\n")
                     return;
 		        }
-		        char *deviceType = SUpnpGetFirstElementItem2(location, "deviceType");
-		        if (deviceType == NULL) {
-		            supnp_error("NULL deviceType.\n")
-                    return;
-		        }
 
-		        /* Always accept Advertisements from RA */
-		        if (strcmp(deviceType, RaDeviceType) != 0) {
-		            freeif(deviceType);
-
-		            /* Drop Advertisements until CP is initialized */
-		            if (SUpnpGetRAPKey() == NULL) {
-		                return;
+		        /**
+		         * Non-ShutDown advertisement received,
+		         * Perform Secure Advertisement Verification and
+		         * Secure Device Description Verification.
+                 */
+		        if (is_byebye == 0) {
+		            char *deviceType = SUpnpGetFirstElementItem2(location,
+		                "deviceType");
+		            if (deviceType == NULL) {
+		                supnp_error("NULL deviceType.\n")
+                        return;  /* Error, drop advertisement */
 		            }
 
-		            const char *capTokenUrl = UpnpString_get_String(
-		                UpnpDiscovery_get_CapTokenLocation(param));
-		            const char *advSignature = UpnpString_get_String(
-		                UpnpDiscovery_get_AdvSignature(param));
-		            if (SUPNP_E_SUCCESS != SUpnpSecureServiceAdvertisementVerify(
-                        location,
-                        capTokenUrl,
-                        advSignature))
-		            {
-		                /* Secure Advertisement failed, ignore this Advertisement */
-		                return;
+		            /* Applicable to advertisements by non-RA devices */
+		            if (strcmp(deviceType, SUpnpRaDeviceTypeString) != 0) {
+		                freeif(deviceType);
+
+		                /* Drop Advertisements until CP is initialized */
+		                if (SUpnpGetRAPKey() == NULL) {
+		                    return;
+		                }
+
+		                /* Secure Advertisement verification */
+		                if (SUPNP_E_SUCCESS != SUpnpSecureAdvertisementVerify(
+                            location, capTokenUrl, advSignature))
+		                {
+		                    /* Secure Advertisement failed, ignore Advertisement */
+		                    return;
+		                }
+
+		                /* Secure Device Description verification */
+		                if (SUPNP_E_SUCCESS != SUpnpSecureDeviceDescriptionVerify(
+                            location, capTokenUrl))
+		                {
+		                    /**
+                             * Secure Device Description failed, ignore Advertisement */
+		                    return;
+		                }
+
 		            }
+
+		            /* is_byebye == 1*/
+		        } else if (SUPNP_E_SUCCESS != SUpnpSecureAdvertisementVerify(
+                        location, capTokenUrl, advSignature)) {
+		            /* Secure Advertisement failed, ignore Advertisement */
+		            return;
 		        }
 		    }
 		    #endif

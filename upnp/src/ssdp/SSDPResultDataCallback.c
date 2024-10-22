@@ -42,19 +42,23 @@ void SSDPResultData_Callback(const SSDPResultData *p)
             return;
         }
 
-        /* Ignore Advertisements from RA because they're non-secure */
-        if (strcmp(deviceType, RaDeviceType) != 0) {
+        /* Allow Advertisements from RA */
+        if (strcmp(deviceType, SUpnpRaDeviceTypeString) != 0) {
             free(deviceType);
             const char *capTokenUrl = UpnpString_get_String(
                 UpnpDiscovery_get_CapTokenLocation(event));
             const char *advSignature = UpnpString_get_String(
                 UpnpDiscovery_get_AdvSignature(event));
-            if (SUPNP_E_SUCCESS != SUpnpSecureServiceAdvertisementVerify(
-                location,
-                capTokenUrl,
-                advSignature))
+            if (SUPNP_E_SUCCESS != SUpnpSecureAdvertisementVerify(
+                location, capTokenUrl, advSignature))
             {
                 /* Secure Advertisement failed, ignore this Advertisement */
+                return;
+            }
+            if (SUPNP_E_SUCCESS != SUpnpSecureDeviceDescriptionVerify(
+                location, capTokenUrl))
+            {
+                /* Secure Device Description failed, ignore this Advertisement */
                 return;
             }
         }

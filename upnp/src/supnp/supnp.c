@@ -547,9 +547,9 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
         supnp_verify(docs_hex[i] != NULL, cleanup,
             "Error converting to hex string Registration Document ID %d\n", i);
         rc = UpnpAddToAction(&actionNode,
-            RaRegistrationAction[eRegisterServiceAction_Register],
-            RaServiceType[eRegistrationAuthorityService_Register],
-            RaRegisterActionVarName[i],
+            SUpnpRaRegistrationActionString[eRegisterServiceAction_Register],
+            SUpnpRaServiceTypeStrings[eRegistrationAuthorityService_Register],
+            SUpnpRaRegisterActionVarName[i],
             docs_hex[i]);
         supnp_verify(rc == UPNP_E_SUCCESS, cleanup,
             "Error trying to add registration action param\n");
@@ -558,9 +558,9 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
     /* Add Description Document Location, if applicable. */
     if (strlen(Params->descDocLocation) > 0) {
         rc = UpnpAddToAction(&actionNode,
-            RaRegistrationAction[eRegisterServiceAction_Register],
-            RaServiceType[eRegistrationAuthorityService_Register],
-            RaRegisterActionVarName[eRegisterActionVar_DescDocFileLocation],
+            SUpnpRaRegistrationActionString[eRegisterServiceAction_Register],
+            SUpnpRaServiceTypeStrings[eRegistrationAuthorityService_Register],
+            SUpnpRaRegisterActionVarName[eRegisterActionVar_DescDocFileLocation],
             Params->descDocLocation);
         supnp_verify(rc == UPNP_E_SUCCESS, cleanup,
             "Error trying to add Description Document Location\n");
@@ -570,16 +570,16 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
     supnp_verify(Params->capTokenLocation, cleanup,
         "NULL CapToken Filename.\n");
     rc = UpnpAddToAction(&actionNode,
-        RaRegistrationAction[eRegisterServiceAction_Register],
-        RaServiceType[eRegistrationAuthorityService_Register],
-        RaRegisterActionVarName[eRegisterActionVar_CapTokenLocation],
+        SUpnpRaRegistrationActionString[eRegisterServiceAction_Register],
+        SUpnpRaServiceTypeStrings[eRegistrationAuthorityService_Register],
+        SUpnpRaRegisterActionVarName[eRegisterActionVar_CapTokenLocation],
         Params->capTokenLocation);
     supnp_verify(rc == UPNP_E_SUCCESS, cleanup,
         "Error trying to add CapToken Location\n");
 
     rc = UpnpSendAction(Params->handle,
         ControlUrl,
-        RaServiceType[eRegistrationAuthorityService_Register],
+        SUpnpRaServiceTypeStrings[eRegistrationAuthorityService_Register],
         NULL, /* UDN ignored & Must be NULL */
         NULL, /* SecureParams ignored */
         actionNode,
@@ -591,7 +591,7 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
 
     /* Extract Challenge from respNode */
     response = SUpnpGetFirstElementItem((IXML_Element*)respNode,
-        RaChallengeActionVarName[eChallengeActionVar_Challenge]);
+        SUpnpRaChallengeActionVarName[eChallengeActionVar_Challenge]);
     challenge = OpenSslHexStringToBinary(response, &size);
     supnp_verify(challenge, cleanup, "Error extracting challenge.\n");
 
@@ -612,24 +612,24 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
     freeif2(actionNode, ixmlDocument_free);
     freeif2(respNode, ixmlDocument_free);
     rc = UpnpAddToAction(&actionNode,
-        RaRegistrationAction[eRegisterServiceAction_Challenge],
-        RaServiceType[eRegistrationAuthorityService_Register],
-        RaChallengeActionVarName[eChallengeActionVar_Challenge],
+        SUpnpRaRegistrationActionString[eRegisterServiceAction_Challenge],
+        SUpnpRaServiceTypeStrings[eRegistrationAuthorityService_Register],
+        SUpnpRaChallengeActionVarName[eChallengeActionVar_Challenge],
         hex_sig);
     supnp_verify(rc == UPNP_E_SUCCESS, cleanup,
         "Error trying to add challenge action challenge param.\n");
 
     rc = UpnpAddToAction(&actionNode,
-        RaRegistrationAction[eRegisterServiceAction_Challenge],
-        RaServiceType[eRegistrationAuthorityService_Register],
-        RaChallengeActionVarName[eChallengeActionVar_PublicKey],
+        SUpnpRaRegistrationActionString[eRegisterServiceAction_Challenge],
+        SUpnpRaServiceTypeStrings[eRegistrationAuthorityService_Register],
+        SUpnpRaChallengeActionVarName[eChallengeActionVar_PublicKey],
         pk_hex);
     supnp_verify(rc == UPNP_E_SUCCESS, cleanup,
         "Error trying to add challenge action public key param.\n");
 
     rc = UpnpSendAction(Params->handle,
             ControlUrl,
-            RaServiceType[eRegistrationAuthorityService_Register],
+            SUpnpRaServiceTypeStrings[eRegistrationAuthorityService_Register],
             NULL, /* UDN ignored & Must be NULL */
             NULL, /* SecureParams ignored */
             actionNode,
@@ -640,9 +640,9 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
     /* Check Challenge Response Status */
     freeif(response);
     response = SUpnpGetFirstElementItem((IXML_Element*)respNode,
-        ActionResponseVarName);
+        SUpnpActionResponseVarName);
     supnp_verify(response, cleanup, "Error extracting response.\n");
-    if (strcmp(response, ActionSuccess) == 0) {
+    if (strcmp(response, SUpnpActionSuccessString) == 0) {
         rc = eRegistrationStatus_DeviceRegistered;
     } else {
         rc = (int)strtol(response, NULL, 10);
@@ -654,7 +654,7 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
     rc = SUPNP_E_CAPTOKEN_ERROR;
     freeif(response);
     response = SUpnpGetFirstElementItem((IXML_Element*)respNode,
-        CapTokenResponseVarName);
+        SUpnpCapTokenResponseVarName);
     supnp_verify(response, cleanup, "Error extracting CapToken.\n");
     capToken = SUpnpCapTokenFromHexString(response);
     supnp_verify(capToken, cleanup,
@@ -736,7 +736,7 @@ int RegistrationCallbackEventHandler(Upnp_EventType eventType,
     /* Register the device if it is not already registered */
     deviceType = SUpnpGetFirstElementItem((IXML_Element*)ra_desc_doc,
         "deviceType");
-    supnp_verify((strcmp(deviceType, RaDeviceType) == 0), cleanup,
+    supnp_verify((strcmp(deviceType, SUpnpRaDeviceTypeString) == 0), cleanup,
         "Unexpected device type %s.\n", deviceType);
 
     if (status != eRegistrationStatus_DeviceRegistered) {
@@ -754,7 +754,7 @@ int RegistrationCallbackEventHandler(Upnp_EventType eventType,
                 supnp_error("Error generating controlURL from %s + %s\n",
                     location, service->controlURL);
             } else if (strcmp(service->serviceType,
-                RaServiceType[eRegistrationAuthorityService_Register]) == 0) {
+                SUpnpRaServiceTypeStrings[eRegistrationAuthorityService_Register]) == 0) {
                 // Send the DSD to the RA
                 errCode = sendRAActionRegister(params, controlURL);
                 break;
@@ -806,7 +806,7 @@ int SUpnpRegisterDevice(
     params->callback_cookie = callback_cookie;
     for (int i = 0; i < SUPNP_DOCS_ON_DEVICE; ++i) {
         supnp_verify(RegistrationDocsPath[i], cleanup, "NULL %s.\n",
-            RaRegisterActionVarName[i]);
+            SUpnpRaRegisterActionVarName[i]);
         params->RegistrationDocsPath[i] = RegistrationDocsPath[i];
     }
     ret = SUpnpBuildLocation(params->capTokenLocation, AF, CapTokenFilename);
@@ -830,7 +830,7 @@ int SUpnpRegisterDevice(
     /* Send RA Non-Secure Discovery Message */
     ret = UpnpSearchAsync(params->handle,
         Timeout,
-        RaDeviceType,
+        SUpnpRaDeviceTypeString,
         NULL,  /* Secure Discovery Not Applicable */
         params);
     supnp_verify(ret == UPNP_E_SUCCESS, cleanup,
@@ -1050,16 +1050,13 @@ int SUpnpSendAdvertisement(const int Hnd, const int Exp)
 }
 
 
-int SUpnpSecureServiceAdvertisementVerify(const char *descDocLocation,
+int SUpnpSecureAdvertisementVerify(const char *descDocLocation,
     const char *capTokenLocation,
     const char *AdvertisementSig)
 {
     int ret = SUPNP_E_SECURE_PARAMS_ERROR;
     char concatenate_url[2*LOCATION_SIZE] = {0};
     EVP_PKEY *ra_pk = NULL;
-    IXML_Document *pDescDoc = NULL;
-    captoken_t *pTargetCapToken = NULL;
-    char *desc_doc_content = NULL;
 
     supnp_log("Verifying Secure Service Advertisement ..\n");
 
@@ -1086,6 +1083,34 @@ int SUpnpSecureServiceAdvertisementVerify(const char *descDocLocation,
         cleanup,
         "Advertisement signature is forged !!!\n");
 
+    supnp_log("Secure Service Advertisement verified successfully.\n");
+
+    ret = SUPNP_E_SUCCESS;
+
+cleanup:
+    freeif2(ra_pk, EVP_PKEY_free);
+    return ret;
+}
+
+
+int SUpnpSecureDeviceDescriptionVerify(const char *descDocLocation,
+    const char *capTokenLocation)
+{
+    int ret = SUPNP_E_SECURE_PARAMS_ERROR;
+    EVP_PKEY *ra_pk = NULL;
+    IXML_Document *pDescDoc = NULL;
+    captoken_t *pTargetCapToken = NULL;
+    char *desc_doc_content = NULL;
+
+    supnp_log("Secure Device Description..\n");
+
+    supnp_verify(descDocLocation != NULL, cleanup, "NULL hexSignature\n");
+    supnp_verify(capTokenLocation != NULL, cleanup, "NULL descDocUrl\n");
+
+    /* Load RA Public Key */
+    ra_pk = SUpnpGetRAPKey();
+    supnp_verify(ra_pk, cleanup, "NULL RA PKEY\n");
+
     /* Download Description Document */
     ret = UpnpDownloadXmlDoc(descDocLocation, &pDescDoc);
     supnp_verify(ret == UPNP_E_SUCCESS, cleanup,
@@ -1103,7 +1128,7 @@ int SUpnpSecureServiceAdvertisementVerify(const char *descDocLocation,
         "Secure Device Description failed !!! Error in verifyCapToken -- %d\n",
         ret);
 
-    supnp_log("Secure Service Advertisement verified successfully.\n");
+    supnp_log("Secure Device Description successful.\n");
 
     ret = SUPNP_E_SUCCESS;
 
@@ -1114,8 +1139,9 @@ cleanup:
     SUpnpFreeCapToken(&pTargetCapToken);
     return ret;
 }
+    
 
-UPNP_EXPORT_SPEC int SUpnpUnRegisterRootDevice(const int Hnd)
+int SUpnpUnRegisterRootDevice(const int Hnd)
 {
     int ret = SUPNP_E_SECURE_PARAMS_ERROR;
     char capTokenLocation[LOCATION_SIZE];
@@ -1337,7 +1363,7 @@ int SUpnpSecureControlVerify(const SecureParams *SParams)
  ******************************************************************************/
 
 
-UPNP_EXPORT_SPEC int SUpnpSubscribe(
+int SUpnpSubscribe(
     const int Hnd,
     const char *PublisherUrl,
     int *TimeOut,
@@ -1360,7 +1386,7 @@ UPNP_EXPORT_SPEC int SUpnpSubscribe(
 }
 
 
-UPNP_EXPORT_SPEC int SUpnpSubscribeAsync(const int Hnd,
+int SUpnpSubscribeAsync(const int Hnd,
     const char *PublisherUrl,
     int TimeOut,
     void *Fun,

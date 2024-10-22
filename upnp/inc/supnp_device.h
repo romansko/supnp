@@ -10,6 +10,7 @@
 #ifndef SUPNP_DEVICE_H
 #define SUPNP_DEVICE_H
 
+#include "upnpconfig.h"
 #include "UpnpGlobal.h" /* for UPNP_EXPORT_SPEC */
 #include "openssl_nonce.h"
 #include "openssl_wrapper.h"

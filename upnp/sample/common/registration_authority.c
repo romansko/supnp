@@ -66,6 +66,8 @@ const char *RA_DESC_DOC_DEF_PATH = "radesc.xml";
 const char *DefaultPublicKeyPathCA = "../../simulation/CA/public_key.pem";
 const char *DefaultPrivateKeyPathRA = "../../simulation/RA/private_key.pem";
 
+char DescDocLocation[LOCATION_SIZE] = {0};
+
 supnp_device_t * SUPnPDeviceList = NULL;
 
 ra_action RAActionFunctions[eRegisterServiceActionCount] = {
@@ -118,7 +120,7 @@ static int SetServiceTable(
 	strcpy(out->ServiceType, serviceTypeS);
 
     for (int i = 0; i < out->VariableCount; ++i) {
-        out->VariableName[i] = RaRegisterActionVarName[i];
+        out->VariableName[i] = SUpnpRaRegisterActionVarName[i];
         out->VariableStrVal[i] = RegistrationDocs[i];
     }
 
@@ -137,7 +139,7 @@ int SetActionTable(const ERAServiceType serviceType, struct RAService *out)
         memset(out->ActionNames, 0, sizeof(out->ActionNames));
         memset(out->actions, 0, sizeof(out->actions));
         for (int i=0; i<eRegisterServiceActionCount; ++i) {
-            out->ActionNames[i] = RaRegistrationAction[i];
+            out->ActionNames[i] = SUpnpRaRegistrationActionString[i];
             out->actions[i] = RAActionFunctions[i];
         }
 		ret = UPNP_E_SUCCESS;
@@ -170,12 +172,12 @@ int RAStateTableInit(char *DescDocURL)
     for (int srvType=0; srvType<eRegistrationAuthorityServiceCount; ++srvType) {
         if (!SampleUtil_FindAndParseService(DescDoc,
             DescDocURL,
-            RaServiceType[srvType],
+            SUpnpRaServiceTypeStrings[srvType],
             &servid[srvType],
             &evnturl[srvType],
             &ctrlurl[srvType])) {
             SampleUtil_Print("RAStateTableInit -- Error: Could not "
-                     "find Service: %s\n", RaServiceType[srvType]);
+                     "find Service: %s\n", SUpnpRaServiceTypeStrings[srvType]);
             ret = UPNP_E_INVALID_DESC;
             break;
         }
@@ -183,7 +185,7 @@ int RAStateTableInit(char *DescDocURL)
         ret = SetServiceTable(srvType,
             udn,
             servid[srvType],
-            RaServiceType[srvType],
+            SUpnpRaServiceTypeStrings[srvType],
             &ra_service_table[srvType]);
         if (ret != UPNP_E_SUCCESS)
             break;
@@ -348,7 +350,8 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
 
     /* Step 1 - Receive and Load DSD/SAD, Device Certificate, UCA Certificate */
     for (int i=0; i<SUPNP_DOCS_ON_DEVICE; ++i) {
-        hex[i] = SampleUtil_GetFirstDocumentItem(in, RaRegisterActionVarName[i]);
+        hex[i] = SampleUtil_GetFirstDocumentItem(in,
+            SUpnpRaRegisterActionVarName[i]);
         docs[i] = (char * )OpenSslHexStringToBinary(hex[i], &doc_size[i]);
         sample_verify_ex(docs[i], cleanup, errorString,
             "Invalid Registration parameters.\n");
@@ -367,7 +370,7 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
     /* Retrieve CapToken Location */
     memset(dev->capTokenLocation, 0, sizeof(dev->capTokenLocation));
     char *capTokenLocation = SampleUtil_GetFirstDocumentItem(in,
-        RaRegisterActionVarName[eRegisterActionVar_CapTokenLocation]);
+        SUpnpRaRegisterActionVarName[eRegisterActionVar_CapTokenLocation]);
     sample_verify_ex(capTokenLocation, cleanup, errorString,
         "NULL CapToken Location.\n");
     strncpy(dev->capTokenLocation, capTokenLocation, LOCATION_SIZE);
@@ -376,7 +379,7 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
     /* Applicable only for SD */
     memset(dev->descDocLocation, 0, sizeof(dev->descDocLocation));
     char *descDocLocation = SampleUtil_GetFirstDocumentItemSilent(in,
-        RaRegisterActionVarName[eRegisterActionVar_DescDocFileLocation]);
+        SUpnpRaRegisterActionVarName[eRegisterActionVar_DescDocFileLocation]);
     if (descDocLocation != NULL) {
         strncpy(dev->descDocLocation, descDocLocation, LOCATION_SIZE);
         ret = UpnpDownloadXmlDoc(descDocLocation, &(dev->descDocument));
@@ -409,9 +412,9 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
     challenge_str = OpenSslBinaryToHexString(enc_nonce, enc_len);
     sample_verify_ex(challenge_str, cleanup, errorString, "Error converting challenge to hex string.\n");
     ret = UpnpAddToActionResponse(out,
-            RaRegistrationAction[eRegisterServiceAction_Register],
-            RaServiceType[eRegistrationAuthorityService_Register],
-            RaChallengeActionVarName[eChallengeActionVar_Challenge],
+            SUpnpRaRegistrationActionString[eRegisterServiceAction_Register],
+            SUpnpRaServiceTypeStrings[eRegistrationAuthorityService_Register],
+            SUpnpRaChallengeActionVarName[eChallengeActionVar_Challenge],
             challenge_str);
     sample_verify_ex(ret == UPNP_E_SUCCESS, cleanup, errorString, "Unable to add response\n");
 
@@ -425,8 +428,8 @@ cleanup:
         SupnpFreeDevice(&dev);
         sprintf(retVal, "%d", ret);
         (void) UpnpAddToActionResponse(out,
-            RaRegistrationAction[eRegisterServiceAction_Register],
-            RaServiceType[eRegistrationAuthorityService_Register],
+            SUpnpRaRegistrationActionString[eRegisterServiceAction_Register],
+            SUpnpRaServiceTypeStrings[eRegistrationAuthorityService_Register],
             "ErrorCode",
             retVal);
     }
@@ -467,7 +470,8 @@ int VerifyChallenge(IXML_Document *in, IXML_Document **out, const char **errorSt
     sample_verify_ex(raPkey, cleanup, errorString, "Unable to load RA Private Key.\n");
 
     /* Extract public key */
-    hex = SampleUtil_GetFirstDocumentItem(in, RaChallengeActionVarName[eChallengeActionVar_PublicKey]);
+    hex = SampleUtil_GetFirstDocumentItem(in,
+        SUpnpRaChallengeActionVarName[eChallengeActionVar_PublicKey]);
     pkey = OpenSslLoadPublicKeyFromHex(hex);
     sample_verify_ex(pkey, cleanup, errorString, "Unable to load Public Key.\n");
 
@@ -481,7 +485,8 @@ int VerifyChallenge(IXML_Document *in, IXML_Document **out, const char **errorSt
     }
 
     /* Extract challenge response */
-    response = SampleUtil_GetFirstDocumentItem(in, RaChallengeActionVarName[eChallengeActionVar_Challenge]);
+    response = SampleUtil_GetFirstDocumentItem(in,
+        SUpnpRaChallengeActionVarName[eChallengeActionVar_Challenge]);
 
     /* Verify Signature  */
     ret = OpenSslVerifySignature("nonce challenge", pkey, response, p_dev->nonce, OPENSSL_CSPRNG_SIZE);
@@ -501,9 +506,9 @@ verified:
     sample_verify_ex(capToken, cleanup, errorString, "Error converting CapToken to hex string.\n");
 
     ret = UpnpAddToActionResponse(out,
-   RaRegistrationAction[eRegisterServiceAction_Challenge],
-   RaServiceType[eRegistrationAuthorityService_Register],
-   CapTokenResponseVarName,
+   SUpnpRaRegistrationActionString[eRegisterServiceAction_Challenge],
+   SUpnpRaServiceTypeStrings[eRegistrationAuthorityService_Register],
+   SUpnpCapTokenResponseVarName,
    capToken);
     sample_verify_ex(ret == UPNP_E_SUCCESS, cleanup, errorString, "Unable to add CapToken to response.\n");
 
@@ -513,17 +518,17 @@ verified:
 cleanup:
     if (ret == SUPNP_E_SUCCESS) {
         (void) UpnpAddToActionResponse(out,
-           RaRegistrationAction[eRegisterServiceAction_Challenge],
-           RaServiceType[eRegistrationAuthorityService_Register],
-           ActionResponseVarName,
-           ActionSuccess);
+           SUpnpRaRegistrationActionString[eRegisterServiceAction_Challenge],
+           SUpnpRaServiceTypeStrings[eRegistrationAuthorityService_Register],
+           SUpnpActionResponseVarName,
+           SUpnpActionSuccessString);
     } else {
         SupnpRemoveListDevice(&SUPnPDeviceList, p_dev); /* Remove device from list */
         sprintf(retVal, "%d", ret);
         (void) UpnpAddToActionResponse(out,
-            RaRegistrationAction[eRegisterServiceAction_Challenge],
-            RaServiceType[eRegistrationAuthorityService_Register],
-            ActionResponseVarName,
+            SUpnpRaRegistrationActionString[eRegisterServiceAction_Challenge],
+            SUpnpRaServiceTypeStrings[eRegistrationAuthorityService_Register],
+            SUpnpActionResponseVarName,
             retVal);
     }
     freeif(hex);
@@ -634,6 +639,8 @@ int RAStart(char *iface,
 	sample_verify(ret == UPNP_E_SUCCESS, error_handler,
 	    "Error building URL -- %s: %d\n", desc_doc_name, ret);
 
+    strncpy(DescDocLocation, desc_doc_url, LOCATION_SIZE);
+
 	SampleUtil_Print("Specifying the webserver root directory -- %s\n",
 		web_dir_path);
 	ret = UpnpSetWebServerRootDir(web_dir_path);
@@ -673,7 +680,37 @@ error_handler:
  */
 int RAStop(void)
 {
-	UpnpUnRegisterRootDevice(device_handle, NULL, NULL);
+    /* RA Advertisement doesn't have CapTokenLocation & sig */
+    unsigned char *sig = NULL;
+    char *hexsig = NULL;
+    size_t sigsize;
+    EVP_PKEY *raPkey = OpenSslLoadPrivateKeyFromPEM(DefaultPrivateKeyPathRA);
+    char concat[LOCATION_SIZE * 2] = {0};
+    if (raPkey == NULL) {
+        supnp_error("Error loading RA Private Key\n");
+    } else if (strlen(DescDocLocation) == 0) {
+        supnp_error("Description Document not loaded\n");
+    }else {
+        strncpy(concat, DescDocLocation, LOCATION_SIZE);
+        strncat(concat, "ra", LOCATION_SIZE);
+        sig = OpenSslSign(raPkey,  /* sign(DescDoc || "") */
+            (unsigned char *)concat,
+            strlen(concat),
+            &sigsize);
+        if (sig != NULL) {
+            hexsig = OpenSslBinaryToHexString(sig, sigsize);
+        }
+    }
+    if (hexsig == NULL) {
+        UpnpUnRegisterRootDevice(device_handle,
+            NULL, NULL);
+    } else {
+        UpnpUnRegisterRootDevice(device_handle,
+           "ra", hexsig);
+    }
+    OpenSslFreePKey(&raPkey);
+    freeif(sig);
+    freeif(hexsig);
 	SUpnpFinish();
 	SampleUtil_Finish();
 	ithread_mutex_destroy(&RAMutex);

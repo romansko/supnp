@@ -158,7 +158,7 @@ void ssdp_handle_device_request(
         }
         OpenSslFreePKey(&ra_pk);
         /* Messages from RA are not applicable */
-        if (memptr_cmp(&hdr_value, RaDeviceType) != 0) {
+        if (memptr_cmp(&hdr_value, SUpnpRaDeviceTypeString) != 0) {
             memptr capTokenLocation;
             memptr capTokenSignature;
             memptr hexNonce;
@@ -1725,6 +1725,10 @@ error_handler:
 int ServiceShutdown(char *Udn,
 	char *ServType,
 	char *Location,
+	#if ENABLE_SUPNP
+    const char *CapTokenLocation,
+    const char *AdvertisementSig,
+    #endif
 	int Duration,
 	int AddressFamily,
 	int PowerState,
@@ -1774,8 +1778,8 @@ int ServiceShutdown(char *Udn,
 		Mil_Usn,
 		Location,
 		#if ENABLE_SUPNP
-		NULL, /* NA */
-		NULL, /* NA */
+		CapTokenLocation,
+		AdvertisementSig,
 		#endif
 		Duration,
 		&szReq[0],
@@ -1797,6 +1801,10 @@ int DeviceShutdown(char *DevType,
 	int RootDev,
 	char *Udn,
 	char *Location,
+	#if ENABLE_SUPNP
+    const char *CapTokenLocation,
+    const char *AdvertisementSig,
+    #endif
 	int Duration,
 	int AddressFamily,
 	int PowerState,
@@ -1848,9 +1856,9 @@ int DeviceShutdown(char *DevType,
 			Mil_Usn,
 			Location,
 			#if ENABLE_SUPNP
-            NULL, /* NA */
-            NULL, /* NA */
-            #endif
+		    CapTokenLocation,
+		    AdvertisementSig,
+		    #endif
 			Duration,
 			&msgs[0],
 			AddressFamily,
@@ -1869,8 +1877,8 @@ int DeviceShutdown(char *DevType,
 		Udn,
 		Location,
 		#if ENABLE_SUPNP
-        NULL, /* NA */
-        NULL, /* NA */
+        CapTokenLocation,
+        AdvertisementSig,
         #endif
 		Duration,
 		&msgs[1],
@@ -1886,8 +1894,8 @@ int DeviceShutdown(char *DevType,
 		Mil_Usn,
 		Location,
 		#if ENABLE_SUPNP
-        NULL, /* NA */
-        NULL, /* NA */
+        CapTokenLocation,
+        AdvertisementSig,
         #endif
 		Duration,
 		&msgs[2],

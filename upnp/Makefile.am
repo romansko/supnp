@@ -228,6 +228,7 @@ if ENABLE_SUPNP
 libupnp_la_SOURCES += \
 	src/supnp/supnp.c \
 	src/supnp/supnp_captoken.c \
+	src/supnp/supnp_common.c \
 	src/supnp/supnp_device.c
 endif
 
