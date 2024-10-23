@@ -1,57 +1,46 @@
-# SUPnP Fork of the portable SDK for UPnP\* Devices (libupnp)
+# SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things
 
-This repository is a fork of [libupnp](https://github.com/pupnp/pupnp) with a secure layer extension as described in 
+This repository is a fork of the portable SDK for UPnP Devices ([libupnp](https://github.com/pupnp/pupnp)) with a secure layer extension as described in 
 the paper [SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things](https://ieeexplore.ieee.org/document/9352973) 
 by Kayas, G., Hossain, M., Payton, J., & Islam, S. R. (2021), IEEE Internet of Things Journal, 8(14), 11561-11580.
 
-To read more about `libupnp`, its usage, and licencing, please refer to the original repository [here](https://github.com/pupnp/pupnp).
-It's strongly recommended to read the original README file before continuing with this one.
+<br/> 
 
 ## Important Notice
 
-The SUPnP secure layer implementation for `libupnp` is a school project as part of my MSc studies in computer science.
-One should not use this implementation in a production environment as it is not fully tested and might have security 
-flaws.
+It's strongly recommended to read the original `libupnp`'s [README](https://github.com/pupnp/pupnp/blob/branch-1.14.x/README.md) file before continuing with this one.
+The current README file was edited to include specific `SUPnP` secure layer build instructions and usage, and some information was <ins>removed</ins> for simplicity.
+To read more about `libupnp`, its usage, and licencing, please refer to the original [libupnp](https://github.com/pupnp/pupnp) repository.
+For Licensing related to `SUPnP`, please consult the authors of the paper [SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things](https://ieeexplore.ieee.org/document/9352973).
 
-The current README file was edited to include the SUPnP secure layer build instructions and usage.
-Some information was removed to keep the README file relevant to the SUPnP secure layer.
+The `SUPnP` secure layer implementation for `libupnp` was made as part of my MSc studies in computer science.
+One should not use this implementation in a production environment as it is not fully tested and might have security flaws.
+The implementation of `SUPnP` is intended for educational purposes only.
 
-The Portable SDK for UPnP&trade; Devices is distributed under the BSD (Berkeley Standard Distribution) license.
-This license allows you to use the source code royalty free and does not place any restrictions on what you do with
-source code derived from the SDK. For full details on the license conditions, please consult the [LICENSE](site/LICENSE)
-file located inside the SDK distribution.
+<br/>
 
 ## SUPnP Package Contents
 
-The original SDK for UPnP Devices contains the following:
+For the original `libupnp` package contents, refer to [libupnp package contents](https://github.com/pupnp/pupnp/blob/branch-1.14.x/README.md#8-package-contents)
 
-| Path/File   | Description                                                                       |
-| ----------- |-----------------------------------------------------------------------------------|
-| README      | The original README Contains the installation and build instructions.             |
-| LICENSE     | The licensing terms the SDK is distributed under.                                 |
-| NEWS        | Changes and new features.                                                         |
-| ixml/doc    | The files for generating the XML parser documentation from the source code.       |
-| ixml/inc    | The public include files required to use the XML parser.                          |
-| ixml/src    | The source code to the XML parser library.                                        |
-| upnp/doc    | The files for generating the SDK documentation from the source code.              |
-| upnp/inc    | The public include files required to use the SDK.                                 |
-| upnp/src    | The source files comprising the SDK, libupnp.so.                                  |
-| upnp/sample | A sample device and control point application, illustrating the usage of the SDK. |
+The SUPnP additons and modifications are:
 
-**SUPnP Additional Package Contents:**
+| Path/File        | Description                                                                                                     |
+|------------------|-----------------------------------------------------------------------------------------------------------------|
+| README           | This file. Contains the installation and build instructions for SUPnP.                                          |
+| cJSON            | Package for handling JSON files and content. For more information: [cJSON](https://github.com/DaveGamble/cJSON) |
+| simulation       | Python scripts to simulate UPnP-CA (UCA) Device Enrollment, and demonstrate SUPnP Attack Scenarios.             |
+| upnp/inc         | Additional supnp, openssl & file_utils include files.                                                           |
+| upnp/src/supnp   | SUPnP source files.                                                                                             |
+| upnp/src/opensll | OpenSSL wrapper source files.                                                                                   |
+| upnp/src/file    | file utils source files.                                                                                        |
+| upnp/sample      | Addiotonal Registration Authority source code and header files.                                                 |
+| upnp/scripts     | SUPnP build automation scripts and interface setting scripts.                                                   |
 
-| Path/File        | Description                                                                               |
-|------------------|-------------------------------------------------------------------------------------------|
-| README           | This file. Contains the installation and build instructions for SUPnP.                    |
-| cJSON            | Package for handling JSON files and content.                                              |
-| simulation       | Python simulation scripts to simulate UPnP CA Device Enrollment & SUPnP Attack Scenarios. |
-| upnp/inc         | Contains supnp, openssl & file_utils include files.                                       |
-| upnp/src/supnp   | SUPnP source files.                                                                       |
-| upnp/src/opensll | OpenSSL wrapper source files.                                                             |
-| upnp/src/file    | file utils source files.                                                                  |
-| upnp/sample      | Has an addition - Registration Authority                                                  |
-| upnp/scripts     | SUPnP build automation scripts                                                            |
+That being said, a lot of files were modified with guards `#if ENABLE_SUPNP` to allow original compilation without the `SUPnP` layer.
+However, some logics might be modified, so it's best to use the original `libupnp` if `SUPnP` is not required.
 
+<br/>
 
 ## SUPnP Demonstration
 
@@ -60,12 +49,15 @@ Service Device (SD) and Control Point (CP).
 
 For build and usage please proceed to the next sections.
 
-For SUPnP Attack simulations, refer to [simulation/README.md#](simulation/README.md#attack-scenarios).
+For SUPnP Attack simulations, refer to [simulation/README.md](simulation/README.md#attack-scenarios).
+
+<br/>
 
 ### Device Enrollment Simulation
 
 For UPnP Certification Authority (UCA) device enrollment simulation, refer to [simulation/README.md](simulation/README.md#device-enrollment).
 
+<br/>
 
 ### SUPnP protocol messages - captured by wireshark
 
@@ -83,7 +75,6 @@ MAN: "ssdp:discover"
 MX: 10
 ST: urn:schemas-upnp-org:device:ra:1
 ```
-
 
 #### RA discovery responses
 
@@ -229,7 +220,6 @@ X-User-Agent: redsonic
 </s:Body> </s:Envelope>
 ```
 
-
 #### Secure Service Advertisements
 
 Messages sent by SD, after successful registration with RA.
@@ -314,7 +304,6 @@ SERVER: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
 X-User-Agent: redsonic
 USN: uuid:SUpnp-RA-1_0-1234567890001::urn:schemas-upnp-org:service:registration:1
 ```
-
 ##### Secure Service Discovery
 
 Message sent by CP, after successful registration with RA.
@@ -330,7 +319,6 @@ CAPTOKEN-LOCATION-SIG: ...
 NONCE: ded2b674fcaf534606525ee4c90b6d77c35ed5f97e0f645598e27b994ec582c9
 DISCOVERY-SIG: ...
 ```
-
 
 #### Secure Control
 
@@ -403,31 +391,27 @@ SID: uuid:ba7a77f8-8fd9-11ef-8fba-85cd853f2837
 TIMEOUT: Second-1801
 ```
 
+<br/>
+
 ### Run Logs
 
 For RA, SD, and CP run logs, refer to [upnp/sample/README.md](upnp/sample/README.md).
 
+<br/>
 
 ## System Requirements
 
-The SDK for UPnP Devices is designed to compile and run under several operating systems.  It does, however, have 
-dependencies on some packages that may not be installed by default.  All packages that it requires are listed below.
+The `SUPnP` fork, same as the original SDK for UPnP Devices, is designed to compile and run under several operating systems.  
+It does, however, have dependencies on some packages that may not be installed by default.
+All packages that it requires are listed below.
 
 | Dependency | Description                                                                              |
 | ---------- | ---------------------------------------------------------------------------------------- |
 | libpthread | The header and library are installed as part of the glibc-devel package (or equivalent). |
 | libssl-dev | Required by [OpenSSL](#configure-openssl) / [SUPnP](#configure-supnp) only.              | 
 
-Additionally, the documentation for the SDK can be auto-generated from the upnp.h header file using Doxygen, 
-a documentation system for C, C++, IDL, and Java\*.  Doxygen generates the documentation in HTML or TeX format. 
-Using some additional tools, the TeX output can be converted into a PDF file. To generate the documentation these tools are required:
-
-| Package   | Description                                                                                                                                                                                                 |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Doxygen   | The homepage for Doxygen is <https://www.doxygen.nl/index.html>. The current version as of this release of the SDK is version 3.4.9. Doxygen is the only requirement for generating the HTML documentation. |
-| LaTeX/TeX | To generate the PDF documentation, LaTeX and TeX tools are necessary. The tetex and tetex-latex packages provide these tools.                                                                               |
-| dvips     | dvips converts the DVI file produced by LaTeX into a PostScript\* file. The tetex-dvips package provides this tool.                                                                                         |
-| ps2pdf    | The final step to making the PDF is converting the PostStript\* into Portable Document Format. The ghostscript package provides this tool.                                                                  |
+Additionally, the documentation for the original `libupnp` can be auto-generated from the upnp.h header file using Doxygen.
+Refer to `libupnp` [System Requirements](https://github.com/pupnp/pupnp/blob/branch-1.14.x/README.md#9-system-requirements) for more information.
 
 For the UPnP library to function correctly, networking must be configured properly for multicasting.  To do this:
 
@@ -438,12 +422,13 @@ For the UPnP library to function correctly, networking must be configured proper
 where 'eth0' is the network adapter that the UPnP library will use.  Without this addition, device advertisements 
 and control point searches will not function.
 
-It's possible to use automation scripts:
+`SUPnP` fork has an automation script which can be invoked for this purpose. It creates a virtual interface and sets it for multicasting.
 
 ```bash
 ./scripts/set_interface.sh eth0
 ```
 
+<br/>
 
 ## Build Instructions
 
@@ -461,7 +446,7 @@ that builds the library using a Docker Ubuntu image.
   && git clone https://github.com/romansko/supnp.git \
   && cd pupnp
 
-% ./scripts/cmake_build.sh   # cmake build
+% ./scripts/cmake_supnp.sh   # cmake build
 # OR
 % ./scripts/make_supnp.sh    # autotools build
 
@@ -486,9 +471,10 @@ options available at configure time).
 % make
 ```
 
-will build a Sparc Solaris version of the binaries without debug support and with default options enabled (see below for options available at configure time). Please note: \<cputype\> has to be replaced by a token that fits to your platform and CPU (e.g. "supersparc").
+will build a Sparc Solaris version of the binaries without debug support and with default options enabled (see below for options available at configure time). 
+Please note: \<cputype\> has to be replaced by a token that fits to your platform and CPU (e.g. "supersparc").
 
-To build the documentation, assuming all the necessary tools are installed (see section 3):
+To build the documentation, assuming all the necessary tools are installed:
 
 To generate the HTML documentation:
 
@@ -530,8 +516,11 @@ To build the library with SUPnP secure layer as presented by the paper
 % make
 ```
 
+Automation script is available under `scripts/make_supnp.sh`
+
 Note that SUPnP requires OpenSSL. Hence, The `--enable-open_ssl` flag is set automatically. 
 However, the installation of `libssl-dev` should be done manually by:
+
 ```bash
 % apt install libssl-dev
 ```
@@ -658,7 +647,7 @@ In Order to build everything using the cmake build system, you just need to inst
 Standalone cmake is recommended, IDE's like Visual Studio have built-in support which works, but as cmake in general
 encourages out-of-source builds and VS writes it's config into the source, cmake-gui should be used on windows.
 
-All known options have the same meaning as stated in point 10.2. In Addition, 2 options have been added.
+All known options have the same meaning as stated previously. In Addition, 2 options have been added.
 
 - DOWNLOAD_AND_BUILD_DEPS: This option is only available if a usable git program was found on your system.
   With this option on, the pthread4w package will be downloaded while configuring the build-env, then it will be build 
@@ -666,11 +655,14 @@ All known options have the same meaning as stated in point 10.2. In Addition, 2 
 
 - BUILD_TESTING: This option activates the tests.
 
-To enable SUPnP secure layer with cmake:
+**To build `libupnp` with SUPnP secure layer:**
+
 ```bash
 cmake -DENABLE_SUPNP=ON .
 make
 ```
+
+Automation script is available under `scripts/cmake_supnp.sh`
 
 If you don't want to build pthreads4w in the same build as upnp, 
 you can download it from <https://github.com/Vollstrecker/pthreads4w>.
@@ -678,6 +670,8 @@ Just build and install it. The libs and headers will be found,
 if you set CMAKE_INSTALL_PREFIX (the base install dir) to the same location.
 
 For information on general usage of the cmake build system see: <https://cmake.org/cmake/help/v3.19/guide/user-interaction/index.html>
+
+<br/>
 
 ## Install/Uninstall Instructions
 
@@ -697,15 +691,16 @@ Likewise, the top-level makefile contains an uninstall rule, reversing the steps
 % make uninstall
 ```
 
-## Support and Contact Information
+<br/>
 
-Intel is not providing support for the SDK for UPnP Devices. Mailing lists and discussion boards can be found at <https://github.com/pupnp/pupnp/discussions>.
+For original `libupnp` instructions (which are mostly the same as written above), refer to `libupnp` [Build Instructions](https://github.com/pupnp/pupnp/blob/branch-1.14.x/README.md#10-build-instructions)
 
-If you find this SDK useful, please send an email to <upnp@intel.com> and let us know.
+<br/>
 
-\* Other brands, names, and trademarks are the property of their respective owners.
 
 ## Thanks
+
+*Original thanks from `libupnp`*
 
 - To all the people listed in [the THANKS file](THANKS).
 - To [JetBrains](https://www.jetbrains.com/?from=pupnp) for kindly providing us with open source licenses of their amazing products.
