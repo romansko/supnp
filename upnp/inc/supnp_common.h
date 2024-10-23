@@ -272,6 +272,7 @@ UPNP_EXPORT_SPEC extern const char *SUpnpRaChallengeActionVarName[eChallengeActi
 UPNP_EXPORT_SPEC extern const char *SUpnpActionResponseVarName;
 UPNP_EXPORT_SPEC extern const char *SUpnpCapTokenResponseVarName;
 UPNP_EXPORT_SPEC extern const char *SUpnpActionSuccessString;
+UPNP_EXPORT_SPEC extern const char *SUpnpActionResponseRACert;
 
 #ifdef __cplusplus
 }

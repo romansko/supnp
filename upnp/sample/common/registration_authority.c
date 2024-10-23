@@ -51,6 +51,7 @@
 #include <supnp.h>
 
 #include <assert.h>
+#include <file_utils.h>
 #include <supnp_captoken.h>
 #include <supnp_common.h>
 
@@ -63,12 +64,14 @@
 /*! Relative to upnp/sample */
 #define DEFAULT_PATH_PUBLIC_KEY_CA   "../../simulation/CA/public_key.pem"
 #define DEFAULT_PATH_PRIVATE_KEY_RA  "../../simulation/RA/private_key.pem"
+#define DEFAULT_PATH_CERT_RA         "../../simulation/CP/certificate.pem"
 #define DEFAULT_WEB_DIR              "./web"
 #define DEFAULT_DESC_DOC_NAME        "radesc.xml";
 
 char PublicKeyPathCA[LOCATION_SIZE]  = {0};
 char PrivateKeyPathRA[LOCATION_SIZE] = {0};
 char DescDocLocation[LOCATION_SIZE]  = {0}; /* URL */
+char CertPathRA[LOCATION_SIZE]       = {0};
 
 supnp_device_t * SUPnPDeviceList = NULL;
 
@@ -462,6 +465,7 @@ int VerifyChallenge(IXML_Document *in, IXML_Document **out, const char **errorSt
     char retVal[5] = {0};
     supnp_device_t *p_dev = NULL;
     char *capToken = NULL;
+    char *ra_cert_hex = NULL;
 
     sample_verify_ex(in && out && errorString, cleanup, errorString, "NULL arguments.\n");
     (*out) = NULL;
@@ -508,11 +512,30 @@ verified:
     sample_verify_ex(capToken, cleanup, errorString, "Error converting CapToken to hex string.\n");
 
     ret = UpnpAddToActionResponse(out,
-   SUpnpRaRegistrationActionString[eRegisterServiceAction_Challenge],
-   SUpnpRaServiceTypeStrings[eRegistrationAuthorityService_Register],
-   SUpnpCapTokenResponseVarName,
-   capToken);
-    sample_verify_ex(ret == UPNP_E_SUCCESS, cleanup, errorString, "Unable to add CapToken to response.\n");
+        SUpnpRaRegistrationActionString[eRegisterServiceAction_Challenge],
+        SUpnpRaServiceTypeStrings[eRegistrationAuthorityService_Register],
+        SUpnpCapTokenResponseVarName,
+        capToken);
+    sample_verify_ex(ret == UPNP_E_SUCCESS, cleanup, errorString,
+        "Unable to add CapToken to response.\n");
+
+    /* Add RA Certificate */
+    size_t cert_size;
+    char *ra_cert_string = read_file(CertPathRA, "r", &cert_size);
+    sample_verify_ex(ra_cert_string, cleanup, errorString,
+        "Unable to read RA Certificate.\n");
+    ra_cert_hex = OpenSslBinaryToHexString(
+        (unsigned char *)ra_cert_string, cert_size);
+    freeif(ra_cert_string);
+    sample_verify_ex(ra_cert_hex, cleanup, errorString,
+        "Unable to convert RA Certificate to hex string.\n");
+    ret = UpnpAddToActionResponse(out,
+            SUpnpRaRegistrationActionString[eRegisterServiceAction_Challenge],
+            SUpnpRaServiceTypeStrings[eRegistrationAuthorityService_Register],
+            SUpnpActionResponseRACert,
+            ra_cert_hex);
+    sample_verify_ex(ret == UPNP_E_SUCCESS, cleanup, errorString,
+        "Unable to add RA Hex String Certificate to response.\n");
 
     /* Status OK */
     ret = SUPNP_E_SUCCESS;
@@ -538,6 +561,7 @@ cleanup:
     OpenSslFreePKey(&pkey);
     OpenSslFreePKey(&raPkey);
     freeif(capToken);
+    freeif(ra_cert_hex);
     ithread_mutex_unlock(&RAMutex);
     return ret;
 }
@@ -583,6 +607,7 @@ int RAStart(char *iface,
 	const char *desc_doc_name,
 	const char *public_key_ca,
     const char *private_key_ra,
+    const char *cert_ra,
 	const char *web_dir_path,
 	int ip_mode,
 	print_string pfun)
@@ -614,12 +639,18 @@ int RAStart(char *iface,
     } else {
         strncpy(PrivateKeyPathRA, DEFAULT_PATH_PRIVATE_KEY_RA, LOCATION_SIZE);
     }
+    if (cert_ra) {
+        strncpy(CertPathRA, cert_ra, LOCATION_SIZE);
+    } else {
+        strncpy(CertPathRA, DEFAULT_PATH_CERT_RA, LOCATION_SIZE);
+    }
     if (!web_dir_path) {
         web_dir_path = DEFAULT_WEB_DIR;
     }
 
     /* Initialize SUPnP & UPnP SDK */
-	ret = SUpnpInit(iface, port, PrivateKeyPathRA, eDeviceType_RA, web_dir_path, "");
+	ret = SUpnpInit(iface, port, PrivateKeyPathRA, eDeviceType_RA, web_dir_path,
+	    "" /* NA */, "" /* NA */);
     sample_verify(ret == UPNP_E_SUCCESS, error_handler, "Error with UpnpInit2 -- %d\n", ret);
 
 	switch (ip_mode) {
@@ -777,6 +808,7 @@ int ra_main(int argc, char *argv[])
 	char *desc_doc_name = NULL;
     char *public_key_ca = NULL;
     char *private_key_ra = NULL;
+    char *cert_ra = NULL;
 	char *web_dir_path = NULL;
 	unsigned short port = 0;
 	int ip_mode = IP_MODE_IPV4;
@@ -799,6 +831,8 @@ int ra_main(int argc, char *argv[])
 		    public_key_ca = argv[++i];
 		} else if (strcmp(argv[i], "-ra_pkey") == 0) {
 		    private_key_ra = argv[++i];
+		} else if (strcmp(argv[i], "-cert_ra") == 0) {
+		    cert_ra = argv[++i];
 		} else if (strcmp(argv[i], "-webdir") == 0) {
 			web_dir_path = argv[++i];
 		} else if (strcmp(argv[i], "-m") == 0) {
@@ -813,6 +847,7 @@ int ra_main(int argc, char *argv[])
 				" -desc desc_doc_name "
 				" -ca_pkey public_key_ca"
 				" -ra_pkey private_key_ra"
+				" -cert_ra cert_ra"
 				" -webdir web_dir_path"
 				" -m ip_mode -help (this message)\n",
 				argv[0]);
@@ -830,6 +865,8 @@ int ra_main(int argc, char *argv[])
 				"\t\t\te.g.: public_key.pem\n"
 				"\tprivate_key_ra: PEM filepath of RA private key\n"
 				"\t\t\te.g.: private_key.pem\n"
+				"\tcert_ra: EM filepath of RA certificate\n"
+				"\t\t\te.g.: certificate.pem\n"
 				"\tweb_dir_path:   Filesystem path where web files"
 				" related to the device are stored\n"
 				"\t\t\te.g.: /upnp/sample/web\n"
@@ -844,6 +881,7 @@ int ra_main(int argc, char *argv[])
 		desc_doc_name,
 		public_key_ca,
 		private_key_ra,
+		cert_ra,
 		web_dir_path,
 		ip_mode,
 		linux_print);

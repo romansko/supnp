@@ -1533,11 +1533,12 @@ def supnp(argc, argv, hp):
         dev = subprocess.Popen([RA, '-i', iface,
                              '-ca_pkey', 'CA/public_key.pem',
                              '-ra_pkey', 'RA/private_key.pem',
+                             '-cert_ra', 'RA/certificate.pem',
                              '-webdir', '../upnp/sample/web'],
                               stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE,
                               text=True)
-
+        
         dev = subprocess.Popen([SD, '-i', iface,
                                 '-ca_pkey', 'CA/public_key.pem',
                                 '-sd_pkey', 'SD/private_key.pem',
@@ -1559,7 +1560,7 @@ def supnp(argc, argv, hp):
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE,
                                text=True)
-
+        
         while True:
             output = dev.stdout.readline()
             if output == '' and dev.poll() is not None:

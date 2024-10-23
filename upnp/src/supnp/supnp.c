@@ -63,6 +63,7 @@ extern "C" {
 int gCurrentDeviceType = -1;
 EVP_PKEY *gDevicePKey = NULL;  /* Device's private & public key pair */
 EVP_PKEY *gRAPublicKey = NULL; /* Registration Authority Public Key */
+X509 *gCertificateUCA = NULL;  /* UCA Certificate */
 char gCapTokenLocation[LOCATION_SIZE] = {0};
 char gCapTokenFilepath[LOCATION_SIZE] = {0};
 ithread_rwlock_t gDeviceTypeLock;
@@ -70,6 +71,7 @@ ithread_rwlock_t gDeviceKeyLock;
 ithread_rwlock_t gRAKeyLock;
 ithread_rwlock_t gCapTokenLocationLock;
 ithread_rwlock_t gCapTokenFilepathLock;
+ithread_rwlock_t gCertificateUCALock;
 /**/
 
 #define SUPNP_WEBDIR "web"
@@ -101,7 +103,7 @@ void SUpnpSetDevicePKey(EVP_PKEY *pkey)
     if (gDevicePKey && (gDevicePKey != pkey)) {
         EVP_PKEY_free(gDevicePKey);
     }
-    gDevicePKey = pkey;
+    gDevicePKey = EVP_PKEY_dup(pkey);
     ithread_mutex_unlock(&gDeviceKeyLock);
 }
 
@@ -122,7 +124,7 @@ void SUpnpSetRAPublicKey(EVP_PKEY *pkey)
     if (gRAPublicKey && (gRAPublicKey != pkey)) {
         EVP_PKEY_free(gRAPublicKey);
     }
-    gRAPublicKey = pkey;
+    gRAPublicKey = EVP_PKEY_dup(pkey);
     ithread_mutex_unlock(&gRAKeyLock);
 }
 
@@ -180,6 +182,27 @@ void SUpnpGetCaptokenFilepath(char filepath[LOCATION_SIZE])
     ithread_rwlock_unlock(&gCapTokenFilepathLock);
 }
 
+void SUpnpSetCertificateUCA(X509 *cert)
+{
+    ithread_rwlock_wrlock(&gCertificateUCALock);
+    if (gCertificateUCA && (gCertificateUCA != cert)) {
+        X509_free(gCertificateUCA);
+    }
+    gCertificateUCA = X509_dup(cert);
+    ithread_mutex_unlock(&gCertificateUCALock);
+}
+
+X509 *SUpnpGetCertificateUCA()
+{
+    X509 *cert = NULL;
+    ithread_rwlock_rdlock(&gCertificateUCALock);
+    if (gCertificateUCA) {
+        cert = X509_dup(gCertificateUCA);
+    }
+    ithread_rwlock_unlock(&gCertificateUCALock);
+    return cert;
+}
+
 
 int SUpnpBuildLocation(char url[LOCATION_SIZE],
     const int AF,
@@ -233,7 +256,7 @@ cleanup:
 
 int SUpnpInit(const char *IfName, const unsigned short DestPort,
     const char *privateKeyPath, const int devType, const char *WebDir,
-    const char *captoken_name)
+    const char *captokenName, const char *certUCAPath)
 {
     supnp_log("Initializing SUPnP secure layer..\n");
 
@@ -248,6 +271,14 @@ int SUpnpInit(const char *IfName, const unsigned short DestPort,
             goto cleanup;;
     }
 
+    supnp_verify(privateKeyPath, cleanup, "NULL private key path.\n");
+    supnp_verify(WebDir, cleanup, "NULL web directory path.\n");
+
+    if (devType != eDeviceType_RA) {
+        supnp_verify(captokenName, cleanup, "NULL captoken name.\n");
+        supnp_verify(certUCAPath, cleanup, "NULL UCA certificate path.\n");
+    }
+
     /* Initialize OpenSSL Wrapper */
     supnp_verify(OpenSslInitializeWrapper() == OPENSSL_SUCCESS, cleanup,
         "Error initializing OpenSSL.\n");
@@ -256,10 +287,18 @@ int SUpnpInit(const char *IfName, const unsigned short DestPort,
     EVP_PKEY *pkey = OpenSslLoadPrivateKeyFromPEM(privateKeyPath);
     supnp_verify(pkey, cleanup, "Error loading private key from '%s'.\n",
         privateKeyPath);
-    SUpnpSetDevicePKey(pkey); /* Set global, no free */
+    SUpnpSetDevicePKey(pkey);
+    OpenSslFreePKey(&pkey);
 
-    /* Set CapToken filepath */
-    SUpnpSetCaptokenFilepath(WebDir, captoken_name);
+    if (devType != eDeviceType_RA) {
+        /* Set CapToken filepath */
+        SUpnpSetCaptokenFilepath(WebDir, captokenName);
+
+        /* Set UCA Certificate */
+        X509 *cert = OpenSslLoadCertificateFromPEM(certUCAPath);
+        SUpnpSetCertificateUCA(cert);
+        X509_free(cert);
+    }
 
     return UpnpInit2(IfName, DestPort);
 
@@ -554,6 +593,9 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
     cJSON *capToken = NULL;
     EVP_PKEY *device_pkey = NULL;
     char *ra_pk = NULL;
+    X509 *ra_cert = NULL;
+    X509 *uca_cert = NULL;
+    EVP_PKEY *uca_pkey = NULL;
 
     supnp_verify(Params, cleanup, "NULL Registration Params.\n");
     supnp_verify(ControlUrl, cleanup, "NULL Control URL.\n");
@@ -667,17 +709,43 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
         "Error in UpnpSendAction -- %d\n", rc);
 
     /* Check Challenge Response Status */
+    int regok = SUPNP_E_INTERNAL_ERROR;
     freeif(response);
     response = SUpnpGetFirstElementItem((IXML_Element*)respNode,
         SUpnpActionResponseVarName);
     supnp_verify(response, cleanup, "Error extracting response.\n");
     if (strcmp(response, SUpnpActionSuccessString) == 0) {
-        rc = eRegistrationStatus_DeviceRegistered;
+        regok = eRegistrationStatus_DeviceRegistered;
     } else {
-        rc = (int)strtol(response, NULL, 10);
+        regok = (int)strtol(response, NULL, 10);
     }
-    supnp_verify(rc == eRegistrationStatus_DeviceRegistered, cleanup,
+    supnp_verify(regok == eRegistrationStatus_DeviceRegistered, cleanup,
         "Registration Failed: %s\n", response);
+
+    rc = SUPNP_E_INVALID_CERTIFICATE;
+
+    /* Retrieve UCA Certificate & UCA Public key  */
+    uca_cert = SUpnpGetCertificateUCA();
+    supnp_verify(uca_cert, cleanup, "Error retrieving UCA Certificate");
+    uca_pkey = X509_get_pubkey(uca_cert);
+    supnp_verify(uca_pkey, cleanup, "Error extracting UCA Public Key.\n");
+
+    /* Retrieve RA Certificate  */
+    freeif(response);
+    response = SUpnpGetFirstElementItem((IXML_Element*)respNode,
+        SUpnpActionResponseRACert);
+    supnp_verify(response, cleanup, "RA claims registration successful but "
+                                    "didn't send RA Certificate. Untrusted RA!\n");
+    char *ra_cert_string = (char *)OpenSslHexStringToBinary(response, &size);
+    ra_cert = OpenSslLoadCertificateFromString(ra_cert_string);
+    freeif(ra_cert_string);
+    supnp_verify(ra_cert, cleanup, "Error loading RA Certificate.\n");
+
+    /* Verify RA Certificate */
+    supnp_verify(OpenSslVerifyCertificate("ra_cert", ra_cert,
+        uca_pkey) == OPENSSL_SUCCESS, cleanup,
+        "RA claims registration successful but its certificate invalid."
+        " Untrusted RA!\n");
 
     /* Extract Cap Token */
     rc = SUPNP_E_CAPTOKEN_ERROR;
@@ -689,14 +757,6 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
     supnp_verify(capToken, cleanup,
         "Error converting CapToken from hex string.\n");
 
-    // Find the last occurrence of '/'
-    const char *filename = strrchr( Params->capTokenLocation, '/');
-    if (filename != NULL) {
-        filename++;
-    } else {
-        supnp_error("Invalid url '%s'\n", Params->capTokenLocation);
-        goto cleanup;
-    }
 
     char filepath[LOCATION_SIZE];
     SUpnpGetCaptokenFilepath(filepath);
@@ -711,11 +771,15 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
 
     EVP_PKEY *ra_pkey = OpenSslLoadPublicKeyFromHex(ra_pk);
     supnp_verify(ra_pkey, cleanup, "Error loading RA Public Key.\n");
-    SUpnpSetRAPublicKey(ra_pkey);  /* RA is set in global, hence no free */
+    SUpnpSetRAPublicKey(ra_pkey);
+    OpenSslFreePKey(&ra_pkey);
 
     rc = eRegistrationStatus_DeviceRegistered;
 
 cleanup:
+    OpenSslFreePKey(&uca_pkey);
+    OpenSslFreeCertificate(&ra_cert);
+    OpenSslFreeCertificate(&uca_cert);
     OpenSslFreePKey(&device_pkey);
     freeif(ra_pk);
     freeif(pk_hex);

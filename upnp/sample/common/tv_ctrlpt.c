@@ -1431,7 +1431,7 @@ int TvCtrlPointStart(char *iface,
     }
 
 	rc = SUpnpInit(iface, port, PrivateKeyPathCP, eDeviceType_CP,
-	    WebDirPathCP, cap_token_name);
+	    WebDirPathCP, cap_token_name, CertPathUCA_ForCP);
     #else
     rc = UpnpInit2(iface, port);
     #endif

@@ -143,11 +143,20 @@ cleanup:
 /**
  * Helper function to free a PKEY object. This bypass the linker error:
  * undefined reference to symbol 'EVP_PKEY_free@@OPENSSL_3.0.0'
- * @param pKey a PKEY
+ * @param pKey a PKEY pointer
  */
 void OpenSslFreePKey(EVP_PKEY **pKey)
 {
     w_freeif(*pKey, EVP_PKEY_free);
+}
+
+/**
+ * Helper function to free a X509 object.
+ * @param pCert an X509 certificate pointer
+ */
+void OpenSslFreeCertificate(X509 **pCert)
+{
+    w_freeif(*pCert, X509_free);
 }
 
 /**

@@ -46,6 +46,7 @@ const char *SUpnpCapTokenResponseVarName = "CapToken";
 
 const char *SUpnpActionSuccessString = "1";
 
+const char *SUpnpActionResponseRACert = "RACertificate";
 
 #ifdef __cplusplus
 }

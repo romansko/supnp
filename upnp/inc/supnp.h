@@ -121,7 +121,7 @@ UPNP_EXPORT_SPEC void SUpnpSetDevicePKey(
 
 /*!
  * \brief Retrieve a copy of the Device's Public & Private Key pair copy.
- * Caller is responsible for freeing the returned key.
+ * Caller is responsible for freeing the returned key with OpenSslFreePKey
  *
  * \return Device's Public Key.
  */
@@ -174,6 +174,20 @@ UPNP_EXPORT_SPEC void SUpnpGetCaptokenFilepath(
 	/*! [OUT] Web Directory */
 	char filepath[LOCATION_SIZE]);
 
+/*!
+ * \brief set UCA Certificate.
+ * User responsible for freeing the given cert with X509_free.
+ */
+UPNP_EXPORT_SPEC void SUpnpSetCertificateUCA(
+	/*! [IN] UCA Certificate */
+	X509 *cert);
+
+/*!
+ * \brief Retrieve UCA Certificate.
+ * Caller is responsible for freeing the returned certificate with X509_free.
+ */
+UPNP_EXPORT_SPEC X509 *SUpnpGetCertificateUCA();
+
 
 /*!
  * \brief Build CapToken location.
@@ -206,7 +220,9 @@ UPNP_EXPORT_SPEC int SUpnpInit(
     /*! [IN] Web Directory path */
     const char *WebDir,
     /*! [IN] CapToken Name */
-    const char *captoken_name);
+    const char *captokenName,
+    /*! [IN] UCA Certificate Path */
+    const char *certUCAPath);
 
 
 /*!

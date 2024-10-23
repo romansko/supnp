@@ -43,6 +43,13 @@ UPNP_EXPORT_SPEC void OpenSslFreePKey(
     EVP_PKEY **pKey);
 
 /*!
+ * \brief Helper function to free a X509 certificate.
+ */
+UPNP_EXPORT_SPEC void OpenSslFreeCertificate(
+    /*! [IN] X509 to free */
+    X509 **pCert);
+
+/*!
  * \brief convert binary data to hex string.
  *
  * \note Remember to free the returned pointer.

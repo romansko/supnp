@@ -229,6 +229,9 @@ int RAStart(
 	/*! [in] path of RA private key PEM file.
 	* may be NULL. Default is under supnp/simulation folder. */
 	const char *private_key_ra,
+	/*! [in] path of RA certificate PEM file.
+	 * may be NULL. Default is under supnp/simulation folder. */
+	const char *cert_ra,
 	/*! [in] path of web directory.
 	 * may be NULL. Default is ./web (for Linux) or ../tvdevice/web. */
 	const char *web_dir_path,

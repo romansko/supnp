@@ -1493,7 +1493,7 @@ int TvDeviceStart(char *iface,
         strncpy(CertPathUCA_ForSD, DEFAULT_PATH_CERT_UCA, LOCATION_SIZE);
     }
 	ret = SUpnpInit(iface, port, PrivateKeyPathSD, eDeviceType_SD,
-	    web_dir_path, cap_token_name);
+	    web_dir_path, cap_token_name, CertPathUCA_ForSD);
     #else
     ret = UpnpInit2(iface, port);
     #endif
