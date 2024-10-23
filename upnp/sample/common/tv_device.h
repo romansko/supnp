@@ -529,11 +529,26 @@ int TvDeviceStart(
 	/*! [in] name of description document.
 	 * may be NULL. Default is tvdevicedesc.xml. */
 	const char *desc_doc_name,
-#if ENABLE_SUPNP
+	#if ENABLE_SUPNP
 	/*! [in] capability token name.
-	 * may be NULL. Default is captoken_cp.json for CP, captoken_sd.json for SD */
+	 * may be NULL. Default is captoken_sd.json. */
 	const char *cap_token_name,
-#endif
+	/*! [in] path of CA public key PEM file.
+	* may be NULL. Default is under supnp/simulation folder. */
+	const char *public_key_ca,
+	/*! [in] path of SD private key PEM file.
+	* may be NULL. Default is under supnp/simulation folder. */
+	const char *private_key_sd,
+	/*! [in] path of DSD file for SD.
+	 * may be NULL. Default is under supnp/simulation folder. */
+	const char *dsd,
+	/*! [in] path of SD certificate PEM file.
+     * may be NULL. Default is under supnp/simulation folder. */
+	const char *cert_sd,
+	/*! [in] path of UCA certificate PEM file.
+     * may be NULL. Default is under supnp/simulation folder. */
+	const char *cert_uca,
+	#endif
 	/*! [in] path of web directory.
 	 * may be NULL. Default is ./web (for Linux) or ../tvdevice/web. */
 	const char *web_dir_path,

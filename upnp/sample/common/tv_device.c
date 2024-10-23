@@ -49,24 +49,27 @@
 
 #include "posix_overwrites.h"
 
-#define DEFAULT_WEB_DIR "./web"
+#define DEFAULT_WEB_DIR  "./web"
 
 #if ENABLE_SUPNP
 #include <supnp.h>
 #include <file_utils.h>
 
-/* Will be used to load private & public key pair */
-const char *DefaultPrivateKeyPathSD = "../../simulation/SD/private_key.pem";
-
 /*! Relative to upnp/sample */
-const char *RegisterDocsDefaultFilepathSD[SUPNP_DOCS_ON_DEVICE] = {
-    "../../simulation/SD/dsd.json",
-    "../../simulation/SD/certificate.pem",
-    "../../simulation/UCA/certificate.pem"
-};
+#define DEFAULT_PATH_PUBLIC_KEY_CA   "../../simulation/CA/public_key.pem"
+#define DEFAULT_PATH_PRIVATE_KEY_SD  "../../simulation/SD/private_key.pem"
+#define DEFAULT_PATH_DSD             "../../simulation/SD/dsd.json"
+#define DEFAULT_PATH_CERT_SD         "../../simulation/SD/certificate.pem"
+#define DEFAULT_PATH_CERT_UCA        "../../simulation/UCA/certificate.pem"
+#define DEFAULT_CAPTOKEN_SD          "captoken_sd.json"
 
-#define CAPTOKEN_SD "captoken_sd.json"
-#define CAPTOKEN_SD_FPATH ("./web/"CAPTOKEN_SD)
+char PublicKeyPathCA_ForSD[LOCATION_SIZE]  = {0};
+char PrivateKeyPathSD[LOCATION_SIZE]       = {0};
+
+/*! Registration documents */
+char DSDPath[LOCATION_SIZE]           = {0};
+char CertPathSD[LOCATION_SIZE]        = {0};
+char CertPathUCA_ForSD[LOCATION_SIZE] = {0};
 
 #endif
 
@@ -1429,6 +1432,11 @@ int TvDeviceStart(char *iface,
 	const char *desc_doc_name,
 #if ENABLE_SUPNP
 	const char *cap_token_name,
+	const char *public_key_ca,
+	const char *private_key_sd,
+	const char *dsd,
+    const char *cert_sd,
+    const char *cert_uca,
 #endif
 	const char *web_dir_path,
 	int ip_mode,
@@ -1452,8 +1460,40 @@ int TvDeviceStart(char *iface,
 			 "\tinterface = %s port = %u\n",
 		iface ? iface : "{NULL}",
 		port);
+    if (!web_dir_path) {
+        web_dir_path = DEFAULT_WEB_DIR;
+    }
     #if ENABLE_SUPNP
-	ret = SUpnpInit(iface, port, DefaultPrivateKeyPathSD, eDeviceType_SD);
+    if (!cap_token_name) {
+        cap_token_name = DEFAULT_CAPTOKEN_SD;
+    }
+    if (public_key_ca) {
+        strncpy(PublicKeyPathCA_ForSD, public_key_ca, LOCATION_SIZE);
+    } else {
+        strncpy(PublicKeyPathCA_ForSD, DEFAULT_PATH_PUBLIC_KEY_CA, LOCATION_SIZE);
+    }
+    if (private_key_sd) {
+        strncpy(PrivateKeyPathSD, private_key_sd, LOCATION_SIZE);
+    } else {
+        strncpy(PrivateKeyPathSD, DEFAULT_PATH_PRIVATE_KEY_SD, LOCATION_SIZE);
+    }
+    if (dsd) {
+        strncpy(DSDPath, dsd, LOCATION_SIZE);
+    } else {
+        strncpy(DSDPath, DEFAULT_PATH_DSD, LOCATION_SIZE);
+    }
+    if (cert_sd) {
+        strncpy(CertPathSD, cert_sd, LOCATION_SIZE);
+    } else {
+        strncpy(CertPathSD, DEFAULT_PATH_CERT_SD, LOCATION_SIZE);
+    }
+    if (cert_uca) {
+        strncpy(CertPathUCA_ForSD, cert_uca, LOCATION_SIZE);
+    } else {
+        strncpy(CertPathUCA_ForSD, DEFAULT_PATH_CERT_UCA, LOCATION_SIZE);
+    }
+	ret = SUpnpInit(iface, port, PrivateKeyPathSD, eDeviceType_SD,
+	    web_dir_path, cap_token_name);
     #else
     ret = UpnpInit2(iface, port);
     #endif
@@ -1497,14 +1537,6 @@ int TvDeviceStart(char *iface,
 		} else {
 			desc_doc_name = "tvdevicedesc.xml";
 		}
-	}
-	#if ENABLE_SUPNP
-    if (!cap_token_name) {
-        cap_token_name = CAPTOKEN_SD;
-    }
-	#endif
-	if (!web_dir_path) {
-		web_dir_path = DEFAULT_WEB_DIR;
 	}
 
     ret = SampleUtil_BuildUrl(desc_doc_url,
@@ -1575,7 +1607,12 @@ int TvDeviceStart(char *iface,
 
 #if ENABLE_SUPNP
 	    SampleUtil_Print("Registering SD with RA..\n");
-	    ret = SUpnpRegisterDevice(RegisterDocsDefaultFilepathSD,
+	    const char *RegistrationDocumentsPaths[SUPNP_DOCS_ON_DEVICE] = {
+            DSDPath,
+	        CertPathSD,
+	        CertPathUCA_ForSD
+	    };
+	    ret = SUpnpRegisterDevice(RegistrationDocumentsPaths,
             cap_token_name,
             address_family,
             strdup(desc_doc_name),
@@ -1661,6 +1698,11 @@ int device_main(int argc, char *argv[])
 	char *desc_doc_name = NULL;
 #if ENABLE_SUPNP
     char *cap_token_name = NULL;
+    char *public_key_ca = NULL;
+    char *private_key_sd = NULL;
+    char *dsd = NULL;
+    char *cert_sd = NULL;
+    char *cert_uca = NULL;
 #endif
 	char *web_dir_path = NULL;
 	unsigned short port = 0;
@@ -1683,6 +1725,16 @@ int device_main(int argc, char *argv[])
 #if ENABLE_SUPNP
         } else if (strcmp(argv[i], "-cap") == 0) {
             cap_token_name = argv[++i];
+        } else if (strcmp(argv[i], "-ca_pkey") == 0) {
+            public_key_ca = argv[++i];
+        } else if (strcmp(argv[i], "-sd_pkey") == 0) {
+            private_key_sd = argv[++i];
+        } else if (strcmp(argv[i], "-dsd") == 0) {
+            dsd = argv[++i];
+        } else if (strcmp(argv[i], "-cert_sd") == 0) {
+            cert_sd = argv[++i];
+        } else if (strcmp(argv[i], "-cert_uca") == 0) {
+            cert_uca = argv[++i];
 #endif
 		} else if (strcmp(argv[i], "-webdir") == 0) {
 			web_dir_path = argv[++i];
@@ -1695,26 +1747,45 @@ int device_main(int argc, char *argv[])
 		} else if (strcmp(argv[i], "-help") == 0) {
 			SampleUtil_Print(
 				"Usage: %s -i interface -port port"
-				" -desc desc_doc_name -webdir web_dir_path"
+				" -desc desc_doc_name"
+				#if ENABLE_SUPNP
+                " -cap cap_token_name"
+                " -ca_pkey public_key_ca"
+                " -sd_pkey private_key_sd"
+                " -dsd device_spec"
+                " -cert_sd cert_sd"
+                " -cert_uca cert_uca"
+				#endif
+				" -webdir web_dir_path"
 				" -m ip_mode -help (this message)\n",
 				argv[0]);
 			SampleUtil_Print(
-				"\tinterface:     interface address of the "
-				"device"
+				"\tinterface:      interface address of the device"
 				" (must match desc. doc)\n"
-				"\t\te.g.: eth0\n"
-				"\tport:          Port number to use for"
-				" receiving UPnP messages (must match desc. "
-				"doc)\n"
-				"\t\te.g.: 5431\n"
-				"\tdesc_doc_name: name of device description "
-				"document\n"
-				"\t\te.g.: tvdevicedesweb_dir_pathc.xml\n"
-				"\tweb_dir_path:  Filesystem path where web "
-				"files"
+				"\t\t\te.g.: eth0\n"
+				"\tport:           Port number to use for"
+				" receiving UPnP messages (must match desc. doc)\n"
+				"\t\t\te.g.: 5431\n"
+				"\tdesc_doc_name:  name of device description document\n"
+				"\t\t\te.g.: tvdevicedesweb_dir_pathc.xml\n"
+				#if ENABLE_SUPNP
+                "\tcap_token_name: filename of the capability token\n"
+                "\t\t\te.g.: captoken_sd\n"
+                "\tpublic_key_ca:  PEM filepath of CA public key\n"
+                "\t\t\te.g.: publickey_ca.pem\n"
+                "\tprivate_key_sd: PEM filepath of SD private key\n"
+                "\t\t\te.g.: privatekey_sd.pem\n"
+                "\tdevice_spec:    filepath of device specification document\n"
+                "\t\t\te.g.: dsd.json\n"
+                "\tcert_sd:        PEM filepath of SD certificate\n"
+                "\t\t\te.g.: cert_sd.pem\n"
+                "\tcert_uca:       PEM filepath of UCA certificate\n"
+                "\t\t\te.g.: cert_uca.pem\n"
+				#endif
+				"\tweb_dir_path:   Filesystem path where web files"
 				" related to the device are stored\n"
-				"\t\te.g.: /upnp/sample/tvdevice/web\n"
-				"\tip_mode:       set to 1 for IPv4 (default), "
+				"\t\t\te.g.: /upnp/sample/tvdevice/web\n"
+				"\tip_mode:        set to 1 for IPv4 (default), "
 				"2 for IPv6 LLA and 3 for IPv6 ULA or GUA\n");
 			return 1;
 		}
@@ -1725,6 +1796,11 @@ int device_main(int argc, char *argv[])
 		desc_doc_name,
 	#if ENABLE_SUPNP
 		cap_token_name,
+		public_key_ca,
+		private_key_sd,
+		dsd,
+		cert_sd,
+		cert_uca,
 	#endif
 		web_dir_path,
 		ip_mode,

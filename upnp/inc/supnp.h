@@ -159,6 +159,23 @@ UPNP_EXPORT_SPEC void SUpnpGetCapTokenLocation(
 	char CapTokenLocation[LOCATION_SIZE]);
 
 /*!
+ * \brief Set CapToken filepath on disk.
+ */
+UPNP_EXPORT_SPEC void SUpnpSetCaptokenFilepath(
+	/*! [IN] Web Directory */
+	const char *dir,
+	/*! [IN] Cap Token Filename */
+	const char *filename);
+
+/*!
+ * \brief Retrieve CapToken filepath on disk.
+ */
+UPNP_EXPORT_SPEC void SUpnpGetCaptokenFilepath(
+	/*! [OUT] Web Directory */
+	char filepath[LOCATION_SIZE]);
+
+
+/*!
  * \brief Build CapToken location.
  */
 UPNP_EXPORT_SPEC int SUpnpBuildLocation(
@@ -185,7 +202,11 @@ UPNP_EXPORT_SPEC int SUpnpInit(
 	/*! [IN] Private key path (PEM format), for loading device key pair */
     const char *privateKeyPath,
     /*! [IN] Device Type */
-    int devType);
+    int devType,
+    /*! [IN] Web Directory path */
+    const char *WebDir,
+    /*! [IN] CapToken Name */
+    const char *captoken_name);
 
 
 /*!

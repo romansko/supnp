@@ -51,20 +51,25 @@
 #include <supnp.h>
 #include <file_utils.h>
 
-/* Will be used to load private & public key pair */
-const char *DefaultPrivateKeyPathCP = "../../simulation/CP/private_key.pem";
-
 /*! Relative to upnp/sample */
-const char *RegisterDocsDefaultFilepathCP[SUPNP_DOCS_ON_DEVICE] = {
-    "../../simulation/CP/sad.json",
-    "../../simulation/CP/certificate.pem",
-    "../../simulation/UCA/certificate.pem"
-};
+#define DEFAULT_PATH_PUBLIC_KEY_CA   "../../simulation/CA/public_key.pem"
+#define DEFAULT_PATH_PRIVATE_KEY_CP  "../../simulation/CP/private_key.pem"
+#define DEFAULT_PATH_SAD             "../../simulation/CP/sad.json"
+#define DEFAULT_PATH_CERT_CP         "../../simulation/CP/certificate.pem"
+#define DEFAULT_PATH_CERT_UCA        "../../simulation/UCA/certificate.pem"
 
-#define CAPTOKEN_CP "captoken_cp.json"
-#define CAPTOKEN_CP_FPATH ("./web/"CAPTOKEN_CP)
+char PublicKeyPathCA_ForCP[LOCATION_SIZE]  = {0};
+char PrivateKeyPathCP[LOCATION_SIZE]       = {0};
+
+/*! Registration Documents */
+char SADPath[LOCATION_SIZE]           = {0};
+char CertPathCP[LOCATION_SIZE]        = {0};
+char CertPathUCA_ForCP[LOCATION_SIZE] = {0};
+char WebDirPathCP[LOCATION_SIZE]      = {0};
+
+#define DEFAULT_CAPTOKEN_CP "captoken_cp.json"
 #define CAPTOKEN_AF (AF_INET)
-#define WEBDIR_CP "./web"
+#define DEFAULT_WEB_DIR "./web"
 
 #endif
 
@@ -259,7 +264,9 @@ int TvCtrlPointRefresh(void)
     /* Search for all devices of type tvdevice version 1,
 	 * waiting for up to 5 seconds for the response */
     #if ENABLE_SUPNP
-    char *captoken = read_file(CAPTOKEN_CP_FPATH, "r",  NULL);
+    char capTokenPath[LOCATION_SIZE] = {0};
+    SUpnpGetCaptokenFilepath(capTokenPath);
+    char *captoken = read_file(capTokenPath, "r",  NULL);
     rc = SUpnpSearchAsync(ctrlpt_handle, SEARCH_TIME, TvDeviceType,
         captoken);
     freeif(captoken);
@@ -1280,9 +1287,9 @@ void TvCtrlPointVerifyTimeouts(int incr)
 				 * send out a search request for this device
 				 * UDN to try to renew */
 			    #if ENABLE_SUPNP
-			    // todo to supnp.c
-			    char *captoken = read_file(CAPTOKEN_CP_FPATH, "r",
-			        NULL);
+			    char capTokenPath[LOCATION_SIZE] = {0};
+			    SUpnpGetCaptokenFilepath(capTokenPath);
+			    char *captoken = read_file(capTokenPath, "r", NULL);
 			    ret = SUpnpSearchAsync(ctrlpt_handle,
 			        incr,
 			        curdevnode->device.UDN,
@@ -1337,8 +1344,9 @@ int RegistrationCallbackCP(void *Cookie)
     SampleUtil_Print("Control Point Registered with RA\n");
 
     /* Set Web Directory */
-    const int rc = UpnpSetWebServerRootDir(WEBDIR_CP);
-    sample_verify(rc == UPNP_E_SUCCESS, error_handler, "Error specifying webserver root directory -- %d\n", rc);
+    const int rc = UpnpSetWebServerRootDir(WebDirPathCP);
+    sample_verify(rc == UPNP_E_SUCCESS, error_handler,
+        "Error specifying webserver root directory -- %d\n", rc);
 
     TvCtrlPointRefresh();
 
@@ -1362,7 +1370,17 @@ error_handler:
  *
  * \return TV_SUCCESS if everything went well, else TV_ERROR.
  */
-int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo)
+int TvCtrlPointStart(char *iface,
+    #if ENABLE_SUPNP
+	const char *cap_token_name,
+	const char *public_key_ca,
+	const char *private_key_cp,
+	const char *sad,
+    const char *cert_cp,
+    const char *cert_uca,
+    const char *web_dir_path,
+    #endif
+    state_update updateFunctionPtr, int combo)
 {
 	ithread_t timer_thread;
 	int rc;
@@ -1378,7 +1396,42 @@ int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo)
 		port);
 
     #if ENABLE_SUPNP
-	rc = SUpnpInit(iface, port, DefaultPrivateKeyPathCP, eDeviceType_CP);
+    if (!cap_token_name) {
+        cap_token_name = DEFAULT_CAPTOKEN_CP;
+    }
+    if (public_key_ca) {
+        strncpy(PublicKeyPathCA_ForCP, public_key_ca, LOCATION_SIZE);
+    } else {
+        strncpy(PublicKeyPathCA_ForCP, DEFAULT_PATH_PUBLIC_KEY_CA, LOCATION_SIZE);
+    }
+    if (private_key_cp) {
+        strncpy(PrivateKeyPathCP, private_key_cp, LOCATION_SIZE);
+    } else {
+        strncpy(PrivateKeyPathCP, DEFAULT_PATH_PRIVATE_KEY_CP, LOCATION_SIZE);
+    }
+    if (sad) {
+        strncpy(SADPath, sad, LOCATION_SIZE);
+    } else {
+        strncpy(SADPath, DEFAULT_PATH_SAD, LOCATION_SIZE);
+    }
+    if (cert_cp) {
+        strncpy(CertPathCP, cert_cp, LOCATION_SIZE);
+    } else {
+        strncpy(CertPathCP, DEFAULT_PATH_CERT_CP, LOCATION_SIZE);
+    }
+    if (cert_uca) {
+        strncpy(CertPathUCA_ForCP, cert_uca, LOCATION_SIZE);
+    } else {
+        strncpy(CertPathUCA_ForCP, DEFAULT_PATH_CERT_UCA, LOCATION_SIZE);
+    }
+    if (web_dir_path) {
+        strncpy(WebDirPathCP, web_dir_path, LOCATION_SIZE);
+    } else {
+        strncpy(WebDirPathCP, DEFAULT_WEB_DIR, LOCATION_SIZE);
+    }
+
+	rc = SUpnpInit(iface, port, PrivateKeyPathCP, eDeviceType_CP,
+	    WebDirPathCP, cap_token_name);
     #else
     rc = UpnpInit2(iface, port);
     #endif
@@ -1421,8 +1474,13 @@ int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo)
     }
 
 #if ENABLE_SUPNP
-    rc = SUpnpRegisterDevice(RegisterDocsDefaultFilepathCP,
-        CAPTOKEN_CP,
+    const char *RegistrationDocuments[SUPNP_DOCS_ON_DEVICE] = {
+        SADPath,
+        CertPathCP,
+        CertPathUCA_ForCP
+    };
+    rc = SUpnpRegisterDevice(RegistrationDocuments,
+        cap_token_name,
         CAPTOKEN_AF,
         NULL, /* Not Applicable */
         10 /* timeout */,

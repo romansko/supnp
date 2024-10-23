@@ -223,6 +223,12 @@ int RAStart(
 	/*! [in] name of description document.
 	 * may be NULL. Default is tvdevicedesc.xml. */
 	const char *desc_doc_name,
+	/*! [in] path of CA public key PEM file.
+	* may be NULL. Default is under supnp/simulation folder. */
+	const char *public_key_ca,
+	/*! [in] path of RA private key PEM file.
+	* may be NULL. Default is under supnp/simulation folder. */
+	const char *private_key_ra,
 	/*! [in] path of web directory.
 	 * may be NULL. Default is ./web (for Linux) or ../tvdevice/web. */
 	const char *web_dir_path,

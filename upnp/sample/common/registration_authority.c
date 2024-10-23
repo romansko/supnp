@@ -58,15 +58,17 @@
 #error "Hash size mismatch"
 #endif
 
-#define DEFAULT_WEB_DIR "./web"
+#define MAX_SUPNP_DOC_SIZE      4096
 
-#define MAX_SUPNP_DOC_SIZE 4096
+/*! Relative to upnp/sample */
+#define DEFAULT_PATH_PUBLIC_KEY_CA   "../../simulation/CA/public_key.pem"
+#define DEFAULT_PATH_PRIVATE_KEY_RA  "../../simulation/RA/private_key.pem"
+#define DEFAULT_WEB_DIR              "./web"
+#define DEFAULT_DESC_DOC_NAME        "radesc.xml";
 
-const char *RA_DESC_DOC_DEF_PATH = "radesc.xml";
-const char *DefaultPublicKeyPathCA = "../../simulation/CA/public_key.pem";
-const char *DefaultPrivateKeyPathRA = "../../simulation/RA/private_key.pem";
-
-char DescDocLocation[LOCATION_SIZE] = {0};
+char PublicKeyPathCA[LOCATION_SIZE]  = {0};
+char PrivateKeyPathRA[LOCATION_SIZE] = {0};
+char DescDocLocation[LOCATION_SIZE]  = {0}; /* URL */
 
 supnp_device_t * SUPnPDeviceList = NULL;
 
@@ -357,7 +359,7 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
             "Invalid Registration parameters.\n");
     }
 
-    ca_pk = OpenSslLoadPublicKeyFromPEM(DefaultPublicKeyPathCA);
+    ca_pk = OpenSslLoadPublicKeyFromPEM(PublicKeyPathCA);
     sample_verify_ex(ca_pk, cleanup, errorString,
         "Error loading CA Public Key.\n");
 
@@ -466,7 +468,7 @@ int VerifyChallenge(IXML_Document *in, IXML_Document **out, const char **errorSt
 
     ithread_mutex_lock(&RAMutex);
 
-    raPkey = OpenSslLoadPrivateKeyFromPEM(DefaultPrivateKeyPathRA);
+    raPkey = OpenSslLoadPrivateKeyFromPEM(PrivateKeyPathRA);
     sample_verify_ex(raPkey, cleanup, errorString, "Unable to load RA Private Key.\n");
 
     /* Extract public key */
@@ -579,6 +581,8 @@ int RACallbackEventHandler(Upnp_EventType EventType, const void *Event, void *Co
 int RAStart(char *iface,
 	unsigned short port,
 	const char *desc_doc_name,
+	const char *public_key_ca,
+    const char *private_key_ra,
 	const char *web_dir_path,
 	int ip_mode,
 	print_string pfun)
@@ -597,8 +601,25 @@ int RAStart(char *iface,
 	SampleUtil_Print("Initializing [S]UPnP Sdk with\n"
 			 "\tinterface = %s port = %u\n", iface ? iface : "{NULL}", port);
 
+    if (!desc_doc_name) {
+        desc_doc_name = DEFAULT_DESC_DOC_NAME;
+    }
+    if (public_key_ca) {
+        strncpy(PublicKeyPathCA, public_key_ca, LOCATION_SIZE);
+    } else {
+        strncpy(PublicKeyPathCA, DEFAULT_PATH_PUBLIC_KEY_CA, LOCATION_SIZE);
+    }
+    if (private_key_ra) {
+        strncpy(PrivateKeyPathRA, private_key_ra, LOCATION_SIZE);
+    } else {
+        strncpy(PrivateKeyPathRA, DEFAULT_PATH_PRIVATE_KEY_RA, LOCATION_SIZE);
+    }
+    if (!web_dir_path) {
+        web_dir_path = DEFAULT_WEB_DIR;
+    }
+
     /* Initialize SUPnP & UPnP SDK */
-	ret = SUpnpInit(iface, port, DefaultPrivateKeyPathRA, eDeviceType_RA);
+	ret = SUpnpInit(iface, port, PrivateKeyPathRA, eDeviceType_RA, web_dir_path, "");
     sample_verify(ret == UPNP_E_SUCCESS, error_handler, "Error with UpnpInit2 -- %d\n", ret);
 
 	switch (ip_mode) {
@@ -623,12 +644,6 @@ int RAStart(char *iface,
 	}
 	SampleUtil_Print("UPnP Initialized\n\tipaddress = %s port = %u\n",
 		ip_address ? ip_address : "{NULL}",	port);
-	if (!desc_doc_name) {
-	    desc_doc_name = RA_DESC_DOC_DEF_PATH;
-	}
-	if (!web_dir_path) {
-		web_dir_path = DEFAULT_WEB_DIR;
-	}
 
     ret = SampleUtil_BuildUrl(desc_doc_url,
         sizeof(desc_doc_url),
@@ -684,7 +699,7 @@ int RAStop(void)
     unsigned char *sig = NULL;
     char *hexsig = NULL;
     size_t sigsize;
-    EVP_PKEY *raPkey = OpenSslLoadPrivateKeyFromPEM(DefaultPrivateKeyPathRA);
+    EVP_PKEY *raPkey = OpenSslLoadPrivateKeyFromPEM(PrivateKeyPathRA);
     char concat[LOCATION_SIZE * 2] = {0};
     if (raPkey == NULL) {
         supnp_error("Error loading RA Private Key\n");
@@ -760,6 +775,8 @@ int ra_main(int argc, char *argv[])
 	unsigned int portTemp = 0;
 	char *iface = NULL;
 	char *desc_doc_name = NULL;
+    char *public_key_ca = NULL;
+    char *private_key_ra = NULL;
 	char *web_dir_path = NULL;
 	unsigned short port = 0;
 	int ip_mode = IP_MODE_IPV4;
@@ -778,6 +795,10 @@ int ra_main(int argc, char *argv[])
 #endif
 		} else if (strcmp(argv[i], "-desc") == 0) {
 			desc_doc_name = argv[++i];
+		} else if (strcmp(argv[i], "-ca_pkey") == 0) {
+		    public_key_ca = argv[++i];
+		} else if (strcmp(argv[i], "-ra_pkey") == 0) {
+		    private_key_ra = argv[++i];
 		} else if (strcmp(argv[i], "-webdir") == 0) {
 			web_dir_path = argv[++i];
 		} else if (strcmp(argv[i], "-m") == 0) {
@@ -789,26 +810,30 @@ int ra_main(int argc, char *argv[])
 		} else if (strcmp(argv[i], "-help") == 0) {
 			SampleUtil_Print(
 				"Usage: %s -i interface -port port"
-				" -desc desc_doc_name -webdir web_dir_path"
+				" -desc desc_doc_name "
+				" -ca_pkey public_key_ca"
+				" -ra_pkey private_key_ra"
+				" -webdir web_dir_path"
 				" -m ip_mode -help (this message)\n",
 				argv[0]);
 			SampleUtil_Print(
-				"\tinterface:     interface address of the "
-				"device"
+				"\tinterface:      interface address of the  device"
 				" (must match desc. doc)\n"
-				"\t\te.g.: eth0\n"
-				"\tport:          Port number to use for"
+				"\t\t\te.g.: eth0\n"
+				"\tport:           Port number to use for"
 				" receiving UPnP messages (must match desc. "
 				"doc)\n"
-				"\t\te.g.: 5431\n"
-				"\tdesc_doc_name: name of device description "
-				"document\n"
-				"\t\te.g.: radesc.xml\n"
-				"\tweb_dir_path:  Filesystem path where web "
-				"files"
+				"\t\t\te.g.: 5431\n"
+				"\tdesc_doc_name:  name of device description document\n"
+				"\t\t\te.g.: radesc.xml\n"
+				"\tpublic_key_ca:  PEM filepath of CA public key\n"
+				"\t\t\te.g.: public_key.pem\n"
+				"\tprivate_key_ra: PEM filepath of RA private key\n"
+				"\t\t\te.g.: private_key.pem\n"
+				"\tweb_dir_path:   Filesystem path where web files"
 				" related to the device are stored\n"
-				"\t\te.g.: /upnp/sample/web\n"
-				"\tip_mode:       set to 1 for IPv4 (default), "
+				"\t\t\te.g.: /upnp/sample/web\n"
+				"\tip_mode:        set to 1 for IPv4 (default), "
 				"2 for IPv6 LLA and 3 for IPv6 ULA or GUA\n");
 			return 1;
 		}
@@ -817,6 +842,8 @@ int ra_main(int argc, char *argv[])
 	return RAStart(iface,
 		port,
 		desc_doc_name,
+		public_key_ca,
+		private_key_ra,
 		web_dir_path,
 		ip_mode,
 		linux_print);

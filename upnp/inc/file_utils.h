@@ -4,6 +4,7 @@
 #include "UpnpGlobal.h" /* for UPNP_EXPORT_SPEC */
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,7 +29,7 @@ extern "C" {
  */
 #define macro_file_open(fp, filepath, mode, label) \
 { \
-    if (filepath == NULL) { \
+    if ((filepath == NULL) || (strlen(filepath) == 0)) { \
         printf("[File Error] %s:%s(%d): Empty filepath provided.\n", \
             __FILE__, __func__, __LINE__); \
 	    goto label; \

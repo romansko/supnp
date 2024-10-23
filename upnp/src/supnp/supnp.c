@@ -64,10 +64,12 @@ int gCurrentDeviceType = -1;
 EVP_PKEY *gDevicePKey = NULL;  /* Device's private & public key pair */
 EVP_PKEY *gRAPublicKey = NULL; /* Registration Authority Public Key */
 char gCapTokenLocation[LOCATION_SIZE] = {0};
+char gCapTokenFilepath[LOCATION_SIZE] = {0};
 ithread_rwlock_t gDeviceTypeLock;
 ithread_rwlock_t gDeviceKeyLock;
 ithread_rwlock_t gRAKeyLock;
 ithread_rwlock_t gCapTokenLocationLock;
+ithread_rwlock_t gCapTokenFilepathLock;
 /**/
 
 #define SUPNP_WEBDIR "web"
@@ -155,6 +157,29 @@ void SUpnpGetCapTokenLocation(char CapTokenLocation[LOCATION_SIZE])
     ithread_rwlock_unlock(&gCapTokenLocationLock);
 }
 
+void SUpnpSetCaptokenFilepath(const char *dir, const char *filename)
+{
+    ithread_rwlock_wrlock(&gCapTokenFilepathLock);
+    memset(gCapTokenFilepath, 0, sizeof(gCapTokenFilepath));
+    if (!dir || strlen(dir) >= (LOCATION_SIZE/2)) {
+        supnp_error("Invalid directory length '%s'.\n", dir);
+    } else if (!filename || strlen(filename) >= (LOCATION_SIZE/2)) {
+        supnp_error("Invalid captoken filename length '%s'.\n", filename);
+    } else {
+        snprintf(gCapTokenFilepath, LOCATION_SIZE,
+            "%s/%s", dir, filename);
+    }
+    ithread_mutex_unlock(&gCapTokenFilepathLock);
+}
+
+void SUpnpGetCaptokenFilepath(char filepath[LOCATION_SIZE])
+{
+    memset(filepath, 0, LOCATION_SIZE);
+    ithread_rwlock_rdlock(&gCapTokenFilepathLock);
+    strncpy(filepath, gCapTokenFilepath, LOCATION_SIZE);
+    ithread_rwlock_unlock(&gCapTokenFilepathLock);
+}
+
 
 int SUpnpBuildLocation(char url[LOCATION_SIZE],
     const int AF,
@@ -207,7 +232,8 @@ cleanup:
 
 
 int SUpnpInit(const char *IfName, const unsigned short DestPort,
-    const char *privateKeyPath, const int devType)
+    const char *privateKeyPath, const int devType, const char *WebDir,
+    const char *captoken_name)
 {
     supnp_log("Initializing SUPnP secure layer..\n");
 
@@ -231,6 +257,9 @@ int SUpnpInit(const char *IfName, const unsigned short DestPort,
     supnp_verify(pkey, cleanup, "Error loading private key from '%s'.\n",
         privateKeyPath);
     SUpnpSetDevicePKey(pkey); /* Set global, no free */
+
+    /* Set CapToken filepath */
+    SUpnpSetCaptokenFilepath(WebDir, captoken_name);
 
     return UpnpInit2(IfName, DestPort);
 
@@ -668,8 +697,9 @@ int sendRAActionRegister(RegistrationParams *Params, const char *ControlUrl)
         supnp_error("Invalid url '%s'\n", Params->capTokenLocation);
         goto cleanup;
     }
-    char filepath[256];
-    sprintf(filepath, "%s/%s", SUPNP_WEBDIR, filename);
+
+    char filepath[LOCATION_SIZE];
+    SUpnpGetCaptokenFilepath(filepath);
     supnp_verify(SUpnpStoreCapToken(capToken, filepath) == SUPNP_E_SUCCESS,
         cleanup, "Error storing CapToken.\n");
 

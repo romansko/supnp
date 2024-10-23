@@ -48,25 +48,88 @@ int main(int argc, char *argv[])
 	sigset_t sigs_to_catch;
 #endif
 	int code;
+    #if ENABLE_SUPNP
+    char *cap_token_name = NULL;
+    char *public_key_ca = NULL;
+    char *private_key_cp = NULL;
+    char *sad = NULL;
+    char *cert_cp = NULL;
+    char *cert_uca = NULL;
+    char *web_dir_path = NULL; /* For CP Cap Token */
+    #endif
 
 	SampleUtil_Initialize(linux_print);
 	/* Parse options */
 	for (i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "-i") == 0) {
 			iface = argv[++i];
+		#if ENABLE_SUPNP
+		} else if (strcmp(argv[i], "-cap") == 0) {
+		    cap_token_name = argv[++i];
+		} else if (strcmp(argv[i], "-ca_pkey") == 0) {
+		    public_key_ca = argv[++i];
+		} else if (strcmp(argv[i], "-cp_pkey") == 0) {
+		    private_key_cp = argv[++i];
+		} else if (strcmp(argv[i], "-sad") == 0) {
+		    sad = argv[++i];
+		} else if (strcmp(argv[i], "-cert_cp") == 0) {
+		    cert_cp = argv[++i];
+		} else if (strcmp(argv[i], "-cert_uca") == 0) {
+		    cert_uca = argv[++i];
+		} else if (strcmp(argv[i], "-webdir") == 0) {
+		    web_dir_path = argv[++i];
+		#endif
 		} else if (strcmp(argv[i], "-help") == 0) {
 			SampleUtil_Print(
-				"Usage: %s -i interface -help (this message)\n",
+				"Usage: %s -i interface"
+				#if ENABLE_SUPNP
+                " -cap cap_token_name"
+                " -ca_pkey public_key_ca"
+                " -cp_pkey private_key_cp"
+                " -sad device_spec"
+                " -cert_cp cert_cp"
+                " -cert_uca cert_uca"
+                " -webdir web_dir_path"
+                #endif
+				" -help (this message)\n",
 				argv[0]);
-			SampleUtil_Print("\tinterface:     interface address "
+			SampleUtil_Print("\tinterface:      interface address "
 					 "of the control point\n"
-					 "\t\te.g.: eth0\n");
+					 "\t\t\te.g.: eth0\n"
+					 #if ENABLE_SUPNP
+                    "\tcap_token_name: filename of the capability token\n"
+                    "\t\t\te.g.: captoken_cp\n"
+                    "\tpublic_key_ca:  PEM filepath of CA public key\n"
+                    "\t\t\te.g.: publickey_ca.pem\n"
+                    "\tprivate_key_cp: PEM filepath of CP private key\n"
+                    "\t\t\te.g.: privatekey_cp.pem\n"
+                    "\tdevice_spec:    filepath of device specification document\n"
+                    "\t\t\te.g.: sad.json\n"
+                    "\tcert_cp:        PEM filepath of CP certificate\n"
+                    "\t\t\te.g.: cert_cp.pem\n"
+                    "\tcert_uca:       PEM filepath of UCA certificate\n"
+                    "\t\t\te.g.: cert_uca.pem\n"
+                    "\tweb_dir_path:   Filesystem path where web files"
+                    " related to the device are stored\n"
+                    "\t\t\te.g.: /upnp/sample/tvdevice/web\n"
+                    #endif
+                    );
 			return 1;
 		}
 	}
 
 	device_main(argc, argv);
-	rc = TvCtrlPointStart(iface, NULL, 1);
+	rc = TvCtrlPointStart(iface,
+	    #if ENABLE_SUPNP
+	    cap_token_name,
+	    public_key_ca,
+	    private_key_cp,
+	    sad,
+	    cert_cp,
+	    cert_uca,
+	    web_dir_path,
+	    #endif
+	    NULL, 1);
 	if (rc != TV_SUCCESS) {
 		SampleUtil_Print("Error starting UPnP TV Control Point\n");
 		return rc;

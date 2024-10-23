@@ -1,36 +1,36 @@
-#!/usr/bin/env python
-# 
-# A simulation script for simulating the part "A. Device Enrollment" of the SUPnP proposed scheme 
-#   which is presented in the paper "Kayas, G., Hossain, M., Payton, J., & Islam, S. R. (2021). 
-#   SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things. IEEE 
-#   Internet of Things Journal, 8(14), 11561-11580."
-#
-# The input for the script is an UPnP XML Description Document of a device. Example usage: 
-# ./device_enrollment.py ../upnp/sample/web/tvdevicedesc.xml
-#
-# The output of the script is the generation of:
-#   * CA (Certification Authority) private & public keys.
-#   * UCA (UPnP Certification Authority) self-signed certificate, private & public keys.
-#   * CP (Control Point) certificate signed by ca, private & public keys.
-#   * SD (Service Device) certificate signed by ca, private & public keys.
-#   * DSD (Device Specification Document) for SD.
-#   * SAD (Service Action Document) for CP.
-#
-# The CA is the root of trust which its public key should be available on the devices.
-# The UCA is an intermediate UPnP CA which its certificate is signed by the CA's private key.
-# The UCA signs the certificates of the CP and SD, and also the DSD and SAD documents.
-#
-# Tested with Python 3.12.
-#
+#!/usr/bin/env python3
+###################################################################################################
+# A simulation script for simulating the part "A. Device Enrollment" of the SUPnP proposed scheme #
+#   which is presented in the paper "Kayas, G., Hossain, M., Payton, J., & Islam, S. R. (2021).   #
+#   SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things. IEEE       #
+#   Internet of Things Journal, 8(14), 11561-11580."                                              #
+#                                                                                                 #
+# The input for the script is a UPnP XML Description Document of a device. Example usage:         #
+# ./device_enrollment.py ../upnp/sample/web/tvdevicedesc.xml                                      #
+#                                                                                                 #
+# The output of the script is the generation of:                                                  #
+#   * CA (Certification Authority) private & public keys.                                         #
+#   * UCA (UPnP Certification Authority) self-signed certificate, private & public keys.          #
+#   * CP (Control Point) certificate signed by ca, private & public keys.                         #
+#   * SD (Service Device) certificate signed by ca, private & public keys.                        #
+#   * DSD (Device Specification Document) for SD.                                                 #
+#   * SAD (Service Action Document) for CP.                                                       #
+#                                                                                                 #
+# The CA is the root of trust which its public key should be available on the devices.            #
+# The UCA is an intermediate UPnP CA which its certificate is signed by the CA's private key.     #
+# The UCA signs the certificates of the CP and SD, and also the DSD and SAD documents.            #
+#                                                                                                 #
+# Tested with Python 3.12.3                                                                       #
+###################################################################################################
 import argparse
 import datetime
 import json
 import os
 import re
 import sys
-import xmltodict
+from dataclasses import dataclass
 
-from abc import abstractmethod
+import xmltodict
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.backends import default_backend
@@ -38,8 +38,6 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes, PublicKeyTypes
 from cryptography.x509.oid import NameOID
-from dataclasses import dataclass
-
 
 # Constants
 # See @CryptoHelper for more crypto related constants.
@@ -97,18 +95,18 @@ class Details:
 
 class Entity:
     """ Helper class for entities """
-    def __init__(self, type: str) -> None:
-        self.type: str = type
+    def __init__(self, _type: str) -> None:
+        self.type: str = _type
         print("[*] Initializing %s.." % self)
-        os.makedirs(type, exist_ok=True)
-        sk, pk = CryptoHelper.generate_key_pair(type)  # private key, public key
+        os.makedirs(_type, exist_ok=True)
+        sk, pk = CryptoHelper.generate_key_pair(_type)  # private key, public key
         self.private_key: PrivateKeyTypes = sk
         self.public_key:  PublicKeyTypes  = pk
-        self.cert: x509.Certificate
+        self.cert: [x509.Certificate, None] = None
         self.subject: x509.Name = self.generate_subject()
         self.ca = False
     
-    def generate_subject(self) -> x509.Name:
+    def generate_subject(self) -> [x509.Name, None]:
         return None
       
     def __str__(self) -> str:
@@ -233,7 +231,7 @@ class CryptoHelper:
         return private_key, public_key
 
     @staticmethod
-    def sign_data(data: bytes, private_key: PrivateKeyTypes) -> bytes:
+    def sign_data(data: bytes, private_key: PrivateKeyTypes) -> str:
         """ Sign data using RSA private key. """
         return private_key.sign(data, CryptoHelper.PADDING, CryptoHelper.ALGORITHM).hex()
 
@@ -245,7 +243,7 @@ class CryptoHelper:
         """
         try:
             print("\t%s signs %s's certificate.." % (issuer, entity))
-            builder = CryptoHelper.get_cert_builer(entity.subject, issuer.subject, entity.public_key)
+            builder = CryptoHelper.get_cert_builder(entity.subject, issuer.subject, entity.public_key)
             if issuer.ca:  # CA is the signer
                 builder = builder.add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
             cert = builder.sign(issuer.private_key, CryptoHelper.ALGORITHM, default_backend())
@@ -280,14 +278,14 @@ class CryptoHelper:
         try:
             print("\tVerifying %s's certificate.." % entity, end='\t')
             cert_file = '%s/%s' % (entity, CryptoHelper.CERTIFICATE_PEM)
-            cert = FileHelper.read_file(cert_file, 'rb')
+            cert = FileHelper.read_file(cert_file, 'r').encode('utf-8')
             cert_obj: x509.Certificate = x509.load_pem_x509_certificate(cert, default_backend())
             # Verify that read file is the expected certificate.
-            if (cert_obj != entity.cert):
+            if cert_obj != entity.cert:
                 print("Certificate verification failed - Certificate '%s' bytes mismatch." % cert_file)
                 return
             # Verify that public key in the certificate is the same as the entity's public key.
-            if (entity.public_key != entity.cert.public_key()):
+            if entity.public_key != entity.cert.public_key():
                 print("Certificate verification failed - %s's Public key mismatch." % entity)
                 return
             # Verify the certificate signature with the given public_key
@@ -300,7 +298,7 @@ class CryptoHelper:
             print("Failed: %s" % str(e))
 
     @staticmethod
-    def get_cert_builer(subject: x509.Name, issuer: x509.Name, public_key: PublicKeyTypes) -> x509.CertificateBuilder:
+    def get_cert_builder(subject: x509.Name, issuer: x509.Name, public_key: PublicKeyTypes) -> x509.CertificateBuilder:
         """ Generate a certificate builder. """
         builder = x509.CertificateBuilder()
         builder = builder.subject_name(subject)
@@ -314,11 +312,10 @@ class CryptoHelper:
 
 class Doc:
     """ Common logics for DSD and SAD. """
-    def __init__(self, doc_type: str, name: str, public_key: PublicKeyTypes, services: dict, **kwargs: dict):
-        self._doc = {}
-        self._doc['TYPE'] = doc_type
-        self._doc['NAME'] = name
-        self._doc['PK']   = CryptoHelper.public_key_to_bytes(public_key, CryptoHelper.DER_ENCODING).hex()
+    def __init__(self, doc_type: str, name: str, public_key: PublicKeyTypes, services: dict, **kwargs):
+        self._doc = {'TYPE': doc_type,
+                     'NAME': name,
+                     'PK': CryptoHelper.public_key_to_bytes(public_key, CryptoHelper.DER_ENCODING).hex()}
         for key, value in kwargs.items():
             self._doc[key] = value
         self._doc['SERVICES'] = services
@@ -350,7 +347,7 @@ class Doc:
             data = json.loads(FileHelper.read_file(filepath))
             print("\tVerifying public key..", end='\t\t')
             public_key = bytes.fromhex(data['PK'])
-            if (public_key != CryptoHelper.public_key_to_bytes(entity.public_key, CryptoHelper.DER_ENCODING)):
+            if public_key != CryptoHelper.public_key_to_bytes(entity.public_key, CryptoHelper.DER_ENCODING):
                 print("Public key mismatch for '%s'." % name)
             else:
                 print("public key ok.")
@@ -411,9 +408,9 @@ class Device:
         for service in self.get_node(Device.SERVICE_NODE):
             try:
                 name = re.search(r'urn:upnp-org:serviceId:(\w+)', service['serviceId']).group(0)    # ID
-                type = re.search(r'urn:schemas-upnp-org:service:(\w+):\d+', service['serviceType']).group(0)
-                service_list[name] = type
-            except Exception as e:
+                _type = re.search(r'urn:schemas-upnp-org:service:(\w+):\d+', service['serviceType']).group(0)
+                service_list[name] = _type
+            except:
                 error("Device::service_list: Failed to parse '%s'. Is device description xml document provided?" % str(service))
         return service_list
     
@@ -429,10 +426,10 @@ class Device:
     #               field need to be verified to prove the authenticity of this document.
     # SIGS:         The signatures need to be verified to check the authenticity of this document.
     #
-    def generate_dsd(self, uca: UCA, sd: SD) -> dict:
+    def generate_dsd(self, uca: UCA, sd: SD) -> None:
         """ Generate DSD (Device Specification Document)"""
-        doc = Doc('SD', 'SD user-friendly name', sd.public_key, self.service_list(), 
-                  HW='SD Hardware Description', SW='SD Software Description')  # Probaby not mandatory for simulation.
+        doc = Doc('SD', 'SD user-friendly name', sd.public_key, self.service_list(),
+                  HW='SD Hardware Description', SW='SD Software Description')  # Probably not mandatory for simulation.
         FileHelper.write_json('%s/dsd.json' % sd, doc.sign(sk_owner=sd.private_key, sk_uca=uca.private_key))
     
     # SAD (Service Action Document) Components:

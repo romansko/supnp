@@ -189,7 +189,31 @@ void TvCtrlPointVerifyTimeouts(
 
 void TvCtrlPointPrintCommands(void);
 void *TvCtrlPointCommandLoop(void *);
-int TvCtrlPointStart(char *iface, state_update updateFunctionPtr, int combo);
+int TvCtrlPointStart(char *iface,
+    #if ENABLE_SUPNP
+	/*! [in] capability token name.
+	 * may be NULL. Default is captoken_cp.json. */
+	const char *cap_token_name,
+	/*! [in] path of CA public key PEM file.
+	* may be NULL. Default is under supnp/simulation folder. */
+	const char *public_key_ca,
+	/*! [in] path of CP private key PEM file.
+	* may be NULL. Default is under supnp/simulation folder. */
+	const char *private_key_cp,
+	/*! [in] path of SAD file for CP.
+	 * may be NULL. Default is under supnp/simulation folder. */
+	const char *sad,
+	/*! [in] path of CP certificate PEM file.
+     * may be NULL. Default is under supnp/simulation folder. */
+	const char *cert_cp,
+	/*! [in] path of UCA certificate PEM file.
+     * may be NULL. Default is under supnp/simulation folder. */
+	const char *cert_uca,
+	/*! [in] path of web directory for captoken.
+	 * may be NULL. Default is ./web (for Linux) or ../tvdevice/web. */
+	const char *web_dir_path,
+	#endif
+	state_update updateFunctionPtr, int combo);
 int TvCtrlPointStop(void);
 int TvCtrlPointProcessCommand(char *cmdline);
 

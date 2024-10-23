@@ -40,29 +40,31 @@ The original SDK for UPnP Devices contains the following:
 
 **SUPnP Additional Package Contents:**
 
-| Path/File        | Description                                                            |
-|------------------|------------------------------------------------------------------------|
-| README           | This file. Contains the installation and build instructions for SUPnP. |
-| cJSON            | Package for handling JSON files and content.                           |
-| simulation       | Python simulation script to simulate UPnP CA Device Enrollment.        |
-| upnp/inc         | Contains supnp, openssl & file_utils include files.                    |
-| upnp/src/supnp   | SUPnP source files.                                                    |
-| upnp/src/opensll | OpenSSL wrapper source files.                                          |
-| upnp/src/file    | file utils source files.                                               |
-| upnp/sample      | Has an addition - Registration Authority                               |
-| upnp/scripts     | SUPnP build automation scripts                                         |
+| Path/File        | Description                                                                               |
+|------------------|-------------------------------------------------------------------------------------------|
+| README           | This file. Contains the installation and build instructions for SUPnP.                    |
+| cJSON            | Package for handling JSON files and content.                                              |
+| simulation       | Python simulation scripts to simulate UPnP CA Device Enrollment & SUPnP Attack Scenarios. |
+| upnp/inc         | Contains supnp, openssl & file_utils include files.                                       |
+| upnp/src/supnp   | SUPnP source files.                                                                       |
+| upnp/src/opensll | OpenSSL wrapper source files.                                                             |
+| upnp/src/file    | file utils source files.                                                                  |
+| upnp/sample      | Has an addition - Registration Authority                                                  |
+| upnp/scripts     | SUPnP build automation scripts                                                            |
 
 
 ## SUPnP Demonstration
 
 This section demonstrates the SUPnP secure layer usage for Registration Authority (RA), 
 Service Device (SD) and Control Point (CP).
+
 For build and usage please proceed to the next sections.
 
+For SUPnP Attack simulations, refer to [simulation/README.md#](simulation/README.md#attack-scenarios).
 
-### UCA Simulation run log
+### Device Enrollment Simulation
 
-For UPnP Certification Authority (UCA) device enrollment simulation, refer to [simulation/README.md](simulation/README.md).
+For UPnP Certification Authority (UCA) device enrollment simulation, refer to [simulation/README.md](simulation/README.md#device-enrollment).
 
 
 ### SUPnP protocol messages - captured by wireshark
