@@ -21,5 +21,5 @@ sysctl -w net.ipv6.conf.$1.disable_ipv6=1 && \
 ifconfig $1 multicast && \
 ip link set dev $1 up && \
 route add -net 239.0.0.0 netmask 255.0.0.0 $1 && \
-ifconfig eth0
+ifconfig $1
 
