@@ -35,6 +35,7 @@ from socket import *
 
 # SUPnP only
 from pathlib import Path
+import device_enrollment as de
 
 def interface_exists(iface):
     """ Check if interface exists """
@@ -1467,30 +1468,42 @@ def quit(argc, argv, hp):
 def supnp(argc, argv, hp):
     """ SUPnP Attack Scenarios simulation """
 
-    # Entities program default paths
-    RA = Path('../upnp/sample/registration_authority')
-    SD = Path('../upnp/sample/tv_device')
-    CP = Path('../upnp/sample/tv_ctrlpt')
+    # Scripts folder path, where the entities are expected.
+    dirname = os.path.abspath(os.path.dirname(__file__))
+
+    # Binaries path
+    bin_path = os.path.abspath(os.path.join(dirname, '../upnp/sample/'))
+
+    # Description Document Path
+    desc_doc_path = os.path.abspath(os.path.join(bin_path, 'web/tvdevicedesc.xml'))
+
+    # Entities
+    ENTITIES = {
+        'RA': 'registration_authority',
+        'SD': 'tv_device',
+        'CP': 'tv_ctrlpt'
+    }
+
+    # Entities Dependencies
+    DEPS = [ desc_doc_path, 'CA/public_key.pem', 'UCA/certificate.pem' ]
+    DEPS += [ f'{entity}/{artifact}' for entity in ENTITIES.keys() for
+              artifact in ['private_key.pem', 'certificate.pem'] ]
 
     # Scenarios
     SCENARIOS = [
         # 1
-        'An adversary sends a forged capability document (DSD, or SAD)\n'
-        '\tduring the registration process.',
+        'An adversary sends a forged capability document (DSD, or SAD) during the registration process.',
         # 2
-        'A malicious SD sends a forged advertisement with an altered\n'
-        '\tservice description document.',
+        'A malicious SD sends a forged advertisement with an altered service description document.',
         # 3
-        'A malicious CP sends a fake discovery request to find a service\n'
-        '\twithout having the capability to process the service data.',
+        'A malicious CP sends a fake discovery request to find a service without having the capability to\n'
+        'process the service data.',
         # 4
-        'An adversary gains unauthorized access to an SD\'s service\n'
-        '\tdescription document, learns the control URL from the document,\n'
-        '\tand sends a forged service action request.',
+        'An adversary gains unauthorized access to an SD\'s service description document, learns the\n'
+        'control URL from the document, and sends a forged service action request.',
         # 5
-        'An adversary gains unauthorized access to an SD\'s device\n'
-        '\tdescription document, learns  the event URL from the\n'
-        '\tdocument, and sends an event subscription request.'
+        'An adversary gains unauthorized access to an SD\'s device description document, learns the\n'
+        'event URL from the document, and sends an event subscription request.'
     ]
 
     # Argument verification
@@ -1514,64 +1527,91 @@ def supnp(argc, argv, hp):
         showHelp(argv[0])
         return
 
-    # Program Verifications
+    # Entities Verifications
     unfound = []
-    if not RA.is_file():
-        unfound.append('\'registration_authority\'')
-    if not SD.is_file():
-        unfound.append('\'tv_device\'')
-    if not CP.is_file():
-        unfound.append('\'tv_ctrlpt\'')
+    for dev, binary in ENTITIES.items():
+        if not Path(bin_path, binary).is_file():
+            unfound.append(binary)
     if unfound:
-        print('Required files not found:', ', '.join(unfound))
+        print('Required files under \'%s\' were not found:' % bin_path, ', '.join(unfound))
         print('Did you compile? see \'supnp/scripts/cmake_supnp.sh\'')
         return
 
+    # Artifacts Verifications
+    for dep in DEPS:
+        dep_path = Path(dirname, dep)
+        if not dep_path.is_file():
+            print('Required file \'%s\' was not found. Halting..' % dep_path)
+            print('Did you generate the artifacts? see \'supnp/simulation/Makefile\'')
+            return
+
+    # Attack Scenarios
     print('Invoking Attack Scenario #%d: %s\n' % (scenario, SCENARIOS[scenario - 1]))
     if scenario == 1:
+        device = de.Device(desc_doc_path)
+        adversary = de.CP('Adversary')   # Fake CP
+        fake_uca = de.UCA('FakeUCA')     # Fake UCA
+        device.generate_sad(fake_uca, adversary)
+
+
         """
-        dev = subprocess.Popen([RA, '-i', iface,
-                             '-ca_pkey', 'CA/public_key.pem',
-                             '-ra_pkey', 'RA/private_key.pem',
-                             '-cert_ra', 'RA/certificate.pem',
-                             '-webdir', '../upnp/sample/web'],
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE,
-                              text=True)
-        
-        dev = subprocess.Popen([SD, '-i', iface,
+        dev = subprocess.Popen([Path(bin_path, ENTITIES['RA']),
+                                '-i', iface,
                                 '-ca_pkey', 'CA/public_key.pem',
-                                '-sd_pkey', 'SD/private_key.pem',
-                                '-dsd', 'SD/dsd.json',
-                                '-cert_sd', 'SD/certificate.pem',
-                                '-cert_uca', 'UCA/certificate.pem',
-                                '-webdir', '../upnp/sample/web'],
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                text=True)
-        
-        dev = subprocess.Popen([CP, '-i', iface,
-                                '-ca_pkey', 'CA/public_key.pem',
-                                '-cp_pkey', 'CP/private_key.pem',
-                                '-sad', 'CP/sad.json',
-                                '-cert_cp', 'CP/certificate.pem',
-                                '-cert_uca', 'UCA/certificate.pem',
+                                '-ra_pkey', 'RA/private_key.pem',
+                                '-cert_ra', 'RA/certificate.pem',
                                 '-webdir', '../upnp/sample/web'],
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE,
                                text=True)
-        
-        while True:
-            output = dev.stdout.readline()
-            if output == '' and dev.poll() is not None:
-                break
-            if output:
-                print(output.strip())
-
-        err = dev.stderr.read()
-        if err:
-            print(err.strip())
         """
+    elif scenario == 2:
+        pass
+    elif scenario == 3:
+        pass
+    elif scenario == 4:
+        pass
+    elif scenario == 5:
+        pass
+    else:
+        raise Exception('Invalid scenario index')
+
+    """
+    dev = subprocess.Popen([Path(bin_path, ENTITIES['SD']),
+                            '-i', iface,
+                            '-ca_pkey', 'CA/public_key.pem',
+                            '-sd_pkey', 'SD/private_key.pem',
+                            '-dsd', 'SD/dsd.json',
+                            '-cert_sd', 'SD/certificate.pem',
+                            '-cert_uca', 'UCA/certificate.pem',
+                            '-webdir', '../upnp/sample/web'],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True)
+    
+    dev = subprocess.Popen([Path(bin_path, ENTITIES['CP']),
+                            '-i', iface,
+                            '-ca_pkey', 'CA/public_key.pem',
+                            '-cp_pkey', 'CP/private_key.pem',
+                            '-sad', 'CP/sad.json',
+                            '-cert_cp', 'CP/certificate.pem',
+                            '-cert_uca', 'UCA/certificate.pem',
+                            '-webdir', '../upnp/sample/web'],
+                           stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE,
+                           text=True)
+    
+    while True:
+        output = dev.stdout.readline()
+        if output == '' and dev.poll() is not None:
+            break
+        if output:
+            print(output.strip())
+
+    err = dev.stderr.read()
+    if err:
+        print(err.strip())
+    """
 
 
 ################ End Action Functions ######################

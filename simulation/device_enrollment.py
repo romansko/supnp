@@ -114,8 +114,8 @@ class Entity:
 
 class RA(Entity):
     """ Registration Authority """
-    def __init__(self) -> None:
-        super().__init__('RA')
+    def __init__(self, name='RA') -> None:
+        super().__init__(name)
         
     def generate_subject(self) -> x509.Name:
         details = Details(RA_COUNTRY_NAME, RA_STATE_OR_PROVINCE_NAME, RA_LOCALITY_NAME, RA_ORGANIZATION_NAME)
@@ -124,8 +124,8 @@ class RA(Entity):
 
 class SD(Entity):
     """ Service Device """
-    def __init__(self) -> None:
-        super().__init__('SD')
+    def __init__(self, name='SD') -> None:
+        super().__init__(name)
         
     def generate_subject(self) -> x509.Name:
         details = Details(SD_COUNTRY_NAME, SD_STATE_OR_PROVINCE_NAME, SD_LOCALITY_NAME, SD_ORGANIZATION_NAME)
@@ -134,8 +134,8 @@ class SD(Entity):
 
 class CP(Entity):
     """ Control Point """
-    def __init__(self) -> None:
-        super().__init__('CP')
+    def __init__(self, name='CP') -> None:
+        super().__init__(name)
 
     def generate_subject(self) -> x509.Name:
         details = Details(CP_COUNTRY_NAME, CP_STATE_OR_PROVINCE_NAME, CP_LOCALITY_NAME, CP_ORGANIZATION_NAME)
@@ -144,8 +144,8 @@ class CP(Entity):
 
 class UCA(Entity):
     """ UPnP Certification Authority """
-    def __init__(self) -> None:
-        super().__init__('UCA')
+    def __init__(self, name='UCA') -> None:
+        super().__init__(name)
    
     def generate_subject(self) -> x509.Name:
         return x509.Name([
@@ -155,8 +155,8 @@ class UCA(Entity):
 
 class CA(Entity):
     """ UPnP Certification Authority """
-    def __init__(self) -> None:
-        super().__init__('CA')
+    def __init__(self, name='CA') -> None:
+        super().__init__(name)
         self.ca = True
    
     def generate_subject(self) -> x509.Name:
@@ -255,7 +255,7 @@ class CryptoHelper:
         The certificate is signed by private_key.
         """
         try:
-            print("\t%s signs %s's certificate.." % (issuer, entity))
+            print("[*] %s signs %s's certificate.." % (issuer, entity))
             builder = CryptoHelper.get_cert_builder(entity.subject, issuer.subject, entity.public_key)
             if issuer.ca:  # CA is the signer
                 builder = builder.add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
@@ -444,6 +444,7 @@ class Device:
     #
     def generate_dsd(self, uca: UCA, sd: SD) -> None:
         """ Generate DSD (Device Specification Document)"""
+        print("[*] Device Specification Document (DSD)")
         doc = Doc('SD', 'SD user-friendly name', sd.public_key, self.service_list(),
                   HW='SD Hardware Description', SW='SD Software Description')  # Probably not mandatory for simulation.
         FileHelper.write_json(filepath='%s/dsd.json' % sd,
@@ -460,6 +461,7 @@ class Device:
     # SIGS:         The signatures need to be verified to check the authenticity of this document.
     def generate_sad(self, uca: UCA, cp: CP) -> None:
         """ Generate SAD (Service Action Document)"""
+        print("[*] Service Action Document (SAD)")
         doc = Doc('CP', 'CP user-friendly name', cp.public_key, self.service_list())
         FileHelper.write_json(filepath='%s/sad.json' % cp,
                               content=doc.sign(sk_owner=cp.private_key, sk_uca=uca.private_key))
@@ -479,7 +481,6 @@ if __name__ == "__main__":
     sd.cert = CryptoHelper.issue_certificate(uca, sd)
     ra  = RA()
     ra.cert = CryptoHelper.issue_certificate(uca, ra)
-    print("[*] Generating documents..")
     device.generate_sad(uca, cp)
     device.generate_dsd(uca, sd)
     # Verify signatures

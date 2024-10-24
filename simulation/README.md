@@ -114,46 +114,47 @@ venv/bin/pip install -r requirements.txt
 rm -rf CA CP RA SD UCA 
 ./venv/bin/python3 ./device_enrollment.py ../upnp/sample/web/tvdevicedesc.xml
 ~~~ Device Enrollment simulation ~~~
-[*] Initialized Device('../upnp/sample/web/tvdevicedesc.xml')
+[*] Initialized Device('supnp/upnp/sample/web/tvdevicedesc.xml')
 [*] Initializing CA..
-        Generated 'CA/private_key.pem'
-        Generated 'CA/public_key.pem'
+	Generated 'supnp/simulation/CA/private_key.pem'
+	Generated 'supnp/simulation/CA/public_key.pem'
 [*] Initializing UCA..
-        Generated 'UCA/private_key.pem'
-        Generated 'UCA/public_key.pem'
-        CA signs UCA's certificate..
-        Generated 'UCA/certificate.pem'
+	Generated 'supnp/simulation/UCA/private_key.pem'
+	Generated 'supnp/simulation/UCA/public_key.pem'
+[*] CA signs UCA's certificate..
+	Generated 'supnp/simulation/UCA/certificate.pem'
 [*] Initializing CP..
-        Generated 'CP/private_key.pem'
-        Generated 'CP/public_key.pem'
-        UCA signs CP's certificate..
-        Generated 'CP/certificate.pem'
+	Generated 'supnp/simulation/CP/private_key.pem'
+	Generated 'supnp/simulation/CP/public_key.pem'
+[*] UCA signs CP's certificate..
+	Generated 'supnp/simulation/CP/certificate.pem'
 [*] Initializing SD..
-        Generated 'SD/private_key.pem'
-        Generated 'SD/public_key.pem'
-        UCA signs SD's certificate..
-        Generated 'SD/certificate.pem'
+	Generated 'supnp/simulation/SD/private_key.pem'
+	Generated 'supnp/simulation/SD/public_key.pem'
+[*] UCA signs SD's certificate..
+	Generated 'supnp/simulation/SD/certificate.pem'
 [*] Initializing RA..
-        Generated 'RA/private_key.pem'
-        Generated 'RA/public_key.pem'
-        UCA signs RA's certificate..
-        Generated 'RA/certificate.pem'
-[*] Generating documents..
-        Generated 'CP/sad.json'
-        Generated 'SD/dsd.json'
+	Generated 'supnp/simulation/RA/private_key.pem'
+	Generated 'supnp/simulation/RA/public_key.pem'
+[*] UCA signs RA's certificate..
+	Generated 'supnp/simulation/RA/certificate.pem'
+[*] Service Action Document (SAD)
+	Generated 'supnp/simulation/CP/sad.json'
+[*] Device Specification Document (DSD)
+	Generated 'supnp/simulation/SD/dsd.json'
 [*] Verifying signatures for 'SAD':
-        Verifying public key..          public key ok.
-        Verifying 'SIG-OWNER'..         signature ok.
-        Verifying 'SIG-UCA'..           signature ok.
+	Verifying public key..		public key ok.
+	Verifying 'SIG-OWNER'..		signature ok.
+	Verifying 'SIG-UCA'..		signature ok.
 [*] Verifying signatures for 'DSD':
-        Verifying public key..          public key ok.
-        Verifying 'SIG-OWNER'..         signature ok.
-        Verifying 'SIG-UCA'..           signature ok.
+	Verifying public key..		public key ok.
+	Verifying 'SIG-OWNER'..		signature ok.
+	Verifying 'SIG-UCA'..		signature ok.
 [*] Verifying certificates..
-        Verifying UCA's certificate..   certificate ok.
-        Verifying CP's certificate..    certificate ok.
-        Verifying SD's certificate..    certificate ok.
-        Verifying RA's certificate..    certificate ok.
+	Verifying UCA's certificate..	certificate ok.
+	Verifying CP's certificate..	certificate ok.
+	Verifying SD's certificate..	certificate ok.
+	Verifying RA's certificate..	certificate ok.
 [*] Done.
 ```
 
@@ -193,19 +194,19 @@ The miranda-upnp script itself is MIT licensed. (See [Project Information](https
         <td>A malicious SD sends a forged advertisement with an altered service description document.</td>
         <td>The control-point should detect the forgery of the advertisement and service description document.</td>
     </tr>
-    </tr>
+    <tr>
         <td>CP Impersonation mitigation</td>
         <td>A malicious CP sends a fake discovery request to find a service without having the capability to process 
         the service data.</td>
         <td>An SD should identify the fake discovery request and drop the request without processing it.</td>
     </tr>
-    </tr>
+    <tr>
         <td>Action Authentication</td>
         <td>An adversary gains unauthorized access to an SD's service description document, learns the control URL from 
         the document, and sends a forged service action request.</td>
         <td>The SD should be able to detect that the CP does not have the capability to perform the action.</td>
     </tr>
-    </tr>
+    <tr>
         <td>Event Subscription Authentication</td>
         <td>An adversary gains unauthorized access to an SD's device description document, learns the event URL from 
         the document, and sends an event subscription request.</td>
