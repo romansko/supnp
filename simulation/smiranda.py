@@ -37,6 +37,161 @@ from socket import *
 from pathlib import Path
 import device_enrollment as de
 
+
+################### SUPnP Class ##########################
+#            used by supnp action function               #
+##########################################################
+
+class SUPnP:
+
+    ENTITIES = {
+        "RA": "registration_authority",
+        "SD": "tv_device",
+        "CP": "tv_ctrlpt"
+    }
+
+    SCENARIOS = [
+        # 1
+        "An adversary sends a forged capability document (DSD, or SAD) during the registration process.",
+        # 2
+        "A malicious SD sends a forged advertisement with an altered service description document.",
+        # 3
+        "A malicious CP sends a fake discovery request to find a service without having the capability to\n"
+        "process the service data.",
+        # 4
+        "An adversary gains unauthorized access to an SD's service description document, learns the\n"
+        "control URL from the document, and sends a forged service action request.",
+        # 5
+        "An adversary gains unauthorized access to an SD's device description document, learns the\n"
+        "event URL from the document, and sends an event subscription request."
+    ]
+
+    def __init__(self, iface: str):
+        """ Initialize SUPnP class """
+
+        # Verify Interface
+        if not interface_exists(iface):  # todo: Merge set_interface.sh logics to miranda set iface ?
+            raise Exception("Interface '%s' not found. See 'supnp/scripts/set_interface.sh'" % iface)
+        self.iface = iface
+
+        # Scripts folder path, where the entities are expected.
+        self.dirname = os.path.abspath(os.path.dirname(__file__))
+
+        # Binaries path
+        self.bin_path = os.path.abspath(os.path.join(self.dirname, "../upnp/sample/"))
+
+        # Description Document Path
+        self.desc_doc_path = os.path.abspath(os.path.join(self.bin_path, "web/tvdevicedesc.xml"))
+
+        # Dependencies
+        self.deps = [ self.desc_doc_path, "CA/public_key.pem", "UCA/certificate.pem" ]
+        self.deps += [ f"{entity}/{artifact}" for entity in SUPnP.ENTITIES.keys() for
+              artifact in ["private_key.pem", "certificate.pem"] ]
+
+
+    def verify(self) -> bool:
+        """ Verify required Entities & Artifacts """
+
+        # Entities Verifications
+        unfound = []
+        for dev, binary in SUPnP.ENTITIES.items():
+            if not Path(self.bin_path, binary).is_file():
+                unfound.append(binary)
+        if unfound:
+            print("Required files under '%s' were not found:" % self.bin_path, ", ".join(unfound))
+            print("Did you compile? see 'supnp/scripts/cmake_supnp.sh'")
+            return False
+
+        # Artifacts Verifications
+        for dep in self.deps:
+            dep_path = Path(self.dirname, dep)
+            if not dep_path.is_file():
+                print("Required file '%s' was not found. Halting.." % dep_path)
+                print("Did you generate the artifacts? see 'supnp/simulation/Makefile'")
+                return False
+
+        return True
+
+    def invoke_dev(self, entity: str):
+        """ Run an Entity binary """
+        args = [ Path(self.bin_path, SUPnP.ENTITIES["RA"]), "-i", self.iface ]
+        args += [ "-ca_pkey", "CA/public_key.pem" ] # common
+        if entity == "RA":
+            args += [ "-ra_pkey", "RA/private_key.pem",
+                      "-cert_ra", "RA/certificate.pem" ]
+        elif entity == "SD":
+            args += [ "-sd_pkey", "SD/private_key.pem",
+                      "-dsd", "SD/dsd.json",
+                      "-cert_sd", "SD/certificate.pem",
+                      "-cert_uca", "UCA/certificate.pem" ]
+        elif entity == "CP":
+            args += [ "-cp_pkey", "CP/private_key.pem",
+                      "-sad", "CP/sad.json",
+                      "-cert_cp", "CP/certificate.pem",
+                      "-cert_uca", "UCA/certificate.pem" ]
+        else:
+            raise Exception('Invalid entity \'%s\'' % entity)
+        args += [ "-webdir", "../upnp/sample/web" ] # common
+
+        dev = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+        return dev
+
+
+    def invoke(self, scenario_string: str) -> bool:
+        """ Invoke an attack scenario """
+
+        # Verify Scenario argument
+        try:
+            scenario = int(scenario_string)
+            if scenario < 1 or scenario > 5:
+                raise IndexError
+        except:
+            print("Invalid Scenario '%s'\n" % scenario_string)
+            return False
+
+        # Verify Dependencies
+        if not self.verify():
+            return False
+
+        # Attack Scenarios
+        print('Invoking Attack Scenario #%d: %s\n' % (scenario, SUPnP.SCENARIOS[scenario - 1]))
+        if scenario == 1:
+            device = de.Device(self.desc_doc_path)
+            adversary = de.CP('Adversary')  # Fake CP
+            fake_uca = de.UCA('FakeUCA')  # Fake UCA
+            device.generate_sad(fake_uca, adversary)
+            ra = self.invoke_dev('RA')
+
+        elif scenario == 2:
+            pass
+        elif scenario == 3:
+            pass
+        elif scenario == 4:
+            pass
+        elif scenario == 5:
+            pass
+        else:
+            raise Exception('Invalid scenario index')
+
+        """
+        while True:
+            output = dev.stdout.readline()
+            if output == '' and dev.poll() is not None:
+                break
+            if output:
+                print(output.strip())
+
+        err = dev.stderr.read()
+        if err:
+            print(err.strip())
+        """
+
+        return True
+
+
+################# End SUPnP Functions ####################
+
 def interface_exists(iface):
     """ Check if interface exists """
     try:
@@ -1468,150 +1623,17 @@ def quit(argc, argv, hp):
 def supnp(argc, argv, hp):
     """ SUPnP Attack Scenarios simulation """
 
-    # Scripts folder path, where the entities are expected.
-    dirname = os.path.abspath(os.path.dirname(__file__))
-
-    # Binaries path
-    bin_path = os.path.abspath(os.path.join(dirname, '../upnp/sample/'))
-
-    # Description Document Path
-    desc_doc_path = os.path.abspath(os.path.join(bin_path, 'web/tvdevicedesc.xml'))
-
-    # Entities
-    ENTITIES = {
-        'RA': 'registration_authority',
-        'SD': 'tv_device',
-        'CP': 'tv_ctrlpt'
-    }
-
-    # Entities Dependencies
-    DEPS = [ desc_doc_path, 'CA/public_key.pem', 'UCA/certificate.pem' ]
-    DEPS += [ f'{entity}/{artifact}' for entity in ENTITIES.keys() for
-              artifact in ['private_key.pem', 'certificate.pem'] ]
-
-    # Scenarios
-    SCENARIOS = [
-        # 1
-        'An adversary sends a forged capability document (DSD, or SAD) during the registration process.',
-        # 2
-        'A malicious SD sends a forged advertisement with an altered service description document.',
-        # 3
-        'A malicious CP sends a fake discovery request to find a service without having the capability to\n'
-        'process the service data.',
-        # 4
-        'An adversary gains unauthorized access to an SD\'s service description document, learns the\n'
-        'control URL from the document, and sends a forged service action request.',
-        # 5
-        'An adversary gains unauthorized access to an SD\'s device description document, learns the\n'
-        'event URL from the document, and sends an event subscription request.'
-    ]
-
     # Argument verification
     if argc != 3:
         showHelp(argv[0])
         return
 
-    # Verify Interface
     iface = argv[1]
-    if not interface_exists(iface):  # todo: Merge set_interface.sh logics to miranda set iface ?
-        print('Interface \'%s\' not found. See \'supnp/scripts/set_interface.sh\'' % iface)
-        return
+    scenario = argv[2]
 
-    # Verify Scenario
-    try:
-        scenario = int(argv[2])
-        if scenario < 1 or scenario > 5:
-            raise IndexError
-    except:
-        print('Invalid index \'%s\'\n' % argv[2])
+    # Invoke Scenario
+    if not SUPnP(iface).invoke(scenario):
         showHelp(argv[0])
-        return
-
-    # Entities Verifications
-    unfound = []
-    for dev, binary in ENTITIES.items():
-        if not Path(bin_path, binary).is_file():
-            unfound.append(binary)
-    if unfound:
-        print('Required files under \'%s\' were not found:' % bin_path, ', '.join(unfound))
-        print('Did you compile? see \'supnp/scripts/cmake_supnp.sh\'')
-        return
-
-    # Artifacts Verifications
-    for dep in DEPS:
-        dep_path = Path(dirname, dep)
-        if not dep_path.is_file():
-            print('Required file \'%s\' was not found. Halting..' % dep_path)
-            print('Did you generate the artifacts? see \'supnp/simulation/Makefile\'')
-            return
-
-    # Attack Scenarios
-    print('Invoking Attack Scenario #%d: %s\n' % (scenario, SCENARIOS[scenario - 1]))
-    if scenario == 1:
-        device = de.Device(desc_doc_path)
-        adversary = de.CP('Adversary')   # Fake CP
-        fake_uca = de.UCA('FakeUCA')     # Fake UCA
-        device.generate_sad(fake_uca, adversary)
-
-
-        """
-        dev = subprocess.Popen([Path(bin_path, ENTITIES['RA']),
-                                '-i', iface,
-                                '-ca_pkey', 'CA/public_key.pem',
-                                '-ra_pkey', 'RA/private_key.pem',
-                                '-cert_ra', 'RA/certificate.pem',
-                                '-webdir', '../upnp/sample/web'],
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE,
-                               text=True)
-        """
-    elif scenario == 2:
-        pass
-    elif scenario == 3:
-        pass
-    elif scenario == 4:
-        pass
-    elif scenario == 5:
-        pass
-    else:
-        raise Exception('Invalid scenario index')
-
-    """
-    dev = subprocess.Popen([Path(bin_path, ENTITIES['SD']),
-                            '-i', iface,
-                            '-ca_pkey', 'CA/public_key.pem',
-                            '-sd_pkey', 'SD/private_key.pem',
-                            '-dsd', 'SD/dsd.json',
-                            '-cert_sd', 'SD/certificate.pem',
-                            '-cert_uca', 'UCA/certificate.pem',
-                            '-webdir', '../upnp/sample/web'],
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            text=True)
-    
-    dev = subprocess.Popen([Path(bin_path, ENTITIES['CP']),
-                            '-i', iface,
-                            '-ca_pkey', 'CA/public_key.pem',
-                            '-cp_pkey', 'CP/private_key.pem',
-                            '-sad', 'CP/sad.json',
-                            '-cert_cp', 'CP/certificate.pem',
-                            '-cert_uca', 'UCA/certificate.pem',
-                            '-webdir', '../upnp/sample/web'],
-                           stdout=subprocess.PIPE,
-                           stderr=subprocess.PIPE,
-                           text=True)
-    
-    while True:
-        output = dev.stdout.readline()
-        if output == '' and dev.poll() is not None:
-            break
-        if output:
-            print(output.strip())
-
-    err = dev.stderr.read()
-    if err:
-        print(err.strip())
-    """
 
 
 ################ End Action Functions ######################
