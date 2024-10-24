@@ -98,7 +98,6 @@ class Entity:
     def __init__(self, _type: str) -> None:
         self.type: str = _type
         print("[*] Initializing %s.." % self)
-        os.makedirs(_type, exist_ok=True)
         sk, pk = CryptoHelper.generate_key_pair(_type)  # private key, public key
         self.private_key: PrivateKeyTypes = sk
         self.public_key:  PublicKeyTypes  = pk
@@ -169,25 +168,35 @@ class CA(Entity):
 class FileHelper:
     """ Helper class for file operations. """
 
+    # Simulation folder - same location as the script itself.
+    __dirname__ = os.path.abspath(os.path.dirname(__file__))
+
     @staticmethod
-    def read_file(filepath: str, flags = 'r') -> str:
+    def read_file(filepath: str, flags = 'r', sim_folder=True) -> str:
         """ Read file content and return it as a string. """
+        if sim_folder:
+            filepath = os.path.join(FileHelper.__dirname__, filepath)
         if not os.path.exists(filepath):
             error("File '%s' does not exist." % filepath)
         with open(filepath, flags) as f:
             return f.read()
         
     @staticmethod
-    def write_file(filepath: str, content: any, flags='w') -> None:
+    def write_file(filepath: str, content: any, flags='w', sim_folder=True) -> None:
         """ Write content to a file. """
+        if sim_folder:
+            filepath = os.path.join(FileHelper.__dirname__, filepath)
+        os.makedirs(os.path.dirname(filepath), exist_ok=True) # Create the directory if it doesn't exist
         with open(filepath, flags) as f:
             f.write(content)
             print("\tGenerated '%s'" % filepath)
 
     @staticmethod
-    def write_json(filepath: str, content: dict) -> None:
+    def write_json(filepath: str, content: dict, sim_folder=True) -> None:
         """ Write content to a file in JSON format. """
-        FileHelper.write_file(filepath, json.dumps(content, indent=JSON_INDENT))
+        FileHelper.write_file(filepath=filepath,
+                              content=json.dumps(content, indent=JSON_INDENT),
+                              sim_folder=sim_folder)
 
 
 class CryptoHelper:
@@ -225,9 +234,13 @@ class CryptoHelper:
         # Serialize keys to PEM format
         private_key_pem = CryptoHelper.private_key_to_bytes(private_key, CryptoHelper.PEM_ENCODING)
         public_key_pem  = CryptoHelper.public_key_to_bytes(public_key, CryptoHelper.PEM_ENCODING)
-        # Save the keys to files
-        FileHelper.write_file("%s/%s" % (directory, CryptoHelper.PRIVATE_KEY_PEM), private_key_pem, 'wb')
-        FileHelper.write_file("%s/%s" % (directory, CryptoHelper.PUBLIC_KEY_PEM),  public_key_pem,  'wb')
+        # Save keys under simulation folder
+        FileHelper.write_file(filepath="%s/%s" % (directory, CryptoHelper.PRIVATE_KEY_PEM),
+                              content=private_key_pem,
+                              flags='wb')
+        FileHelper.write_file(filepath="%s/%s" % (directory, CryptoHelper.PUBLIC_KEY_PEM),
+                              content=public_key_pem,
+                              flags='wb')
         return private_key, public_key
 
     @staticmethod
@@ -247,7 +260,9 @@ class CryptoHelper:
             if issuer.ca:  # CA is the signer
                 builder = builder.add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
             cert = builder.sign(issuer.private_key, CryptoHelper.ALGORITHM, default_backend())
-            FileHelper.write_file("%s/%s" % (entity, CryptoHelper.CERTIFICATE_PEM), cert.public_bytes(CryptoHelper.PEM_ENCODING), 'wb')
+            FileHelper.write_file(filepath="%s/%s" % (entity, CryptoHelper.CERTIFICATE_PEM),
+                                  content=cert.public_bytes(CryptoHelper.PEM_ENCODING),
+                                  flags='wb')
             return cert
         except Exception as e:
             error("%s failed to issue Certificate for %s. %s" % (issuer, entity, str(e)))
@@ -278,7 +293,7 @@ class CryptoHelper:
         try:
             print("\tVerifying %s's certificate.." % entity, end='\t')
             cert_file = '%s/%s' % (entity, CryptoHelper.CERTIFICATE_PEM)
-            cert = FileHelper.read_file(cert_file, 'r').encode('utf-8')
+            cert = FileHelper.read_file(filepath=cert_file, flags='r').encode('utf-8')
             cert_obj: x509.Certificate = x509.load_pem_x509_certificate(cert, default_backend())
             # Verify that read file is the expected certificate.
             if cert_obj != entity.cert:
@@ -343,8 +358,7 @@ class Doc:
         """ Verify the signature of data using RSA public key. """
         try:
             print("[*] Verifying signatures for '%s':" % name)
-            filepath = '%s/%s.json' % (entity, name.lower())
-            data = json.loads(FileHelper.read_file(filepath))
+            data = json.loads(FileHelper.read_file(filepath='%s/%s.json' % (entity, name.lower())))
             print("\tVerifying public key..", end='\t\t')
             public_key = bytes.fromhex(data['PK'])
             if public_key != CryptoHelper.public_key_to_bytes(entity.public_key, CryptoHelper.DER_ENCODING):
@@ -367,7 +381,9 @@ class Device:
 
     def __init__(self, device_desc_path: str):
         try:
-            self._desc: dict = xmltodict.parse(FileHelper.read_file(device_desc_path)) # Device Description Document content.
+            # Parse device Description Document content.
+            device_desc_path = os.path.abspath(device_desc_path)
+            self._desc: dict = xmltodict.parse(FileHelper.read_file(filepath=device_desc_path, sim_folder=False))
             print("[*] Initialized Device('%s')" % device_desc_path)
         except Exception as e:
             error("Device::__init__: Failed to parse '%s': %s. Is device description xml document provided?" % (device_desc_path, str(e)))
@@ -430,7 +446,8 @@ class Device:
         """ Generate DSD (Device Specification Document)"""
         doc = Doc('SD', 'SD user-friendly name', sd.public_key, self.service_list(),
                   HW='SD Hardware Description', SW='SD Software Description')  # Probably not mandatory for simulation.
-        FileHelper.write_json('%s/dsd.json' % sd, doc.sign(sk_owner=sd.private_key, sk_uca=uca.private_key))
+        FileHelper.write_json(filepath='%s/dsd.json' % sd,
+                              content=doc.sign(sk_owner=sd.private_key, sk_uca=uca.private_key))
     
     # SAD (Service Action Document) Components:
     # TYPE:         Type of of the participant - "CP" (Control Point).
@@ -444,7 +461,8 @@ class Device:
     def generate_sad(self, uca: UCA, cp: CP) -> None:
         """ Generate SAD (Service Action Document)"""
         doc = Doc('CP', 'CP user-friendly name', cp.public_key, self.service_list())
-        FileHelper.write_json('%s/sad.json' % cp, doc.sign(sk_owner=cp.private_key, sk_uca=uca.private_key))
+        FileHelper.write_json(filepath='%s/sad.json' % cp,
+                              content=doc.sign(sk_owner=cp.private_key, sk_uca=uca.private_key))
 
 
 if __name__ == "__main__":
