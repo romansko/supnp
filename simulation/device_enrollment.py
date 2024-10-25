@@ -204,11 +204,13 @@ class FileHelper:
             print("\tGenerated '%s'" % filepath)
 
     @staticmethod
-    def write_json(filepath: str, content: dict, sim_folder=True) -> None:
+    def write_json(filepath: str, content: dict, sim_folder=True) -> str:
         """ Write content to a file in JSON format. """
+        doc = json.dumps(content, indent=JSON_INDENT)
         FileHelper.write_file(filepath=filepath,
-                              content=json.dumps(content, indent=JSON_INDENT),
+                              content=doc,
                               sim_folder=sim_folder)
+        return doc
 
 
 class CryptoHelper:
@@ -222,6 +224,11 @@ class CryptoHelper:
     DER_ENCODING    = serialization.Encoding.DER
     PRIVATE_FORMAT  = serialization.PrivateFormat.PKCS8
     PUBLIC_FORMAT   = serialization.PublicFormat.SubjectPublicKeyInfo
+
+    @staticmethod
+    def certificate_to_hex_string(cert: x509.Certificate) -> str:
+        """ Convert certificate to hex string. """
+        return cert.public_bytes(CryptoHelper.PEM_ENCODING).hex()
 
     @staticmethod
     def private_key_to_bytes(key: PrivateKeyTypes, encoding: serialization.Encoding) -> bytes:
@@ -464,13 +471,13 @@ class Device:
     #               field need to be verified to prove the authenticity of this document.
     # SIGS:         The signatures need to be verified to check the authenticity of this document.
     #
-    def generate_dsd(self, uca: UCA, sd: SD) -> None:
+    def generate_dsd(self, uca: UCA, sd: SD) -> str:
         """ Generate DSD (Device Specification Document)"""
         print("[*] Device Specification Document (DSD)")
         doc = Doc('SD', 'SD user-friendly name', sd.public_key, self.service_list(),
                   HW='SD Hardware Description', SW='SD Software Description')  # Probably not mandatory for simulation.
-        FileHelper.write_json(filepath='%s/dsd.json' % sd,
-                              content=doc.sign(sk_owner=sd.private_key, sk_uca=uca.private_key))
+        return FileHelper.write_json(filepath='%s/dsd.json' % sd,
+                                     content=doc.sign(sk_owner=sd.private_key, sk_uca=uca.private_key))
 
     # SAD (Service Action Document) Components:
     # TYPE:         Type of of the participant - "CP" (Control Point).
@@ -481,11 +488,11 @@ class Device:
     # SIG-VER-CON:  The verification condition of the SAD. The “CON” field value “2-of-2” means both signatures mentioned in the “SIGS” 
     #               field need to be verified to prove the authenticity of this document.
     # SIGS:         The signatures need to be verified to check the authenticity of this document.
-    def generate_sad(self, uca: UCA, cp: CP) -> None:
+    def generate_sad(self, uca: UCA, cp: CP) -> str:
         """ Generate SAD (Service Action Document)"""
         print("[*] Service Action Document (SAD)")
         doc = Doc('CP', 'CP user-friendly name', cp.public_key, self.service_list())
-        FileHelper.write_json(filepath='%s/sad.json' % cp,
+        return FileHelper.write_json(filepath='%s/sad.json' % cp,
                               content=doc.sign(sk_owner=cp.private_key, sk_uca=uca.private_key))
 
 
@@ -503,8 +510,8 @@ if __name__ == "__main__":
     sd.cert = CryptoHelper.issue_certificate(uca, sd)
     ra = RA()
     ra.cert = CryptoHelper.issue_certificate(uca, ra)
-    device.generate_sad(uca, cp)
-    device.generate_dsd(uca, sd)
+    _ = device.generate_sad(uca, cp)
+    _ = device.generate_dsd(uca, sd)
     # Verify signatures
     Doc.verify_document('SAD', cp, uca.public_key)
     Doc.verify_document('DSD', sd, uca.public_key)

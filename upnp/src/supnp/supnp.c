@@ -144,6 +144,7 @@ void SUpnpSetCapTokenLocation(const char *CapTokenLocation)
     ithread_rwlock_wrlock(&gCapTokenLocationLock);
     memset(gCapTokenLocation, 0, sizeof(gCapTokenLocation));
     if (CapTokenLocation && strlen(CapTokenLocation) < LOCATION_SIZE) {
+        supnp_log("Setting captoken location to '%s'.\n", CapTokenLocation);
         strncpy(gCapTokenLocation, CapTokenLocation, sizeof(gCapTokenLocation));
     } else {
         supnp_error("Invalid CapToken Location '%s'.\n", CapTokenLocation);

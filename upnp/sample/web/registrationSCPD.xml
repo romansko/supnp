@@ -37,7 +37,11 @@
           <relatedStateVariable>DontCare</relatedStateVariable>
           <direction>in</direction>
         </argument>
-
+	<argument>
+          <name>Challenge</name>
+          <relatedStateVariable>DontCare</relatedStateVariable>
+          <direction>out</direction>
+        </argument>
       </argumentList>
     </action>
 
@@ -45,7 +49,7 @@
       <name>Challenge</name>
       <argumentList>
         <argument>
-          <name>ChallengeResponse</name>
+          <name>Challenge</name>
           <relatedStateVariable>DontCare</relatedStateVariable>
           <direction>in</direction>
         </argument>
@@ -53,6 +57,21 @@
           <name>PublicKey</name>
           <relatedStateVariable>DontCare</relatedStateVariable>
           <direction>in</direction>
+        </argument>
+        <argument>
+          <name>CapToken</name>
+          <relatedStateVariable>DontCare</relatedStateVariable>
+          <direction>out</direction>
+        </argument>
+        <argument>
+          <name>RACertificate</name>
+          <relatedStateVariable>DontCare</relatedStateVariable>
+          <direction>out</direction>
+        </argument>
+        <argument>
+          <name>ActionResponse</name>
+          <relatedStateVariable>DontCare</relatedStateVariable>
+          <direction>out</direction>
         </argument>
       </argumentList>
     </action>

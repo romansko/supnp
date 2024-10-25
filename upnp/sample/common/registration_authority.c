@@ -288,7 +288,7 @@ cleanup:
 int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorString)
 {
     supnp_device_t *dev = NULL;
-    int ret = UPNP_E_INVALID_PARAM;
+    int ret = SUPNP_E_INVALID_ARGUMENT;
     char* hex[SUPNP_DOCS_ON_DEVICE]  = {NULL};
     char* docs[SUPNP_DOCS_ON_DEVICE] = {NULL};
     size_t doc_size[SUPNP_DOCS_ON_DEVICE] = {0};
@@ -313,10 +313,12 @@ int RegisterDevice(IXML_Document *in, IXML_Document **out, const char **errorStr
             "Invalid Registration parameters.\n");
     }
 
+    ret = SUPNP_E_INVALID_PKEY;
     ca_pk = OpenSslLoadPublicKeyFromPEM(PublicKeyPathCA);
     sample_verify_ex(ca_pk, cleanup, errorString,
         "Error loading CA Public Key.\n");
 
+    ret = SUPNP_E_INVALID_ARGUMENT;
     dev = SupnpNewDevice(docs[eRegisterActionVar_SpecDoc],
         docs[eRegisterActionVar_CertDevice],
         docs[eRegisterActionVar_CertUCA]);

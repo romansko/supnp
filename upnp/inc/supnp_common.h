@@ -103,7 +103,6 @@ typedef struct SecureParams
  */
 #define SUPNP_E_CAPTOKEN_ERROR (-606)
 
-
 /*!
  * \brief Populating secure params failed
  */
@@ -113,6 +112,11 @@ typedef struct SecureParams
  * \brief Nonce already exists
  */
 #define SUPNP_E_NONCE_EXISTS (-608)
+
+/*!
+ * \brief The certificate is invalid.
+ */
+#define SUPNP_E_INVALID_PKEY (-609)
 
 /*!
  * \brief Test failed
