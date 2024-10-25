@@ -14,27 +14,27 @@
       <argumentList>
          <argument>
            <name>SpecificationDocument</name>
-           <relatedStateVariable>SpecDoc</relatedStateVariable>
+           <relatedStateVariable>DontCare</relatedStateVariable>
            <direction>in</direction>
           </argument>
         <argument>
           <name>CertificateDevice</name>
-          <relatedStateVariable>CertDev</relatedStateVariable>
+          <relatedStateVariable>DontCare</relatedStateVariable>
           <direction>in</direction>
         </argument>
         <argument>
           <name>CertificateUCA</name>
-          <relatedStateVariable>CertUCA</relatedStateVariable>
+          <relatedStateVariable>DontCare</relatedStateVariable>
           <direction>in</direction>
         </argument>
         <argument>
           <name>DescriptionDocumentLocation</name>
-          <relatedStateVariable>DescDocLoc</relatedStateVariable>
+          <relatedStateVariable>DontCare</relatedStateVariable>
           <direction>in</direction>
         </argument>
         <argument>
           <name>CapTokenLocation</name>
-          <relatedStateVariable>CapTokenLoc</relatedStateVariable>
+          <relatedStateVariable>DontCare</relatedStateVariable>
           <direction>in</direction>
         </argument>
 
@@ -46,12 +46,12 @@
       <argumentList>
         <argument>
           <name>ChallengeResponse</name>
-          <relatedStateVariable>ChResp</relatedStateVariable>
+          <relatedStateVariable>DontCare</relatedStateVariable>
           <direction>in</direction>
         </argument>
         <argument>
           <name>PublicKey</name>
-          <relatedStateVariable>PubKey</relatedStateVariable>
+          <relatedStateVariable>DontCare</relatedStateVariable>
           <direction>in</direction>
         </argument>
       </argumentList>
@@ -60,6 +60,10 @@
   </actionList>
 
   <serviceStateTable>
+    <stateVariable sendEvents="no">
+      <name>DontCare</name>
+      <dataType>string</dataType>
+    </stateVariable>
   </serviceStateTable>
 
 </scpd>

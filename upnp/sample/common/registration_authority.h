@@ -147,15 +147,6 @@ int RAStateTableInit(
 	/*! [in] The description document URL. */
 	char *DescDocURL);
 
-/*!
- * \brief Called during a get variable request callback.
- *
- * If the request is for this device and its services,
- * then respond with the variable value.
- */
-int RAHandleGetVarRequest(
-	/*! [in,out] The control get variable request event structure. */
-	UpnpStateVarRequest *cgv_event);
 
 /*!
  * \brief Called during an action request callback.

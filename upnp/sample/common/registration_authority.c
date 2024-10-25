@@ -207,55 +207,6 @@ error_handler:
 	return ret;
 }
 
-int RAHandleGetVarRequest(UpnpStateVarRequest *cgv_event)
-{
-	unsigned int i = 0;
-    int getvar_succeeded = 0;
-
-	UpnpStateVarRequest_set_CurrentVal(cgv_event, NULL);
-
-	ithread_mutex_lock(&RAMutex);
-
-	for (i = 0; i < eRegistrationAuthorityServiceCount; i++) {
-		/* check udn and service id */
-        const struct RAService * pRaSrvc = &ra_service_table[i];
-		const char *devUDN = UpnpString_get_String(
-			UpnpStateVarRequest_get_DevUDN(cgv_event));
-		const char *serviceID = UpnpString_get_String(
-			UpnpStateVarRequest_get_ServiceID(cgv_event));
-		if (strcmp(devUDN, pRaSrvc->UDN) == 0 &&
-			strcmp(serviceID, pRaSrvc->ServiceId) == 0) {
-			/* check variable name */
-			for (int j = 0; j < pRaSrvc->VariableCount;	j++) {
-				const char *stateVarName = UpnpString_get_String(
-					UpnpStateVarRequest_get_StateVarName(cgv_event));
-				if (strcmp(stateVarName, pRaSrvc->VariableName[j]) == 0) {
-					getvar_succeeded = 1;
-					UpnpStateVarRequest_set_CurrentVal(
-						cgv_event,
-						pRaSrvc->VariableStrVal[j]);
-					break;
-				}
-			}
-		}
-	}
-	if (getvar_succeeded) {
-		UpnpStateVarRequest_set_ErrCode(cgv_event, UPNP_E_SUCCESS);
-	} else {
-		SampleUtil_Print(
-			"Error in UPNP_CONTROL_GET_VAR_REQUEST callback:\n"
-			"   Unknown variable name = %s\n",
-			UpnpString_get_String(
-				UpnpStateVarRequest_get_StateVarName(cgv_event)));
-		UpnpStateVarRequest_set_ErrCode(cgv_event, 404);
-		UpnpStateVarRequest_strcpy_ErrStr(cgv_event, "Invalid Variable");
-	}
-
-	ithread_mutex_unlock(&RAMutex);
-
-	return UpnpStateVarRequest_get_ErrCode(cgv_event) == UPNP_E_SUCCESS;
-}
-
 int RAHandleActionRequest(UpnpActionRequest *ca_event)
 {
 	/* Defaults if action not found. */
@@ -570,13 +521,11 @@ int RACallbackEventHandler(Upnp_EventType EventType, const void *Event, void *Co
 {
 	(void)Cookie;
 	switch (EventType) {
-	case UPNP_CONTROL_GET_VAR_REQUEST:
-		RAHandleGetVarRequest((UpnpStateVarRequest *)Event);
-		break;
 	case UPNP_CONTROL_ACTION_REQUEST:
 		RAHandleActionRequest((UpnpActionRequest *)Event);
 		break;
 	/* Ignore */
+	case UPNP_CONTROL_GET_VAR_REQUEST:
 	case UPNP_EVENT_SUBSCRIPTION_REQUEST:
 	case UPNP_DISCOVERY_ADVERTISEMENT_ALIVE:
 	case UPNP_DISCOVERY_SEARCH_RESULT:
