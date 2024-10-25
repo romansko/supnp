@@ -13,6 +13,10 @@
 #    Original python2 miranda:   https://code.google.com/archive/p/miranda-upnp              #
 #                                                                                            #
 # Python 3.12.3                                                                              #
+#                                                                                            #
+# Usage example:                                                                             #
+#        source venv/bin/activate                                                            #
+#        ./smiranda.py                                                                       #
 ############################################################################################## 
 import sys
 import os
@@ -43,6 +47,8 @@ import device_enrollment as de
 ##########################################################
 
 class SUPnP:
+    DEFAULT_BINARIES_PATH = "../upnp/sample/"  # Relative to script location
+    DEFAULT_DESC_DOC_PATH = "web/tvdevicedesc.xml"  # Relative to binaries
 
     ENTITIES = {
         "RA": "registration_authority",
@@ -75,19 +81,18 @@ class SUPnP:
         self.iface = iface
 
         # Scripts folder path, where the entities are expected.
-        self.dirname = os.path.abspath(os.path.dirname(__file__))
+        self.dirname = Path(__file__).parent
 
         # Binaries path
-        self.bin_path = os.path.abspath(os.path.join(self.dirname, "../upnp/sample/"))
+        self.bin_path = Path(self.dirname, SUPnP.DEFAULT_BINARIES_PATH).resolve()
 
         # Description Document Path
-        self.desc_doc_path = os.path.abspath(os.path.join(self.bin_path, "web/tvdevicedesc.xml"))
+        self.desc_doc_path = Path(self.bin_path, SUPnP.DEFAULT_DESC_DOC_PATH).resolve()
 
         # Dependencies
-        self.deps = [ self.desc_doc_path, "CA/public_key.pem", "UCA/certificate.pem" ]
-        self.deps += [ f"{entity}/{artifact}" for entity in SUPnP.ENTITIES.keys() for
-              artifact in ["private_key.pem", "certificate.pem"] ]
-
+        self.deps = [self.desc_doc_path, "CA/public_key.pem", "UCA/certificate.pem"]
+        self.deps += [f"{entity}/{artifact}" for entity in SUPnP.ENTITIES.keys() for
+                      artifact in ["private_key.pem", "certificate.pem"]]
 
     def verify(self) -> bool:
         """ Verify required Entities & Artifacts """
@@ -114,29 +119,28 @@ class SUPnP:
 
     def invoke_dev(self, entity: str):
         """ Run an Entity binary """
-        args = [ Path(self.bin_path, SUPnP.ENTITIES["RA"]), "-i", self.iface ]
-        args += [ "-ca_pkey", "CA/public_key.pem" ] # common
+        args = [Path(self.bin_path, SUPnP.ENTITIES["RA"]), "-i", self.iface]
+        args += ["-ca_pkey", "CA/public_key.pem"]  # common
         if entity == "RA":
-            args += [ "-ra_pkey", "RA/private_key.pem",
-                      "-cert_ra", "RA/certificate.pem" ]
+            args += ["-ra_pkey", "RA/private_key.pem",
+                     "-cert_ra", "RA/certificate.pem"]
         elif entity == "SD":
-            args += [ "-sd_pkey", "SD/private_key.pem",
-                      "-dsd", "SD/dsd.json",
-                      "-cert_sd", "SD/certificate.pem",
-                      "-cert_uca", "UCA/certificate.pem" ]
+            args += ["-sd_pkey", "SD/private_key.pem",
+                     "-dsd", "SD/dsd.json",
+                     "-cert_sd", "SD/certificate.pem",
+                     "-cert_uca", "UCA/certificate.pem"]
         elif entity == "CP":
-            args += [ "-cp_pkey", "CP/private_key.pem",
-                      "-sad", "CP/sad.json",
-                      "-cert_cp", "CP/certificate.pem",
-                      "-cert_uca", "UCA/certificate.pem" ]
+            args += ["-cp_pkey", "CP/private_key.pem",
+                     "-sad", "CP/sad.json",
+                     "-cert_cp", "CP/certificate.pem",
+                     "-cert_uca", "UCA/certificate.pem"]
         else:
             raise Exception('Invalid entity \'%s\'' % entity)
-        args += [ "-webdir", "../upnp/sample/web" ] # common
+        args += ["-webdir", "../upnp/sample/web"]  # common
 
         dev = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
         return dev
-
 
     def invoke(self, scenario_string: str) -> bool:
         """ Invoke an attack scenario """
@@ -157,7 +161,7 @@ class SUPnP:
         # Attack Scenarios
         print('Invoking Attack Scenario #%d: %s\n' % (scenario, SUPnP.SCENARIOS[scenario - 1]))
         if scenario == 1:
-            device = de.Device(self.desc_doc_path)
+            device = de.Device(str(self.desc_doc_path))
             adversary = de.CP('Adversary')  # Fake CP
             fake_uca = de.UCA('FakeUCA')  # Fake UCA
             device.generate_sad(fake_uca, adversary)
@@ -205,6 +209,7 @@ def interface_exists(iface):
     except Exception as e:
         print(e)
         return False
+
 
 def get_ip_address(ifname):
     s = socket(AF_INET, SOCK_DGRAM)

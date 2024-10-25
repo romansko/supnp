@@ -1,26 +1,30 @@
 #!/usr/bin/env python3
 ###################################################################################################
 # A simulation script for simulating the part "A. Device Enrollment" of the SUPnP proposed scheme #
-#   which is presented in the paper "Kayas, G., Hossain, M., Payton, J., & Islam, S. R. (2021).   #
-#   SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things. IEEE       #
-#   Internet of Things Journal, 8(14), 11561-11580."                                              #
+# which is presented in the paper "Kayas, G., Hossain, M., Payton, J., & Islam, S. R. (2021).     #
+# SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things.              #
+# IEEE Internet of Things Journal, 8(14), 11561-11580."                                           #
 #                                                                                                 #
 # The input for the script is a UPnP XML Description Document of a device. Example usage:         #
 # ./device_enrollment.py ../upnp/sample/web/tvdevicedesc.xml                                      #
 #                                                                                                 #
 # The output of the script is the generation of:                                                  #
-#   * CA (Certification Authority) private & public keys.                                         #
-#   * UCA (UPnP Certification Authority) self-signed certificate, private & public keys.          #
-#   * CP (Control Point) certificate signed by ca, private & public keys.                         #
-#   * SD (Service Device) certificate signed by ca, private & public keys.                        #
-#   * DSD (Device Specification Document) for SD.                                                 #
-#   * SAD (Service Action Document) for CP.                                                       #
+#   CA (Certification Authority) private & public keys.                                           #
+#   UCA (UPnP Certification Authority) self-signed certificate, private & public keys.            #
+#   CP (Control Point) certificate signed by ca, private & public keys.                           #
+#   SD (Service Device) certificate signed by ca, private & public keys.                          #
+#   DSD (Device Specification Document) for SD.                                                   #
+#   SAD (Service Action Document) for CP.                                                         #
 #                                                                                                 #
 # The CA is the root of trust which its public key should be available on the devices.            #
 # The UCA is an intermediate UPnP CA which its certificate is signed by the CA's private key.     #
 # The UCA signs the certificates of the CP and SD, and also the DSD and SAD documents.            #
 #                                                                                                 #
-# Tested with Python 3.12.3                                                                       #
+# Python 3.12.3                                                                                   #
+#                                                                                                 #
+# Usage example:                                                                                  #
+#        source venv/bin/activate                                                                 #
+#        ./device_enrollment.py ../upnp/sample/web/tvdevicedesc.xml                               #
 ###################################################################################################
 import argparse
 import datetime
@@ -83,8 +87,8 @@ class Details:
     STATE_OR_PROVINCE_NAME: str
     LOCALITY_NAME: str
     ORGANIZATION_NAME: str
-    
-    def subject(self) -> x509.Name: # Generate subject name for certificate
+
+    def subject(self) -> x509.Name:  # Generate subject name for certificate
         return x509.Name([
             x509.NameAttribute(x509.NameOID.COUNTRY_NAME, self.COUNTRY_NAME),
             x509.NameAttribute(x509.NameOID.STATE_OR_PROVINCE_NAME, self.STATE_OR_PROVINCE_NAME),
@@ -95,6 +99,7 @@ class Details:
 
 class Entity:
     """ Helper class for entities """
+
     def __init__(self, _type: str) -> None:
         self.type: str = _type
         print("[*] Initializing %s.." % self)
@@ -104,29 +109,31 @@ class Entity:
         self.cert: [x509.Certificate, None] = None
         self.subject: x509.Name = self.generate_subject()
         self.ca = False
-    
+
     def generate_subject(self) -> [x509.Name, None]:
         return None
-      
+
     def __str__(self) -> str:
         return self.type
 
 
 class RA(Entity):
     """ Registration Authority """
+
     def __init__(self, name='RA') -> None:
         super().__init__(name)
-        
+
     def generate_subject(self) -> x509.Name:
         details = Details(RA_COUNTRY_NAME, RA_STATE_OR_PROVINCE_NAME, RA_LOCALITY_NAME, RA_ORGANIZATION_NAME)
         return details.subject()
-    
+
 
 class SD(Entity):
     """ Service Device """
+
     def __init__(self, name='SD') -> None:
         super().__init__(name)
-        
+
     def generate_subject(self) -> x509.Name:
         details = Details(SD_COUNTRY_NAME, SD_STATE_OR_PROVINCE_NAME, SD_LOCALITY_NAME, SD_ORGANIZATION_NAME)
         return details.subject()
@@ -134,6 +141,7 @@ class SD(Entity):
 
 class CP(Entity):
     """ Control Point """
+
     def __init__(self, name='CP') -> None:
         super().__init__(name)
 
@@ -144,26 +152,30 @@ class CP(Entity):
 
 class UCA(Entity):
     """ UPnP Certification Authority """
+
     def __init__(self, name='UCA') -> None:
         super().__init__(name)
-   
+
     def generate_subject(self) -> x509.Name:
         return x509.Name([
-            x509.NameAttribute(NameOID.COMMON_NAME, UCA_COMMON_NAME), 
+            x509.NameAttribute(NameOID.COMMON_NAME, UCA_COMMON_NAME),
             x509.NameAttribute(NameOID.ORGANIZATION_NAME, UCA_ORGANIZATION_NAME)
         ])
 
+
 class CA(Entity):
     """ UPnP Certification Authority """
+
     def __init__(self, name='CA') -> None:
         super().__init__(name)
         self.ca = True
-   
+
     def generate_subject(self) -> x509.Name:
         return x509.Name([
-            x509.NameAttribute(NameOID.COMMON_NAME, CA_COMMON_NAME), 
+            x509.NameAttribute(NameOID.COMMON_NAME, CA_COMMON_NAME),
             x509.NameAttribute(NameOID.ORGANIZATION_NAME, CA_ORGANIZATION_NAME)
         ])
+
 
 class FileHelper:
     """ Helper class for file operations. """
@@ -172,7 +184,7 @@ class FileHelper:
     __dirname__ = os.path.abspath(os.path.dirname(__file__))
 
     @staticmethod
-    def read_file(filepath: str, flags = 'r', sim_folder=True) -> str:
+    def read_file(filepath: str, flags='r', sim_folder=True) -> str:
         """ Read file content and return it as a string. """
         if sim_folder:
             filepath = os.path.join(FileHelper.__dirname__, filepath)
@@ -180,13 +192,13 @@ class FileHelper:
             error("File '%s' does not exist." % filepath)
         with open(filepath, flags) as f:
             return f.read()
-        
+
     @staticmethod
     def write_file(filepath: str, content: any, flags='w', sim_folder=True) -> None:
         """ Write content to a file. """
         if sim_folder:
             filepath = os.path.join(FileHelper.__dirname__, filepath)
-        os.makedirs(os.path.dirname(filepath), exist_ok=True) # Create the directory if it doesn't exist
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)  # Create the directory if it doesn't exist
         with open(filepath, flags) as f:
             f.write(content)
             print("\tGenerated '%s'" % filepath)
@@ -268,7 +280,8 @@ class CryptoHelper:
             error("%s failed to issue Certificate for %s. %s" % (issuer, entity, str(e)))
 
     @staticmethod
-    def verify_signature(name: str, data: bytes, signature: bytes, public_key: PublicKeyTypes, verbose: bool = True) -> bool:
+    def verify_signature(name: str, data: bytes, signature: bytes, public_key: PublicKeyTypes,
+                         verbose: bool = True) -> bool:
         """ Verify the signature of data using RSA public key. """
         try:
             if verbose:
@@ -280,13 +293,13 @@ class CryptoHelper:
                 algorithm=CryptoHelper.ALGORITHM
             )
             if verbose:
-                print("signature ok.")   # No exception means signature is valid.
+                print("signature ok.")  # No exception means signature is valid.
             return True
         except InvalidSignature:
             if verbose:
                 print("Signature verification failed.")
             return False
-    
+
     @staticmethod
     def verify_certificate(entity: Entity, public_key: PublicKeyTypes) -> None:
         """ Verify the certificate using the public key. """
@@ -304,10 +317,11 @@ class CryptoHelper:
                 print("Certificate verification failed - %s's Public key mismatch." % entity)
                 return
             # Verify the certificate signature with the given public_key
-            if not CryptoHelper.verify_signature(str(entity), entity.cert.tbs_certificate_bytes, entity.cert.signature, public_key, verbose=False):
+            if not CryptoHelper.verify_signature(str(entity), entity.cert.tbs_certificate_bytes, entity.cert.signature,
+                                                 public_key, verbose=False):
                 print("Certificate verification failed - Signature verification failed.")
                 return
-    
+
             print("certificate ok.")
         except Exception as e:
             print("Failed: %s" % str(e))
@@ -318,8 +332,10 @@ class CryptoHelper:
         builder = x509.CertificateBuilder()
         builder = builder.subject_name(subject)
         builder = builder.issuer_name(issuer)
-        builder = builder.not_valid_before(datetime.datetime.today() - datetime.timedelta(days=1))
-        builder = builder.not_valid_after(datetime.datetime.today() + datetime.timedelta(days=CERTIFICATE_VALIDITY_DAYS))
+        builder = builder.not_valid_before(datetime.datetime.today() -
+                                           datetime.timedelta(days=1))
+        builder = builder.not_valid_after(datetime.datetime.today() +
+                                          datetime.timedelta(days=CERTIFICATE_VALIDITY_DAYS))
         builder = builder.serial_number(x509.random_serial_number())
         builder = builder.public_key(public_key)
         return builder
@@ -327,6 +343,7 @@ class CryptoHelper:
 
 class Doc:
     """ Common logics for DSD and SAD. """
+
     def __init__(self, doc_type: str, name: str, public_key: PublicKeyTypes, services: dict, **kwargs):
         self._doc = {'TYPE': doc_type,
                      'NAME': name,
@@ -344,7 +361,7 @@ class Doc:
 
     def sign(self, sk_owner: PrivateKeyTypes, sk_uca: PrivateKeyTypes) -> dict:
         """ Sign the document using the secret keys. """
-        json_doc = Doc.raw_doc(self._doc)  #  Sign unformatted JSON
+        json_doc = Doc.raw_doc(self._doc)  # Sign unformatted JSON
         doc = self._doc.copy()
         doc['SIG-OWNER'] = CryptoHelper.sign_data(json_doc, sk_owner)
         doc['SIG-UCA']   = CryptoHelper.sign_data(json_doc, sk_uca)
@@ -369,7 +386,7 @@ class Doc:
             sig_uca   = data.pop('SIG-UCA')
             json_doc = Doc.raw_doc(data)  # unformatted json
             _ = CryptoHelper.verify_signature('SIG-OWNER', json_doc, bytes.fromhex(sig_owner), entity.public_key)
-            _ = CryptoHelper.verify_signature('SIG-UCA',   json_doc, bytes.fromhex(sig_uca),   public_key_uca)
+            _ = CryptoHelper.verify_signature('SIG-UCA', json_doc, bytes.fromhex(sig_uca), public_key_uca)
         except Exception as e:
             print("[!] Unexpected error during document verification error for '%s': %s" % (name, str(e)))
 
@@ -386,7 +403,8 @@ class Device:
             self._desc: dict = xmltodict.parse(FileHelper.read_file(filepath=device_desc_path, sim_folder=False))
             print("[*] Initialized Device('%s')" % device_desc_path)
         except Exception as e:
-            error("Device::__init__: Failed to parse '%s': %s. Is device description xml document provided?" % (device_desc_path, str(e)))
+            error("Device::__init__: Failed to parse '%s': %s. Is device description xml document provided?" % (
+            device_desc_path, str(e)))
 
     def _get_node(self, node_name: str, recursive_dict: dict):
         for key, value in recursive_dict.items():
@@ -394,22 +412,24 @@ class Device:
                 yield value
             elif isinstance(value, dict):
                 yield from self._get_node(node_name, value)
-    
+
     def get_node(self, node_name: str) -> dict:
         try:
             return next(self._get_node(node_name, self._desc))
         except StopIteration:
-            error("Device::get_node: Failed to extract node '%s'. Is device description xml document provided?" % node_name)
+            error("Device::get_node: Failed to extract node '%s'. "
+                  "Is device description xml document provided?" % node_name)
     
     def desc_json(self) -> str:
-        return json.dumps(self.get_node(Device.DEVICE_NODE), indent=JSON_INDENT)    # Export only device info without xml header.
-    
+        return json.dumps(self.get_node(Device.DEVICE_NODE),
+                          indent=JSON_INDENT)  # Export only device info without xml header.
+
     def desc_xml(self) -> str:
         return xmltodict.unparse(self._desc, pretty=True)  # Use full xml data
-    
+
     def __str__(self) -> str:
         return self.desc_json()
-    
+
     """
     https://openconnectivity.org/upnp-specs/UPnP-arch-DeviceArchitecture-v2.0-20200417.pdf#page=52
     <service>
@@ -419,17 +439,19 @@ class Device:
       ...
     </service>
     """
+
     def service_list(self) -> dict:
         service_list = {}
         for service in self.get_node(Device.SERVICE_NODE):
             try:
-                name = re.search(r'urn:upnp-org:serviceId:(\w+)', service['serviceId']).group(0)    # ID
+                name = re.search(r'urn:upnp-org:serviceId:(\w+)', service['serviceId']).group(0)  # ID
                 _type = re.search(r'urn:schemas-upnp-org:service:(\w+):\d+', service['serviceType']).group(0)
                 service_list[name] = _type
             except:
-                error("Device::service_list: Failed to parse '%s'. Is device description xml document provided?" % str(service))
+                error("Device::service_list: Failed to parse '%s'. "
+                      "Is device description xml document provided?" % str(service))
         return service_list
-    
+
     # DSD (Device Specification Document) Components:
     # TYPE:         Type of of the participant - "SD" (Service Device).
     # PK:           Public Key of the SD.
@@ -449,7 +471,7 @@ class Device:
                   HW='SD Hardware Description', SW='SD Software Description')  # Probably not mandatory for simulation.
         FileHelper.write_json(filepath='%s/dsd.json' % sd,
                               content=doc.sign(sk_owner=sd.private_key, sk_uca=uca.private_key))
-    
+
     # SAD (Service Action Document) Components:
     # TYPE:         Type of of the participant - "CP" (Control Point).
     # PK:           Public Key of the CP.
@@ -471,15 +493,15 @@ if __name__ == "__main__":
     print("~~~ Device Enrollment simulation ~~~")
     parser = argparse.ArgumentParser()
     parser.add_argument("devicedesc_xml", help="UPnP XML Description Document filepath.")
-    device = Device(parser.parse_args().devicedesc_xml)  
-    ca  = CA()
+    device = Device(parser.parse_args().devicedesc_xml)
+    ca = CA()
     uca = UCA()
     uca.cert = CryptoHelper.issue_certificate(ca, uca)
-    cp  = CP()
+    cp = CP()
     cp.cert = CryptoHelper.issue_certificate(uca, cp)
-    sd  = SD()
+    sd = SD()
     sd.cert = CryptoHelper.issue_certificate(uca, sd)
-    ra  = RA()
+    ra = RA()
     ra.cert = CryptoHelper.issue_certificate(uca, ra)
     device.generate_sad(uca, cp)
     device.generate_dsd(uca, sd)
@@ -492,4 +514,3 @@ if __name__ == "__main__":
     CryptoHelper.verify_certificate(sd, uca.public_key)
     CryptoHelper.verify_certificate(ra, uca.public_key)
     print("[*] Done.")
-
