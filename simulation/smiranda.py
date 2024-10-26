@@ -912,20 +912,21 @@ class SUPnP:
         "CP": "tv_ctrlpt"
     }
 
-    def __init__(self, script_name: str, hp: upnp, iface: str, tout: int = 3):
-        """ Initialize SUPnP class """
+    @staticmethod
+    def device_enrollment():
+        """ Perform Device Enrollment """
+        bin_path = Path(Path(__file__).parent, SUPnP.DEFAULT_BINARIES_PATH).resolve()
+        desc_doc_path = Path(bin_path, SUPnP.DEFAULT_DESC_DOC_PATH).resolve()
+        de.start(str(desc_doc_path))
 
-        # Store args
-        self.hp = hp
-        self.script_name = script_name
-        self.iface = iface
-        self.timeout = tout  # Timeout in seconds for different operations
+    def set_timeout(self, timeout: int):
+        """ Set the timeout for the SUPnP class """
+        self.timeout = timeout  # Timeout in seconds for different operations
         set(3, [self.script_name, 'timeout', self.timeout], self.hp)
         print("[*] Timeout set to %d seconds." % self.timeout)
 
-        # Verify Interface
-        if not interface_exists(iface):  # todo: Merge set_interface.sh logics to miranda set iface ?
-            raise Exception("Interface '%s' not found. See 'supnp/scripts/set_interface.sh'" % iface)
+    def __init__(self, script_name: str, hp: upnp, iface: str):
+        """ Initialize SUPnP class """
 
         # Scripts folder path, where the entities are expected.
         self.dirname = Path(__file__).parent
@@ -935,6 +936,22 @@ class SUPnP:
 
         # Description Document Path
         self.desc_doc_path = Path(self.bin_path, SUPnP.DEFAULT_DESC_DOC_PATH).resolve()
+
+        # Store args
+        self.hp = hp
+        self.script_name = script_name
+        self.iface = iface
+        self.timeout = 3
+        self.set_timeout(self.timeout)  # Set Default
+
+        # subprocesses
+        self.ra = None
+        self.sd = None
+        self.cp = None
+
+        # Verify Interface
+        if not interface_exists(iface):  # todo: Merge set_interface.sh logics to miranda set iface ?
+            raise Exception("Interface '%s' not found. See 'supnp/scripts/set_interface.sh'" % iface)
 
         # Dependencies
         self.deps = [self.desc_doc_path, "CA/public_key.pem", "UCA/certificate.pem"]
@@ -967,6 +984,10 @@ class SUPnP:
     @staticmethod
     def print_logbox(title: str, output: str):
         """ Write a log inside a box"""
+        output = output.replace(">>","").strip()
+        if not output:
+            return # Do Nothing
+
         line_length = 116
         if len(title) > line_length:
             title = title[:line_length]
@@ -996,8 +1017,7 @@ class SUPnP:
 
     def invoke_dev(self, entity: str):
         """ Run an Entity binary """
-        binary = Path(self.bin_path, SUPnP.ENTITIES["RA"])
-        print("[*] Invoking '%s':'%s':" % (entity, binary))
+        binary = str(Path(self.bin_path, SUPnP.ENTITIES[entity]))
         args = [binary, "-i", self.iface]
         args += ["-ca_pkey", "CA/public_key.pem"]  # common
         if entity == "RA":
@@ -1018,135 +1038,223 @@ class SUPnP:
         args += ["-webdir", "../upnp/sample/web"]  # common
 
         # Start the device
-        dev = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
-        return dev
+        print("[*] Invoking %s: '%s'" % (entity, " ".join(args)))
+        return subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     @staticmethod
     def get_error(output: str) -> (int, str):
-        """ Parse the error code from the output """
+        """ Parse the error code from UPnP output """
         code_match = re.search(r"<errorCode>(\d+)</errorCode>", output)
         mesg_match = re.search(r"<errorDescription>(.*?)</errorDescription>", output, re.DOTALL)
         try:
             if code_match and mesg_match:
                 return int(code_match.group(1)), mesg_match.group(1).strip()
         except:
-            pass
+            pass # Do nothing - error not found.
         else:
             return 0, ""  # Not a valid error, probably success.
 
-    def query_pipe(self, pipe: Optional[TextIO]) -> str:
+    def query_pipe(self, pipe: Optional[TextIO], break_string: str = "") -> str:
         """ Read from a pipe until timeout """
         if not pipe:
             return ""
         output = ""
         end_time = time.time() + self.timeout
-        while time.time() < end_time:
-            ready, _, _ = select.select([pipe], [], [], self.timeout)
+
+        while True:
+            rem = end_time - time.time()
+            if rem <= 0:   # Endless loop protection
+                break
+            ready, _, _ = select.select([pipe], [], [], rem)
             if ready:
                 line = pipe.readline()
-                if not line:
-                    break
-                output += line
-            else:
+                if line:
+                    output += line
+            if break_string and break_string in output:   # For faster exit
                 break
+            
         return output
 
-    @staticmethod
-    def terminate(dev: subprocess, message: str):
-        dev.terminate()
-        print("[!] %s" % message, file=sys.stderr)
+    def terminate(self):
+        """ Iterate entities and terminate them. Print error message if applicable. """
+        for dev in [self.ra, self.sd, self.cp]:
+            if dev:
+                dev.stdout.close()
+                dev.stderr.close()
+                dev.terminate()
+        self.ra = None
+        self.sd = None
+        self.cp = None
 
-    SCENARIOS = [
-        # 2
-        "A malicious SD sends a forged advertisement with an altered service description document.",
-        # 3
-        "A malicious CP sends a fake discovery request to find a service without having the capability to\n"
-        "process the service data.",
-        # 4
-        "An adversary gains unauthorized access to an SD's service description document, learns the\n"
-        "control URL from the document, and sends a forged service action request.",
-        # 5
-        "An adversary gains unauthorized access to an SD's device description document, learns the\n"
-        "event URL from the document, and sends an event subscription request."
-    ]
+    def initialize_ra(self, scenario: int) -> bool:
+        """ Initialize RA. This is required by all scenarios. """
+        ad_send = "Advertisements Sent"
+        self.ra = self.invoke_dev("RA")
+        output = self.query_pipe(self.ra.stdout, ad_send)
+        errors = self.query_pipe(self.ra.stderr)
+        if ad_send not in output:  # Expected success message
+            self.print_logbox("RA Output", output)
+            self.print_logbox("RA Error", errors)
+            print("[!] Failed to initialize RA.", file=sys.stderr)
+            return False
+        if scenario == 1:  # Print RA Output only in the first scenario
+            SUPnP.print_logbox("RA Output", output)
+        return True
+
+    @staticmethod
+    def remove_advertisement(output: str):
+        """
+        Remove Advertisement messages from output. Example:
+        ======================================================================
+        ----------------------------------------------------------------------
+        UPNP_DISCOVERY_ADVERTISEMENT_ALIVE
+        ErrCode      =  ...
+        Expires      =  ...
+        DeviceId     =  ...
+        DeviceType   =  ...
+        ServiceType  =  ...
+        ServiceVer   =  ...
+        Location     =  ...
+        CapTokenUrl  =  ...
+        AdvSignature =  ...
+        OS           =  ...
+        Date         =  ...
+        Ext          =  ...
+        ----------------------------------------------------------------------
+        ======================================================================
+        """
+        if not output:
+            return output
+        pattern = r"=+\s*\n-+\s*\nUPNP_DISCOVERY_ADVERTISEMENT_ALIVE\s*\n.*?\n-+\s*\n=+"
+        compiled_pattern = re.compile(pattern, re.DOTALL)
+        return compiled_pattern.sub("", output)
+
 
     def invoke_scenario_1(self):
-        """ invoke Attack Scenario #1 """
-        print("[*] Attack Scenario #1: An adversary sends a forged capability document (DSD, or SAD)"
-              " during the registration process.")
-        ra = self.invoke_dev("RA")
-        try:
-            output = self.query_pipe(ra.stdout)
-            errors = self.query_pipe(ra.stderr)
-            if "Advertisements Sent" in output:  # Expected success message
-                SUPnP.print_logbox("RA", output)
-                msearch(0, None, self.hp)
-                ret = host(2, [self.script_name, "list"], self.hp)
-                print()  # New line
-                if not ret:
-                    self.terminate(ra, "RA not found.")
-                    return
-                if len(ret) > 1:
-                    (argc, argv) = getUserInput(self.hp, "[*] Please select RA host index: ")
-                    if argc != 1:
-                        self.terminate(ra, "Invalid input.")
-                        return
-                    ra_index = int(argv[0])
-                else:
-                    ra_index = "0"
-                ret = host(3, [self.script_name, 'get', ra_index], self.hp)
-                if not ret:
-                    self.terminate(ra, "Unable to get RA info.")
-                    return
+        """ Attack Scenario #1 """
+        msearch(0, None, self.hp)
+        ret = host(2, [self.script_name, "list"], self.hp)
+        print()  # New line
+        if not ret:
+            print("[!] RA not found.", file=sys.stderr)
+            return
+        if len(ret) > 1:
+            (argc, argv) = getUserInput(self.hp, "[*] Please select RA host index: ")
+            if argc != 1:
+                print("[!] Invalid input.", file=sys.stderr)
+                return
+            ra_index = int(argv[0])
+        else:
+            ra_index = "0"
+        ret = host(3, [self.script_name, 'get', ra_index], self.hp)
+        if not ret:
+            print("[!] Unable to get RA info.", file=sys.stderr)
+            return
 
-                # Generate Fake SAD
-                print()  # New line
-                print("[*] Generating Fake SAD..")
-                ca = de.CA("FakeCA")  # Changing this to "CA" will make RA use it as well, hence scenario will fail.
-                uca = de.UCA("UCA")
-                adversary = de.CP("Adversary")  # Fake CP
-                uca.cert = de.CryptoHelper.issue_certificate(ca, uca)
-                adversary.cert = de.CryptoHelper.issue_certificate(uca, adversary)
-                device = de.Device(str(self.desc_doc_path))
-                sad = device.generate_sad(uca, adversary)
-                self.print_logbox("Fake SAD", sad)
+        # Generate Fake SAD
+        print()  # New line
+        print("[*] Generating Fake SAD..")
+        ca = de.CA("FakeCA")      # Changing this to "CA" will make RA use it as well, hence scenario will fail.
+        uca = de.UCA("FakeUCA")   # Generate a new UCA.
+        adversary = de.CP("Adversary")  # Fake CP
+        uca.cert = de.CryptoHelper.issue_certificate(ca, uca)
+        adversary.cert = de.CryptoHelper.issue_certificate(uca, adversary)
+        device = de.Device(str(self.desc_doc_path))
+        sad = device.generate_sad(uca, adversary)
+        self.print_logbox("Fake SAD", sad)
 
-                # Registration service
-                print("[*] Trying to Register fake CP..")
-                sendActionArgs = [self.script_name, 'send', ra_index, 'ra', 'registration', 'Register']
-                registrationDocs = [sad.encode('utf-8').hex(),  # SpecificationDocument
-                                    de.CryptoHelper.certificate_to_hex_string(adversary.cert),  # CertificateDevice
-                                    de.CryptoHelper.certificate_to_hex_string(uca.cert),  # CertificateUCA
-                                    "",  # DescriptionDocumentLocation
-                                    "DontCare.json"]  # CapTokenLocation
-                ret = host(len(sendActionArgs) + len(registrationDocs), sendActionArgs + registrationDocs, self.hp)
-                if ret:
-                    code, msg = SUPnP.get_error(str(ret))
-                    output = self.query_pipe(ra.stdout)
-                    err = self.query_pipe(ra.stderr)
-                    if output.strip():
-                        self.print_logbox("RA Output", output)
-                    if err.strip():
-                        self.print_logbox("RA Error", err)
-                    self.print_logbox("RA Response", str(ret))
-                    if code == 0:
-                        print("[!] Scenario Failed. It seems RA accepted the fake document.")
-                    elif "Unable to verify device" == msg:
-                        print("[*] Scenario Succeeded. Received '%s' as expected." % msg)
-                    else:
-                        print("[!] Scenario Failed. Unexpected error code %d: '%s'." % (code, msg))
-                else:
-                    print("[!] Scenario Failed. No response from RA.")
+        # Registration service
+        print("[*] Trying to Register fake CP..")
+        sendActionArgs = [self.script_name, 'send', ra_index, 'ra', 'registration', 'Register']
+        registrationDocs = [sad.encode('utf-8').hex(),  # SpecificationDocument
+                            de.CryptoHelper.certificate_to_hex_string(adversary.cert),  # CertificateDevice
+                            de.CryptoHelper.certificate_to_hex_string(uca.cert),  # CertificateUCA
+                            "",  # DescriptionDocumentLocation
+                            "DontCare.json"]  # CapTokenLocation
+        ret = host(len(sendActionArgs) + len(registrationDocs), sendActionArgs + registrationDocs, self.hp)
+        if ret:
+            code, msg = SUPnP.get_error(str(ret))
+            output = self.query_pipe(self.ra.stdout)
+            err = self.query_pipe(self.ra.stderr)
+            self.print_logbox("RA Output", output)
+            self.print_logbox("RA Error", err)
+            self.print_logbox("RA Response", str(ret))
+            if code == 0:
+                print("[!] Scenario Failed. It seems RA accepted the fake document.", file=sys.stderr)
+            elif "Unable to verify device" == msg:
+                print("[*] Scenario Succeeded. Received '%s' as expected." % msg)
             else:
-                print("[!] Failed to initialize RA.", file=sys.stderr)
-                print(errors)
-        except:
-            ra.terminate()
-            raise
+                print("[!] Scenario Failed. Unexpected error code %d: '%s'." % (code, msg))
+        else:
+            print("[!] Scenario Failed. No response from RA.")
+
+    def invoke_scenario_2(self):
+        """ Attack Scenario #2 """
+        registered = "Control Point Registered with RA"
+        self.set_timeout(10)
+        self.cp = self.invoke_dev("CP")
+        cp_output = self.remove_advertisement(self.query_pipe(self.cp.stdout, registered))
+        cp_errors = self.query_pipe(self.cp.stderr)
+        self.print_logbox("CP Output", cp_output)
+        if registered not in cp_output:
+            self.set_timeout(3)
+            self.print_logbox("RA Error", self.query_pipe(self.ra.stderr))
+            self.print_logbox("CP Error", cp_errors)
+            print("[!] CP Registration with RA failed.", file=sys.stderr)
+            return
+        # CP Registered with RA at this point.
+        print("[*] %s." % registered)
+        # todo: send a forged advertisement.
+
+    def invoke_scenario_3(self):
+        """ Attack Scenario #3 """
+        registered = "SD registered with RA successfully"
+        self.set_timeout(10)
+        self.sd = self.invoke_dev("SD")
+        sd_output = self.query_pipe(self.sd.stdout, registered)
+        sd_errors = self.query_pipe(self.sd.stderr)
+        self.print_logbox("SD Output", sd_output)
+        if registered not in sd_output:
+            self.set_timeout(3)
+            self.print_logbox("RA Error", self.query_pipe(self.ra.stderr))
+            self.print_logbox("SD Error", sd_errors)
+            print("[!] SD Registration with RA failed.", file=sys.stderr)
+            return
+        # SD Registered with RA at this point.
+        print("[*] %s." % registered)
+        # todo send a fake discovery request.
+
+
+    def invoke_scenario_4(self):
+        """ Attack Scenario #4 """
+        raise NotImplementedError("Scenario 4 is not Implemented")
+
+    def invoke_scenario_5(self):
+        """ Attack Scenario #5 """
+        raise NotImplementedError("Scenario  is not Implemented")
 
     def invoke(self, scenario_string: str) -> None:
         """ Invoke an attack scenario """
+        scenarios = [self.invoke_scenario_1,
+                     self.invoke_scenario_2,
+                     self.invoke_scenario_3,
+                     self.invoke_scenario_4,
+                     self.invoke_scenario_5]
+        descriptions = [
+            #1
+            "An adversary sends a forged capability document (DSD, or SAD) during the  registration process.",
+            #2
+            "A malicious SD sends a forged advertisement with an altered service description document.",
+            #3
+            "A malicious CP sends a fake discovery request to find a service without having the capability to process"
+                " the service data.",
+            #4
+            "An adversary gains unauthorized access to an SD's service description document, learns the control URL"
+                " from the document, and sends a forged service action request.",
+            #5
+            "An adversary gains unauthorized access to an SD's device description document, learns the event URL from"
+                " the document, and sends an event subscription request."
+        ]
 
         # Verify Scenario argument
         try:
@@ -1163,19 +1271,16 @@ class SUPnP:
             showHelp(self.script_name)
             return
 
-        # Attack Scenarios
-        if scenario == 1:
-            self.invoke_scenario_1()
-        elif scenario == 2:
-            pass
-        elif scenario == 3:
-            pass
-        elif scenario == 4:
-            pass
-        elif scenario == 5:
-            pass
-        else:
-            raise Exception("Invalid scenario index")
+        # Invoke Attack Scenario
+        print("[*] Invoking Attack Scenario %d: %s" % (scenario, descriptions[scenario - 1]))
+        try:
+            if self.initialize_ra(scenario):
+                scenarios[scenario - 1]()
+            self.terminate()
+        except Exception as e:
+            print("[!] %s" % str(e))
+            self.terminate()
+            raise
 
 
 #################### End SUPnP Class #####################
@@ -1772,7 +1877,10 @@ def quit(argc, argv, hp):
 def supnp(argc, argv, hp):
     """ SUPnP Attack Scenarios simulation """
 
-    # Argument verification
+    if argc == 2 and argv[1] == 'make':
+        SUPnP.device_enrollment()
+        return
+
     if argc != 3:
         showHelp(argv[0])
         return
@@ -1961,9 +2069,11 @@ def showHelp(command):
                 '\t[5] An adversary gains unauthorized access to an SD\'s device\n'
                 '\t    description document, learns the event URL from the\n'
                 '\t    document, and sends an event subscription request.\n\n'
+                '\tIf only supnp make is specified, the script invoke device enrollment simulation.\n'
                 'Usage:\n'
-                '\t%s <interface> <scenario #>\n\n'
+                '\t%s <interface> <scenario #> | make\n\n'
                 'Example:\n'
+                '\tsupnp make\n'
                 '\tsupnp eth0 1',
             'quickView':
                 'Invoke SUPnP Attack Scenarios'

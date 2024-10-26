@@ -495,12 +495,10 @@ class Device:
         return FileHelper.write_json(filepath='%s/sad.json' % cp,
                               content=doc.sign(sk_owner=cp.private_key, sk_uca=uca.private_key))
 
-
-if __name__ == "__main__":
+def start(description_document_path: str):
+    """ Start the simulation """
     print("~~~ Device Enrollment simulation ~~~")
-    parser = argparse.ArgumentParser()
-    parser.add_argument("devicedesc_xml", help="UPnP XML Description Document filepath.")
-    device = Device(parser.parse_args().devicedesc_xml)
+    device = Device(description_document_path)
     ca = CA()
     uca = UCA()
     uca.cert = CryptoHelper.issue_certificate(ca, uca)
@@ -521,3 +519,9 @@ if __name__ == "__main__":
     CryptoHelper.verify_certificate(sd, uca.public_key)
     CryptoHelper.verify_certificate(ra, uca.public_key)
     print("[*] Done.")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("devicedesc_xml", help="UPnP XML Description Document filepath.")
+    desc_doc = parser.parse_args().devicedesc_xml
+    start(desc_doc)

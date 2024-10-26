@@ -37,7 +37,7 @@
           <relatedStateVariable>DontCare</relatedStateVariable>
           <direction>in</direction>
         </argument>
-	<argument>
+	    <argument>
           <name>Challenge</name>
           <relatedStateVariable>DontCare</relatedStateVariable>
           <direction>out</direction>
