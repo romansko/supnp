@@ -1,8 +1,13 @@
 # SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things
 
-This repository is a fork of the portable SDK for UPnP Devices ([libupnp](https://github.com/pupnp/pupnp)) with a secure layer extension as described in 
-the paper [SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things](https://ieeexplore.ieee.org/document/9352973) 
+This repository is a fork of the portable SDK for UPnP Devices ([libupnp](https://github.com/pupnp/pupnp)) with a secure layer extension as described in
+the paper [SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things](https://ieeexplore.ieee.org/document/9352973)
 by Kayas, G., Hossain, M., Payton, J., & Islam, S. R. (2021), IEEE Internet of Things Journal, 8(14), 11561-11580.
+
+| branch        | status                                                                                              |
+| ------------- | --------------------------------------------------------------------------------------------------- |
+| supnp         | ![supnp](https://github.com/romansko/supnp/workflows/Build/badge.svg)                               |
+| branch-1.4.x  | ![1.4.x](https://github.com/romansko/pupnp/workflows/Build/badge.svg?branch=branch-1.4.x)   |
 
 <br/> 
 
@@ -44,7 +49,7 @@ However, some logics might be modified, so it's best to use the original `libupn
 
 ## SUPnP Demonstration
 
-This section demonstrates the SUPnP secure layer usage for Registration Authority (RA), 
+This section demonstrates the SUPnP secure layer usage for Registration Authority (RA),
 Service Device (SD) and Control Point (CP).
 
 For build and usage please proceed to the next sections.
@@ -161,7 +166,7 @@ USER-AGENT: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2
 </s:Envelope>
 ```
 
-response: 
+response:
 
 ```html
 HTTP/1.1 200 OK
@@ -200,7 +205,7 @@ USER-AGENT: Linux/6.8.0-47-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2
 </s:Envelope>
 ```
 
-response: 
+response:
 
 ```html
 HTTP/1.1 200 OK
@@ -378,7 +383,7 @@ NT: upnp:event
 TIMEOUT: Second-1801
 ```
 
-response: 
+response:
 
 ```html
 HTTP/1.1 200 OK
@@ -419,7 +424,7 @@ For the UPnP library to function correctly, networking must be configured proper
 % route add -net 239.0.0.0 netmask 255.0.0.0 eth0
 ```
 
-where 'eth0' is the network adapter that the UPnP library will use.  Without this addition, device advertisements 
+where 'eth0' is the network adapter that the UPnP library will use.  Without this addition, device advertisements
 and control point searches will not function.
 
 `SUPnP` fork has an automation script which can be invoked for this purpose. It creates a virtual interface and sets it for multicasting.
@@ -471,7 +476,7 @@ options available at configure time).
 % make
 ```
 
-will build a Sparc Solaris version of the binaries without debug support and with default options enabled (see below for options available at configure time). 
+will build a Sparc Solaris version of the binaries without debug support and with default options enabled (see below for options available at configure time).
 Please note: \<cputype\> has to be replaced by a token that fits to your platform and CPU (e.g. "supersparc").
 
 To build the documentation, assuming all the necessary tools are installed:
@@ -488,8 +493,8 @@ To generate the PDF file:
 % make pdf
 ```
 
-A few options are available at configure time. Use "./configure --help" to display a complete list of options. 
-Note that these options may be combined in any order. After installation, the file \<upnp/upnpconfig.h\> will provide a 
+A few options are available at configure time. Use "./configure --help" to display a complete list of options.
+Note that these options may be combined in any order. After installation, the file \<upnp/upnpconfig.h\> will provide a
 summary of the optional features that have been included in the library.
 
 ```bash
@@ -508,7 +513,7 @@ make
 ```
 
 <a name="configure-supnp"></a>
-To build the library with SUPnP secure layer as presented by the paper 
+To build the library with SUPnP secure layer as presented by the paper
 [Kayas, G., Hossain, M., Payton, J., & Islam, S. R. (2021). SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things. IEEE Internet of Things Journal, 8(14), 11561-11580](https://ieeexplore.ieee.org/document/9352973):
 
 ```bash
@@ -518,7 +523,7 @@ To build the library with SUPnP secure layer as presented by the paper
 
 Automation script is available under `scripts/make_supnp.sh`
 
-Note that SUPnP requires OpenSSL. Hence, The `--enable-open_ssl` flag is set automatically. 
+Note that SUPnP requires OpenSSL. Hence, The `--enable-open_ssl` flag is set automatically.
 However, the installation of `libssl-dev` should be done manually by:
 
 ```bash
@@ -539,7 +544,7 @@ To build without:
 % make
 ```
 
-The SDK also contains some additional helper APIs, declared in inc/tools/upnptools.h. 
+The SDK also contains some additional helper APIs, declared in inc/tools/upnptools.h.
 If these additional tools are not required, they can be compiled out:
 
 ```bash
@@ -549,7 +554,7 @@ If these additional tools are not required, they can be compiled out:
 
 By default, the tools are included in the library.
 
-To further remove code that is not required, the library can be build with or with out the control point (client) or 
+To further remove code that is not required, the library can be build with or with out the control point (client) or
 device specific code.  To remove this code:
 
 ```bash
@@ -566,7 +571,7 @@ to remove client only code or:
 
 to remove device only code.
 
-By default, both client and device code is included in the library. 
+By default, both client and device code is included in the library.
 The integrated web server is automatically removed when configuring with --disable-device.
 
 To build the library without large-file support (enabled by default):
@@ -608,7 +613,7 @@ To build the samples (note: this is the default behavior):
 ```
 
 will build the sample device "$(LIBUPNP)/upnp/tv_device" and sample control point "$(LIBUPNP)/upnp/tv_ctrlpt".
-Note : the sample device won't be built if --disable-device has been configured, and the sample control point won't be 
+Note : the sample device won't be built if --disable-device has been configured, and the sample control point won't be
 build if --disable-client has been configured.
 
 To run the sample device, you need to create a tvdevice directory and move the web directory there,
@@ -621,7 +626,7 @@ giving: "$(LIBUPNP)/upnp/sample/tvdevice/web". To run the sample invoke from the
 
 ### Solaris Build
 
-The building process for the Solaris operating system is similar to the one described above. 
+The building process for the Solaris operating system is similar to the one described above.
 Only the call to ./configure has to be done using an additional parameter:
 
 ```bash
@@ -650,7 +655,7 @@ encourages out-of-source builds and VS writes it's config into the source, cmake
 All known options have the same meaning as stated previously. In Addition, 2 options have been added.
 
 - DOWNLOAD_AND_BUILD_DEPS: This option is only available if a usable git program was found on your system.
-  With this option on, the pthread4w package will be downloaded while configuring the build-env, then it will be build 
+  With this option on, the pthread4w package will be downloaded while configuring the build-env, then it will be build
 - and installed along with upnp.
 
 - BUILD_TESTING: This option activates the tests.
@@ -664,9 +669,9 @@ make
 
 Automation script is available under `scripts/cmake_supnp.sh`
 
-If you don't want to build pthreads4w in the same build as upnp, 
+If you don't want to build pthreads4w in the same build as upnp,
 you can download it from <https://github.com/Vollstrecker/pthreads4w>.
-Just build and install it. The libs and headers will be found, 
+Just build and install it. The libs and headers will be found,
 if you set CMAKE_INSTALL_PREFIX (the base install dir) to the same location.
 
 For information on general usage of the cmake build system see: <https://cmake.org/cmake/help/v3.19/guide/user-interaction/index.html>
