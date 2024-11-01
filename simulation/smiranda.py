@@ -987,9 +987,9 @@ class SUPnP:
     @staticmethod
     def print_logbox(title: str, output: str):
         """ Write a log inside a box"""
-        output = output.replace(">>","").strip()
+        output = output.replace(">>", "").strip()
         if not output:
-            return # Do Nothing
+            return  # Do Nothing
 
         line_length = 116
         if len(title) > line_length:
@@ -1022,6 +1022,7 @@ class SUPnP:
         """ Run an Entity binary """
         if entity not in SUPnP.ENTITIES.keys():
             raise Exception("Invalid entity '%s'" % entity)
+
         binary = str(Path(self.bin_path, SUPnP.ENTITIES[entity]))
         args = [binary, "-i", self.iface]
         args += ["-ca_pkey", "CA/public_key.pem"]  # common
@@ -1032,7 +1033,8 @@ class SUPnP:
             args += ["-sd_pkey", "SD/private_key.pem",
                      "-dsd", "SD/dsd.json",
                      "-cert_sd", "SD/certificate.pem",
-                     "-cert_uca", "UCA/certificate.pem"]
+                     "-cert_uca", "UCA/certificate.pem",
+                     "-disable_ad"]
         elif entity == "CP":
             args += ["-cp_pkey", "CP/private_key.pem",
                      "-sad", "CP/sad.json",
@@ -1047,7 +1049,6 @@ class SUPnP:
 
         # Start the device
         print("[*] Invoking %s: '%s'" % (entity, " ".join(args)))
-
         return subprocess.Popen(args, stdout=self.log_files[entity], stderr=self.log_files[entity], text=True)
 
     @staticmethod
@@ -1059,7 +1060,7 @@ class SUPnP:
             if code_match and mesg_match:
                 return int(code_match.group(1)), mesg_match.group(1).strip()
         except:
-            pass # Do nothing - error not found.
+            pass  # Do nothing - error not found.
         else:
             return 0, ""  # Not a valid error, probably success.
 
@@ -1068,7 +1069,6 @@ class SUPnP:
         if entity not in SUPnP.ENTITIES.keys():
             raise Exception("Invalid entity '%s'" % entity)
         log_file_path = f"{entity}_log.txt"
-        self.set_timeout(self.timeouts[entity])
         end_time = time.time() + self.timeouts[entity]
         output = ""
         with open(log_file_path, "r") as log_file:
@@ -1099,6 +1099,7 @@ class SUPnP:
                     line += " '%s' terminated." % self.ENTITIES[entity]
             if line:
                 print("[*] %s:%s" % (entity, line))
+        host(2, [self.script_name, "clear"], self.hp)  # Clearing host list
 
     def initialize_ra(self, scenario: int) -> bool:
         """ Initialize RA. This is required by all scenarios. """
@@ -1141,33 +1142,49 @@ class SUPnP:
         compiled_pattern = re.compile(pattern, re.DOTALL)
         return compiled_pattern.sub("", output)
 
-
-    def invoke_scenario_1(self):
-        """ Attack Scenario #1 """
-        msearch(0, None, self.hp)
+    def msearch(self, entity: str) -> int:
+        """ Invoke M-SEARCH & Retrieve Info """
+        device = ""
+        if entity == "RA":
+            device = "ra"
+        elif entity == "SD":
+            device = "tvdevice"
+        else:
+            print("[!] Invalid entity '%s' for msearch" % entity, file=sys.stderr)
+            return -1
+        print("[*] Invoking msearch for %s.." % entity)
+        msearch(3, ['msearch', 'device', device], self.hp)
         ret = host(2, [self.script_name, "list"], self.hp)
         print()  # New line
         if not ret:
-            print("[!] RA not found.", file=sys.stderr)
-            return
+            return -1
         if len(ret) > 1:
-            (argc, argv) = getUserInput(self.hp, "[*] Please select RA host index: ")
+            (argc, argv) = getUserInput(self.hp, "[*] Please select %s host index: " % entity)
             if argc != 1:
                 print("[!] Invalid input.", file=sys.stderr)
-                return
+                return -1
             ra_index = int(argv[0])
         else:
-            ra_index = "0"
+            ra_index = 0
         ret = host(3, [self.script_name, 'get', ra_index], self.hp)
         if not ret:
-            print("[!] Unable to get RA info.", file=sys.stderr)
+            print("[!] Unable to get %s info." % entity, file=sys.stderr)
+            return -1
+        return ra_index
+
+    def invoke_scenario_1(self):
+        """ Attack Scenario #1 """
+
+        # msearch for RA & get its info
+        ra_index = self.msearch("RA")
+        if ra_index < 0:
             return
 
         # Generate Fake SAD
         print()  # New line
         print("[*] Generating Fake SAD..")
-        ca = de.CA("FakeCA")      # Changing this to "CA" will make RA use it as well, hence scenario will fail.
-        uca = de.UCA("FakeUCA")   # Generate a new UCA.
+        ca = de.CA("FakeCA")  # Changing this to "CA" will make RA use it as well, hence scenario will fail.
+        uca = de.UCA("FakeUCA")  # Generate a new UCA.
         adversary = de.CP("Adversary")  # Fake CP
         uca.cert = de.CryptoHelper.issue_certificate(ca, uca)
         adversary.cert = de.CryptoHelper.issue_certificate(uca, adversary)
@@ -1214,16 +1231,25 @@ class SUPnP:
     def invoke_scenario_3(self):
         """ Attack Scenario #3 """
         registered = "SD registered with RA successfully"
+        failed = "Secure Service Discovery failed"
+
+        # Check SD Registration with RA
         self.devices["SD"] = self.invoke_device("SD")
         sd_output = self.read_log_file("SD", registered)
-        self.print_logbox("SD Output", sd_output)
         if registered not in sd_output:
             print("[!] SD Registration with RA failed.", file=sys.stderr)
             return
-        # SD Registered with RA at this point.
         print("[*] SD registered with RA.")
-        # todo send a fake discovery request.
 
+        # Send a fake discovery request (msearch)
+        print("[*] Sending Fake Discovery Request..")
+        _ = self.msearch("SD")
+        sd_output = self.read_log_file("SD", failed)
+        self.print_logbox("SD Output", sd_output)
+        if failed in sd_output:
+            print("[*] Scenario Succeeded. Received '%s' as expected." % failed)
+        else:
+            print("[!] Scenario Failed. SD was found in the network.", file=sys.stderr)
 
     def invoke_scenario_4(self):
         """ Attack Scenario #4 """
@@ -1241,19 +1267,19 @@ class SUPnP:
                      self.invoke_scenario_4,
                      self.invoke_scenario_5]
         descriptions = [
-            #1
+            # 1
             "An adversary sends a forged capability document (DSD, or SAD) during the  registration process.",
-            #2
+            # 2
             "A malicious SD sends a forged advertisement with an altered service description document.",
-            #3
+            # 3
             "A malicious CP sends a fake discovery request to find a service without having the capability to process"
-                " the service data.",
-            #4
+            " the service data.",
+            # 4
             "An adversary gains unauthorized access to an SD's service description document, learns the control URL"
-                " from the document, and sends a forged service action request.",
-            #5
+            " from the document, and sends a forged service action request.",
+            # 5
             "An adversary gains unauthorized access to an SD's device description document, learns the event URL from"
-                " the document, and sends an event subscription request."
+            " the document, and sends an event subscription request."
         ]
 
         # Verify Scenario argument
@@ -1490,7 +1516,12 @@ def host(argc, argv, hp) -> dict | bool | None:
 
     if argc >= 2:
         action = argv[1]
-        if action == 'list':
+        if action == 'clear':
+            if hp.ENUM_HOSTS:
+                hp.ENUM_HOSTS = {}
+                print('Host list cleared!')
+            return True
+        elif action == 'list':
             if len(hp.ENUM_HOSTS) == 0:
                 print("No known hosts - try running the 'msearch' or 'pcap' commands")
                 return None

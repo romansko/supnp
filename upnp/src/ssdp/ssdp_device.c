@@ -81,7 +81,7 @@ void advertiseAndReplyThread(void *data)
 
     if (SUpnpGetDeviceType() == eDeviceType_SD) {  /* RA not applicable */
         EVP_PKEY *ra_pk = SUpnpGetRAPKey();
-        if (ra_pk != NULL) {  /* Wait until SD registered with RA */
+        if (ra_pk == NULL) {  /* Wait until SD registered with RA */
             return;
         }
         OpenSslFreePKey(&ra_pk);
@@ -165,18 +165,22 @@ void ssdp_handle_device_request(
             memptr discoverySignature;
             if(httpmsg_find_hdr(hmsg, HDR_CAPTOKEN_LOCATION,
                 &capTokenLocation) == NULL) {
+                supnp_error("Secure Service Discovery failed - missing CapTokenLocation\n");
                 return; /* Ignore packet */
             }
             if(httpmsg_find_hdr(hmsg, HDR_CAPTOKEN_LOCATION_SIGNATURE,
                 &capTokenSignature) == NULL) {
+                supnp_error("Secure Service Discovery failed - missing capTokenSignature\n");
                 return; /* Ignore packet */
             }
             if(httpmsg_find_hdr(hmsg, HDR_NONCE,
                 &hexNonce) == NULL) {
+                supnp_error("Secure Service Discovery failed - missing hexNonce\n");
                 return; /* Ignore packet */
             }
             if(httpmsg_find_hdr(hmsg, HDR_DISCOVERY_SIGNATURE,
                 &discoverySignature) == NULL) {
+                supnp_error("Secure Service Discovery failed - missing discoverySignature\n");
                 return; /* Ignore packet */
             }
             SecureParams params = {0};

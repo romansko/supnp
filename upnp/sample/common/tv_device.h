@@ -548,6 +548,8 @@ int TvDeviceStart(
 	/*! [in] path of UCA certificate PEM file.
      * may be NULL. Default is under supnp/simulation folder. */
 	const char *cert_uca,
+	/*! [in] If 1, disable advertisements initiating. Allow only replies. */
+	int disable_ad,
 	#endif
 	/*! [in] path of web directory.
 	 * may be NULL. Default is ./web (for Linux) or ../tvdevice/web. */

@@ -71,6 +71,9 @@ char WebDirPathCP[LOCATION_SIZE]      = {0};
 #define CAPTOKEN_AF (AF_INET)
 #define DEFAULT_WEB_DIR "./web"
 
+/*! This should be enough time for the devices to register with each other */
+#define SLEEP_BEFORE_CMD_LOOP (unsigned int)10 /* seconds */
+
 #endif
 
 /*!
@@ -1721,6 +1724,12 @@ void *TvCtrlPointCommandLoop(void *args)
 	char cmdline[100];
 	char *s;
 	(void)args;
+
+    #if ENABLE_SUPNP
+    SampleUtil_Print("Sleeping for %d seconds before main command loop..\n",
+    SLEEP_BEFORE_CMD_LOOP);
+    isleep(SLEEP_BEFORE_CMD_LOOP);
+    #endif
 
 	while (1) {
 		SampleUtil_Print("\n>> ");

@@ -71,6 +71,15 @@ char DSDPath[LOCATION_SIZE]           = {0};
 char CertPathSD[LOCATION_SIZE]        = {0};
 char CertPathUCA_ForSD[LOCATION_SIZE] = {0};
 
+/*! If value is 1 (Default), SD will always send Secure Advertisements,
+ * regardless of Secure Discovery requests. Note that this exposes the
+ * Description Document to all devices on the network.
+ * To Disable, invoke SD with -disable_ad flag. */
+int gDisableAdvertisements = 1;
+
+/*! This should be enough time for the devices to register with each other */
+#define SLEEP_BEFORE_CMD_LOOP (unsigned int)10 /* seconds */
+
 #endif
 
 /*! Global arrays for storing Tv Control Service variable names, values,
@@ -1416,9 +1425,12 @@ int TvDeviceCallbackEventHandler(
 int RegistrationCallbackSD(void *Cookie)
 {
     supnp_log("SD registered with RA successfully.\n");
-    const int ret = SUpnpSendAdvertisement(device_handle, default_advr_expire);
-    sample_verify(ret == UPNP_E_SUCCESS, cleanup,
-        "Error sending Secure Advertisements : %d\n", ret);
+    int ret = UPNP_E_SUCCESS;
+    if (gDisableAdvertisements == 0) {
+        ret = SUpnpSendAdvertisement(device_handle, default_advr_expire);
+        sample_verify(ret == UPNP_E_SUCCESS, cleanup,
+            "Error sending Secure Advertisements : %d\n", ret);
+    }
 cleanup:
     if (ret != UPNP_E_SUCCESS) {
         SUpnpFinish();
@@ -1437,6 +1449,7 @@ int TvDeviceStart(char *iface,
 	const char *dsd,
     const char *cert_sd,
     const char *cert_uca,
+    const int disable_ad,
 #endif
 	const char *web_dir_path,
 	int ip_mode,
@@ -1464,6 +1477,7 @@ int TvDeviceStart(char *iface,
         web_dir_path = DEFAULT_WEB_DIR;
     }
     #if ENABLE_SUPNP
+    gDisableAdvertisements = disable_ad;
     if (!cap_token_name) {
         cap_token_name = DEFAULT_CAPTOKEN_SD;
     }
@@ -1664,6 +1678,12 @@ void *TvDeviceCommandLoop(void *args)
 	char *s;
 	(void)args;
 
+    #if ENABLE_SUPNP
+    SampleUtil_Print("Sleeping for %d seconds before main command loop..\n",
+    SLEEP_BEFORE_CMD_LOOP);
+    isleep(SLEEP_BEFORE_CMD_LOOP);
+    #endif
+
 	while (1) {
 		sprintf(cmdline, " ");
 		sprintf(cmd, " ");
@@ -1703,6 +1723,7 @@ int device_main(int argc, char *argv[])
     char *dsd = NULL;
     char *cert_sd = NULL;
     char *cert_uca = NULL;
+    int disable_ad = 0;
 #endif
 	char *web_dir_path = NULL;
 	unsigned short port = 0;
@@ -1735,6 +1756,8 @@ int device_main(int argc, char *argv[])
             cert_sd = argv[++i];
         } else if (strcmp(argv[i], "-cert_uca") == 0) {
             cert_uca = argv[++i];
+        } else if (strcmp(argv[i], "-disable_ad") == 0) {
+            disable_ad = 1;
 #endif
 		} else if (strcmp(argv[i], "-webdir") == 0) {
 			web_dir_path = argv[++i];
@@ -1781,6 +1804,7 @@ int device_main(int argc, char *argv[])
                 "\t\t\te.g.: cert_sd.pem\n"
                 "\tcert_uca:       PEM filepath of UCA certificate\n"
                 "\t\t\te.g.: cert_uca.pem\n"
+                "\tdisable_ad:     Disable advertisements initiating\n"
 				#endif
 				"\tweb_dir_path:   Filesystem path where web files"
 				" related to the device are stored\n"
@@ -1801,6 +1825,7 @@ int device_main(int argc, char *argv[])
 		dsd,
 		cert_sd,
 		cert_uca,
+		disable_ad,
 	#endif
 		web_dir_path,
 		ip_mode,

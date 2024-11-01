@@ -68,6 +68,9 @@
 #define DEFAULT_WEB_DIR              "./web"
 #define DEFAULT_DESC_DOC_NAME        "radesc.xml";
 
+/*! This should be enough time for the devices to register with each other */
+#define SLEEP_BEFORE_CMD_LOOP (unsigned int)10 /* seconds */
+
 char PublicKeyPathCA[LOCATION_SIZE]  = {0};
 char PrivateKeyPathRA[LOCATION_SIZE] = {0};
 char DescDocLocation[LOCATION_SIZE]  = {0}; /* URL */
@@ -724,6 +727,10 @@ void *RACommandLoop(void *args)
 	char cmd[100];
 	char *s;
 	(void)args;
+
+    SampleUtil_Print("Sleeping for %d seconds before main command loop..\n",
+        SLEEP_BEFORE_CMD_LOOP);
+    isleep(SLEEP_BEFORE_CMD_LOOP);
 
 	while (1) {
 		sprintf(cmdline, " ");
