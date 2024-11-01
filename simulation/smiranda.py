@@ -39,7 +39,6 @@ from socket import *
 
 # SUPnP only
 from pathlib import Path
-from typing import TextIO, Optional
 import device_enrollment as de
 
 
@@ -921,9 +920,8 @@ class SUPnP:
 
     def set_timeout(self, timeout: int):
         """ Set the timeout for the SUPnP class """
-        self.timeout = timeout  # Timeout in seconds for different operations
-        set(3, [self.script_name, 'timeout', self.timeout], self.hp)
-        print("[*] Timeout set to %d seconds." % self.timeout)
+        set(3, [self.script_name, 'timeout', timeout], self.hp)
+        print("[*] Timeout set to %d seconds." % timeout)
 
     def __init__(self, script_name: str, hp: upnp, iface: str):
         """ Initialize SUPnP class """
@@ -941,13 +939,18 @@ class SUPnP:
         self.hp = hp
         self.script_name = script_name
         self.iface = iface
-        self.timeout = 3
-        self.set_timeout(self.timeout)  # Set Default
+        self.timeouts = {
+            "RA": 3,
+            "SD": 20,
+            "CP": 10
+        }
+        self.set_timeout(3)  # Set Default
 
         # subprocesses
-        self.ra = None
-        self.sd = None
-        self.cp = None
+        self.devices = {}
+
+        # log handles
+        self.log_files = {}
 
         # Verify Interface
         if not interface_exists(iface):  # todo: Merge set_interface.sh logics to miranda set iface ?
@@ -1015,8 +1018,10 @@ class SUPnP:
         print("#" * box_width)
         print()
 
-    def invoke_dev(self, entity: str):
+    def invoke_device(self, entity: str):
         """ Run an Entity binary """
+        if entity not in SUPnP.ENTITIES.keys():
+            raise Exception("Invalid entity '%s'" % entity)
         binary = str(Path(self.bin_path, SUPnP.ENTITIES[entity]))
         args = [binary, "-i", self.iface]
         args += ["-ca_pkey", "CA/public_key.pem"]  # common
@@ -1035,11 +1040,15 @@ class SUPnP:
                      "-cert_uca", "UCA/certificate.pem"]
         else:
             raise Exception('Invalid entity \'%s\'' % entity)
-        args += ["-webdir", "../upnp/sample/web"]  # common
+        args += ["-webdir", "../upnp/sample/web"]
+
+        # Set log handle
+        self.log_files[entity] = open(f"{entity}_log.txt", "w")
 
         # Start the device
         print("[*] Invoking %s: '%s'" % (entity, " ".join(args)))
-        return subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+        return subprocess.Popen(args, stdout=self.log_files[entity], stderr=self.log_files[entity], text=True)
 
     @staticmethod
     def get_error(output: str) -> (int, str):
@@ -1054,47 +1063,50 @@ class SUPnP:
         else:
             return 0, ""  # Not a valid error, probably success.
 
-    def query_pipe(self, pipe: Optional[TextIO], break_string: str = "") -> str:
-        """ Read from a pipe until timeout """
-        if not pipe:
-            return ""
+    def read_log_file(self, entity: str, break_string: str = "") -> str:
+        """ Read from stdout until timeout """
+        if entity not in SUPnP.ENTITIES.keys():
+            raise Exception("Invalid entity '%s'" % entity)
+        log_file_path = f"{entity}_log.txt"
+        self.set_timeout(self.timeouts[entity])
+        end_time = time.time() + self.timeouts[entity]
         output = ""
-        end_time = time.time() + self.timeout
-
-        while True:
-            rem = end_time - time.time()
-            if rem <= 0:   # Endless loop protection
-                break
-            ready, _, _ = select.select([pipe], [], [], rem)
-            if ready:
-                line = pipe.readline()
-                if line:
-                    output += line
-            if break_string and break_string in output:   # For faster exit
-                break
-            
+        with open(log_file_path, "r") as log_file:
+            while time.time() < end_time:
+                line = log_file.readline()
+                if not line:  # End of file
+                    time.sleep(0.1)  # Sleep briefly to avoid busy waiting
+                    continue
+                output += line
+                if break_string and break_string in line:
+                    break
         return output
 
     def terminate(self):
         """ Iterate entities and terminate them. Print error message if applicable. """
-        for dev in [self.ra, self.sd, self.cp]:
-            if dev:
-                dev.stdout.close()
-                dev.stderr.close()
-                dev.terminate()
-        self.ra = None
-        self.sd = None
-        self.cp = None
+        for entity in SUPnP.ENTITIES.keys():
+            line = ""
+            if entity in self.log_files.keys():
+                log_file = self.log_files[entity]
+                if log_file:
+                    log_file.close()
+                    line += " '%s' closed." % log_file.name
+            if entity in self.devices.keys():
+                device = self.devices[entity]
+                if device:
+                    device.terminate()
+                    device.wait()  # Zombie subprocess prevention
+                    line += " '%s' terminated." % self.ENTITIES[entity]
+            if line:
+                print("[*] %s:%s" % (entity, line))
 
     def initialize_ra(self, scenario: int) -> bool:
         """ Initialize RA. This is required by all scenarios. """
-        ad_send = "Advertisements Sent"
-        self.ra = self.invoke_dev("RA")
-        output = self.query_pipe(self.ra.stdout, ad_send)
-        errors = self.query_pipe(self.ra.stderr)
-        if ad_send not in output:  # Expected success message
+        ad_sent = "Advertisements Sent"
+        self.devices["RA"] = self.invoke_device("RA")
+        output = self.read_log_file("RA", ad_sent)
+        if ad_sent not in output:  # Expected success message
             self.print_logbox("RA Output", output)
-            self.print_logbox("RA Error", errors)
             print("[!] Failed to initialize RA.", file=sys.stderr)
             return False
         if scenario == 1:  # Print RA Output only in the first scenario
@@ -1174,10 +1186,8 @@ class SUPnP:
         ret = host(len(sendActionArgs) + len(registrationDocs), sendActionArgs + registrationDocs, self.hp)
         if ret:
             code, msg = SUPnP.get_error(str(ret))
-            output = self.query_pipe(self.ra.stdout)
-            err = self.query_pipe(self.ra.stderr)
+            output = self.read_log_file("RA")
             self.print_logbox("RA Output", output)
-            self.print_logbox("RA Error", err)
             self.print_logbox("RA Response", str(ret))
             if code == 0:
                 print("[!] Scenario Failed. It seems RA accepted the fake document.", file=sys.stderr)
@@ -1191,37 +1201,27 @@ class SUPnP:
     def invoke_scenario_2(self):
         """ Attack Scenario #2 """
         registered = "Control Point Registered with RA"
-        self.set_timeout(10)
-        self.cp = self.invoke_dev("CP")
-        cp_output = self.remove_advertisement(self.query_pipe(self.cp.stdout, registered))
-        cp_errors = self.query_pipe(self.cp.stderr)
+        self.devices["CP"] = self.invoke_device("CP")
+        cp_output = self.remove_advertisement(self.read_log_file("CP", registered))
         self.print_logbox("CP Output", cp_output)
         if registered not in cp_output:
-            self.set_timeout(3)
-            self.print_logbox("RA Error", self.query_pipe(self.ra.stderr))
-            self.print_logbox("CP Error", cp_errors)
             print("[!] CP Registration with RA failed.", file=sys.stderr)
             return
         # CP Registered with RA at this point.
-        print("[*] %s." % registered)
+        print("[*] CP Registered with RA.")
         # todo: send a forged advertisement.
 
     def invoke_scenario_3(self):
         """ Attack Scenario #3 """
         registered = "SD registered with RA successfully"
-        self.set_timeout(10)
-        self.sd = self.invoke_dev("SD")
-        sd_output = self.query_pipe(self.sd.stdout, registered)
-        sd_errors = self.query_pipe(self.sd.stderr)
+        self.devices["SD"] = self.invoke_device("SD")
+        sd_output = self.read_log_file("SD", registered)
         self.print_logbox("SD Output", sd_output)
         if registered not in sd_output:
-            self.set_timeout(3)
-            self.print_logbox("RA Error", self.query_pipe(self.ra.stderr))
-            self.print_logbox("SD Error", sd_errors)
             print("[!] SD Registration with RA failed.", file=sys.stderr)
             return
         # SD Registered with RA at this point.
-        print("[*] %s." % registered)
+        print("[*] SD registered with RA.")
         # todo send a fake discovery request.
 
 
@@ -1987,7 +1987,7 @@ def showHelp(command):
         'host': {
             'longListing':
                 'Description:\n'
-                "\tAllows you to query host information and iteract with a host's actions/services.\n\n"
+                "\tAllows you to f host information and iteract with a host's actions/services.\n\n"
                 'Usage:\n'
                 '\t%s <list | get | info | summary | details | send> [host index #]\n'
                 "\t'list' displays an index of all known UPNP hosts along with their respective index numbers\n"
