@@ -1402,32 +1402,32 @@ void gena_process_subscription_request(SOCKINFO *info, http_message_t *request)
         if(httpmsg_find_hdr(request, HDR_CALLBACK,
             &callback) == NULL) {
             error_respond(info, HTTP_BAD_REQUEST, request);
-            supnp_error("Secure Eventing: Expected 'CALLBACK' not found\n");
+            supnp_error("Secure Eventing Failure: Expected 'CALLBACK' not found\n");
             goto exit_function;
         }
         if(httpmsg_find_hdr(request, HDR_CAPTOKEN_LOCATION,
             &capTokenLocation) == NULL) {
             error_respond(info, HTTP_BAD_REQUEST, request);
-            supnp_error("Secure Control: Expected 'CAPTOKEN-LOCATION' not found\n");
+            supnp_error("Secure Eventing Failure: Expected 'CAPTOKEN-LOCATION' not found\n");
             goto exit_function;
         }
         if(httpmsg_find_hdr(request,
             HDR_CAPTOKEN_LOCATION_SIGNATURE,
             &capTokenSignature) == NULL) {
             error_respond(info, HTTP_BAD_REQUEST, request);
-            supnp_error("Secure Eventing: Missing CapTokenLocationSignature\n");
+            supnp_error("Secure Eventing Failure: Missing CapTokenLocationSignature\n");
             goto exit_function;
         }
         if(httpmsg_find_hdr(request, HDR_NONCE,
             &hexNonce) == NULL) {
             error_respond(info, HTTP_BAD_REQUEST, request);
-            supnp_error("Secure Eventing: Expected 'NONCE' not found\n");
+            supnp_error("Secure Eventing Failure: Expected 'NONCE' not found\n");
             goto exit_function;
         }
         if(httpmsg_find_hdr(request, HDR_EVENT_SIGNATURE,
             &eventSig) == NULL) {
             error_respond(info, HTTP_BAD_REQUEST, request);
-            supnp_error("Secure Eventing: Expected 'EVENT-SIG' not found\n");
+            supnp_error("Secure Eventing Failure: Expected 'EVENT-SIG' not found\n");
             goto exit_function;
         }
         SecureParams params = {0};

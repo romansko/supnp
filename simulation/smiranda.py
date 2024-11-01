@@ -57,7 +57,9 @@ def interface_exists(iface):
         return False
 
 
-def get_ip_address(ifname):
+def get_ip_address(ifname: str):
+    if not ifname:
+        ifname = "eth0"  # default todo: change to parameter
     s = socket(AF_INET, SOCK_DGRAM)
     ifname = ifname.encode('utf-8')
     return inet_ntoa(fcntl.ioctl(
@@ -543,6 +545,99 @@ class upnp:
                 sock.close()
             return False
 
+    def sendEventSubscription(self, hostName, eventURL):
+        """ Send Event Subscription request - for supnp simulation"""
+        argList = ''
+        response = ''
+
+        if '://' in eventURL:
+            urlArray = eventURL.split('/', 3)
+            if len(urlArray) < 4:
+                eventURL = '/'
+            else:
+                eventURL = '/' + urlArray[3]
+
+        request = 'SUBSCRIBE %s HTTP/1.1\r\n' % eventURL
+
+        # Check if a port number was specified in the host name; default is port 80
+        if ':' in hostName:
+            hostNameArray = hostName.split(':')
+            host = hostNameArray[0]
+            try:
+                port = int(hostNameArray[1])
+            except:
+                print('Invalid port specified for host connection:', hostName[1])
+                return False
+        else:
+            host = hostName
+            port = 80
+
+        server = self.createNewListener('', self.port)
+        if not server:
+            print('Failed to bind port %d' % self.port)
+            return
+        myip = get_ip_address(self.IFACE)
+
+        # Specify the headers to send with the request
+        if "https" in eventURL:
+            pre = "https://"
+        else:
+            pre = "http://"
+        headers = {
+            'HOST': hostName,
+            'CALLBACK': '<%s%s:%d/>' % (pre, myip, self.port),
+            'NT': 'upnp:event',
+            'TIMEOUT': 'Second-1801'
+        }
+
+        # Generate the final payload
+        for head, value in headers.items():
+            request += '%s: %s\r\n' % (head, value)
+        request += "\r\n"
+
+        # Send data and go into receive loop
+        sock = None
+        try:
+            sock = socket(AF_INET, SOCK_STREAM)
+            sock.connect((host, port))
+
+            if self.DEBUG:
+                print(self.STARS)
+                print(request)
+                print(self.STARS)
+                print('')
+
+            sock.send(request.encode('utf-8'))
+            while True:
+                data = sock.recv(self.MAX_RECV)
+                if not data:
+                    break
+                else:
+                    response += data.decode('utf-8')
+                    if self.soapEnd.search(response.lower()):
+                        break
+            sock.close()
+
+            (header, body) = response.split('\r\n\r\n', 1)
+            if not header.upper().startswith('HTTP/1.') and ' 200 ' in header.split('\r\n')[0]:
+                print('SUBSCRIBE request failed with error code:', header.split('\r\n')[0].split(' ', 1)[1])
+                errorMsg = self.extractSingleTag(body, 'errorDescription')
+                if errorMsg:
+                    print('SUBSCRIBE error message:', errorMsg)
+                return False
+            else:
+                return body
+        except Exception as e:
+            print('Caught socket exception:', e)
+            if sock:
+                sock.close()
+            return False
+        except KeyboardInterrupt:
+            print("")
+            if sock:
+                sock.close()
+            return False
+
     def showCompleteHostInfo(self, index, fp):
         """ Display all info for a given host """
         na = 'N/A'
@@ -859,6 +954,7 @@ class upnp:
         hostCommand = 'host'
         subCommandList = ['info']
         sendCommand = 'send'
+        subscribeCommand = 'subscribe'
 
         try:
             structPtr = {}
@@ -892,6 +988,19 @@ class upnp:
                                     for action, actionData in serviceData['actions'].items():
                                         structPtr[host][device][service][action] = None
             self.completer.commands[hostCommand][sendCommand] = structPtr
+
+            # This is for updating the subscribeCommand key
+            structPtr = {}
+            for hostIndex, hostData in struct.items():
+                host = str(hostIndex)
+                structPtr[host] = {}
+                if 'deviceList' in hostData.keys():
+                    for device, deviceData in hostData['deviceList'].items():
+                        structPtr[host][device] = {}
+                        if 'services' in deviceData.keys():
+                            for service, serviceData in deviceData['services'].items():
+                                structPtr[host][device][service] = {}
+            self.completer.commands[hostCommand][subscribeCommand] = structPtr
         except Exception:
             print("Error updating command completer structure; some command completion features might not work...")
         return
@@ -939,12 +1048,13 @@ class SUPnP:
         self.hp = hp
         self.script_name = script_name
         self.iface = iface
-        self.timeouts = {
+        self.read_delays = {
             "RA": 3,
             "SD": 20,
             "CP": 10
         }
-        self.set_timeout(3)  # Set Default
+        self.default_timeout = 3
+        self.set_timeout(self.default_timeout)  # Set default timeout
 
         # subprocesses
         self.devices = {}
@@ -1018,39 +1128,6 @@ class SUPnP:
         print("#" * box_width)
         print()
 
-    def invoke_device(self, entity: str):
-        """ Run an Entity binary """
-        if entity not in SUPnP.ENTITIES.keys():
-            raise Exception("Invalid entity '%s'" % entity)
-
-        binary = str(Path(self.bin_path, SUPnP.ENTITIES[entity]))
-        args = [binary, "-i", self.iface]
-        args += ["-ca_pkey", "CA/public_key.pem"]  # common
-        if entity == "RA":
-            args += ["-ra_pkey", "RA/private_key.pem",
-                     "-cert_ra", "RA/certificate.pem"]
-        elif entity == "SD":
-            args += ["-sd_pkey", "SD/private_key.pem",
-                     "-dsd", "SD/dsd.json",
-                     "-cert_sd", "SD/certificate.pem",
-                     "-cert_uca", "UCA/certificate.pem",
-                     "-disable_ad"]
-        elif entity == "CP":
-            args += ["-cp_pkey", "CP/private_key.pem",
-                     "-sad", "CP/sad.json",
-                     "-cert_cp", "CP/certificate.pem",
-                     "-cert_uca", "UCA/certificate.pem"]
-        else:
-            raise Exception('Invalid entity \'%s\'' % entity)
-        args += ["-webdir", "../upnp/sample/web"]
-
-        # Set log handle
-        self.log_files[entity] = open(f"{entity}_log.txt", "w")
-
-        # Start the device
-        print("[*] Invoking %s: '%s'" % (entity, " ".join(args)))
-        return subprocess.Popen(args, stdout=self.log_files[entity], stderr=self.log_files[entity], text=True)
-
     @staticmethod
     def get_error(output: str) -> (int, str):
         """ Parse the error code from UPnP output """
@@ -1069,7 +1146,7 @@ class SUPnP:
         if entity not in SUPnP.ENTITIES.keys():
             raise Exception("Invalid entity '%s'" % entity)
         log_file_path = f"{entity}_log.txt"
-        end_time = time.time() + self.timeouts[entity]
+        end_time = time.time() + self.read_delays[entity]
         output = ""
         with open(log_file_path, "r") as log_file:
             while time.time() < end_time:
@@ -1082,84 +1159,48 @@ class SUPnP:
                     break
         return output
 
-    def terminate(self):
+    def terminate(self, entity: str):
+        """ Terminates entity related subprocess & file descriptor """
+        if entity not in SUPnP.ENTITIES.keys():
+            raise Exception("Invalid entity '%s'" % entity)
+        line = ""
+        if entity in self.log_files.keys() and self.log_files[entity]:
+            self.log_files[entity].close()
+            line += " '%s' closed." % self.log_files[entity].name
+            self.log_files[entity] = None
+        if entity in self.devices.keys() and self.devices[entity]:
+            self.devices[entity].terminate()
+            self.devices[entity].wait()  # Zombie subprocess prevention
+            line += " '%s' terminated." % self.ENTITIES[entity]
+            self.devices[entity] = None
+        if line:
+            print("[*] %s:%s" % (entity, line))
+
+    def terminate_all(self):
         """ Iterate entities and terminate them. Print error message if applicable. """
         for entity in SUPnP.ENTITIES.keys():
-            line = ""
-            if entity in self.log_files.keys():
-                log_file = self.log_files[entity]
-                if log_file:
-                    log_file.close()
-                    line += " '%s' closed." % log_file.name
-            if entity in self.devices.keys():
-                device = self.devices[entity]
-                if device:
-                    device.terminate()
-                    device.wait()  # Zombie subprocess prevention
-                    line += " '%s' terminated." % self.ENTITIES[entity]
-            if line:
-                print("[*] %s:%s" % (entity, line))
+            self.terminate(entity)
         host(2, [self.script_name, "clear"], self.hp)  # Clearing host list
-
-    def initialize_ra(self, scenario: int) -> bool:
-        """ Initialize RA. This is required by all scenarios. """
-        ad_sent = "Advertisements Sent"
-        self.devices["RA"] = self.invoke_device("RA")
-        output = self.read_log_file("RA", ad_sent)
-        if ad_sent not in output:  # Expected success message
-            self.print_logbox("RA Output", output)
-            print("[!] Failed to initialize RA.", file=sys.stderr)
-            return False
-        if scenario == 1:  # Print RA Output only in the first scenario
-            SUPnP.print_logbox("RA Output", output)
-        return True
 
     @staticmethod
     def remove_advertisement(output: str):
-        """
-        Remove Advertisement messages from output. Example:
-        ======================================================================
-        ----------------------------------------------------------------------
-        UPNP_DISCOVERY_ADVERTISEMENT_ALIVE
-        ErrCode      =  ...
-        Expires      =  ...
-        DeviceId     =  ...
-        DeviceType   =  ...
-        ServiceType  =  ...
-        ServiceVer   =  ...
-        Location     =  ...
-        CapTokenUrl  =  ...
-        AdvSignature =  ...
-        OS           =  ...
-        Date         =  ...
-        Ext          =  ...
-        ----------------------------------------------------------------------
-        ======================================================================
-        """
+        """ Remove Advertisement messages for cleaner output"""
         if not output:
             return output
         pattern = r"=+\s*\n-+\s*\nUPNP_DISCOVERY_ADVERTISEMENT_ALIVE\s*\n.*?\n-+\s*\n=+"
         compiled_pattern = re.compile(pattern, re.DOTALL)
         return compiled_pattern.sub("", output)
 
-    def msearch(self, entity: str) -> int:
+    def msearch(self, entity: str, msearch_msg: str) -> int:
         """ Invoke M-SEARCH & Retrieve Info """
-        device = ""
-        if entity == "RA":
-            device = "ra"
-        elif entity == "SD":
-            device = "tvdevice"
-        else:
-            print("[!] Invalid entity '%s' for msearch" % entity, file=sys.stderr)
-            return -1
-        print("[*] Invoking msearch for %s.." % entity)
-        msearch(3, ['msearch', 'device', device], self.hp)
+        print("[*] %s" % msearch_msg)
+        msearch(0, None, self.hp)
         ret = host(2, [self.script_name, "list"], self.hp)
         print()  # New line
         if not ret:
             return -1
         if len(ret) > 1:
-            (argc, argv) = getUserInput(self.hp, "[*] Please select %s host index: " % entity)
+            (argc, argv) = getUserInput(self.hp, "[*] Please select '%s' index: " % entity)
             if argc != 1:
                 print("[!] Invalid input.", file=sys.stderr)
                 return -1
@@ -1172,11 +1213,97 @@ class SUPnP:
             return -1
         return ra_index
 
+    def invoke_device(self, entity: str, entity_args: list):
+        """ Run an Entity binary """
+        if entity not in SUPnP.ENTITIES.keys():
+            raise Exception("Invalid entity '%s'" % entity)
+        binary = str(Path(self.bin_path, SUPnP.ENTITIES[entity]))
+        args = [binary, "-i", self.iface]
+        args += ["-ca_pkey", "CA/public_key.pem"]  # common
+        args += entity_args  # Specific to entity
+        args += ["-webdir", "../upnp/sample/web"]
+        self.log_files[entity] = open(f"{entity}_log.txt", "w")  # Set log handle
+        print("[*] Invoking %s: '%s'" % (entity, " ".join(args)))
+        return subprocess.Popen(args, stdout=self.log_files[entity], stderr=self.log_files[entity], text=True)
+
+    def invoke_ra(self, scenario: int) -> bool:
+        """ Invoke RA. This is required by all scenarios. """
+        ad_sent = "Advertisements Sent"
+        args = ["-ra_pkey", "RA/private_key.pem", "-cert_ra", "RA/certificate.pem"]
+        self.devices["RA"] = self.invoke_device("RA", args)
+        output = self.read_log_file("RA", ad_sent)
+        if ad_sent not in output:  # Expected success message
+            self.print_logbox("RA Output", output)
+            print("[!] Failed to initialize RA.", file=sys.stderr)
+            return False
+        if scenario == 1:  # Print RA Output only in the first scenario
+            SUPnP.print_logbox("RA Output", output)
+        return True
+
+    def invoke_sd(self, scenario: int, msearch_msg: str) -> int:
+        """ Invoke SD; Required by Scenarios 3,4,5 """
+        registered = "SD registered with RA successfully"
+        args = ["-sd_pkey", "SD/private_key.pem",
+                "-dsd", "SD/dsd.json",
+                "-cert_sd", "SD/certificate.pem",
+                "-cert_uca", "UCA/certificate.pem"]
+        if scenario == 3:
+            args += ["-disable_ad"]
+        self.devices["SD"] = self.invoke_device("SD", args)
+        sd_output = self.read_log_file("SD", registered)
+        if registered not in sd_output:
+            print("[!] SD Registration with RA failed.", file=sys.stderr)
+            return -1
+        print("[*] SD registered with RA. Terminating RA - Not required anymore..")
+        self.terminate("RA")
+
+        # Get SD Description Document
+        self.set_timeout(20)
+        sd_index = self.msearch("SD", msearch_msg)
+        self.set_timeout(self.default_timeout)  # restore default
+        return sd_index
+
+    def invoke_cp(self, scenario: int) -> bool:
+        registered = "Control Point Registered with RA"
+        args = ["-cp_pkey", "CP/private_key.pem",
+                "-sad", "CP/sad.json",
+                "-cert_cp", "CP/certificate.pem",
+                "-cert_uca", "UCA/certificate.pem"]
+        self.devices["CP"] = self.invoke_device("CP", args)
+        cp_output = self.remove_advertisement(self.read_log_file("CP", registered))
+        if registered not in cp_output:
+            print("[!] CP Registration with RA failed.", file=sys.stderr)
+            return False
+        print("[*] CP registered with RA. Terminating RA - Not required anymore..")
+        self.terminate("RA")
+        return True
+
+    def invoke_send(self, entity: str, args: list) -> str:
+        """ Invoke a service action request """
+        if entity not in SUPnP.ENTITIES.keys():
+            raise Exception("Invalid entity '%s'" % entity)
+        cmd_line = " ".join(args)
+        if len(cmd_line) > 120:
+            cmd_line = cmd_line[:120] + "..."
+        print("[*] Sending Service Action Request.. '%s'" % cmd_line)
+        ret = host(len(args), args, self.hp)
+        output = self.read_log_file(entity)
+        self.print_logbox("%s Output" % entity, output)
+        self.print_logbox("%s Response" % entity, str(ret))
+        return output
+
+    @staticmethod
+    def print_scenario_results(output: str, expected: str):
+        if expected in output:
+            print("[*] Scenario Succeeded. Received '%s' as expected." % expected)
+        else:
+            print("[!] Scenario Failed. Expected message '%s' not found." % expected, file=sys.stderr)
+
     def invoke_scenario_1(self):
         """ Attack Scenario #1 """
 
         # msearch for RA & get its info
-        ra_index = self.msearch("RA")
+        ra_index = self.msearch("RA", "Searching for RA..")
         if ra_index < 0:
             return
 
@@ -1194,70 +1321,51 @@ class SUPnP:
 
         # Registration service
         print("[*] Trying to Register fake CP..")
-        sendActionArgs = [self.script_name, 'send', ra_index, 'ra', 'registration', 'Register']
+        sendActionArgs = [self.script_name, 'send', str(ra_index), 'ra', 'registration', 'Register']
         registrationDocs = [sad.encode('utf-8').hex(),  # SpecificationDocument
                             de.CryptoHelper.certificate_to_hex_string(adversary.cert),  # CertificateDevice
                             de.CryptoHelper.certificate_to_hex_string(uca.cert),  # CertificateUCA
                             "",  # DescriptionDocumentLocation
                             "DontCare.json"]  # CapTokenLocation
-        ret = host(len(sendActionArgs) + len(registrationDocs), sendActionArgs + registrationDocs, self.hp)
-        if ret:
-            code, msg = SUPnP.get_error(str(ret))
-            output = self.read_log_file("RA")
-            self.print_logbox("RA Output", output)
-            self.print_logbox("RA Response", str(ret))
-            if code == 0:
-                print("[!] Scenario Failed. It seems RA accepted the fake document.", file=sys.stderr)
-            elif "Unable to verify device" == msg:
-                print("[*] Scenario Succeeded. Received '%s' as expected." % msg)
-            else:
-                print("[!] Scenario Failed. Unexpected error code %d: '%s'." % (code, msg))
-        else:
-            print("[!] Scenario Failed. No response from RA.")
+        output = self.invoke_send("RA", sendActionArgs + registrationDocs)
+        self.print_scenario_results(output, "Unable to verify device")
 
     def invoke_scenario_2(self):
         """ Attack Scenario #2 """
-        registered = "Control Point Registered with RA"
-        self.devices["CP"] = self.invoke_device("CP")
-        cp_output = self.remove_advertisement(self.read_log_file("CP", registered))
-        self.print_logbox("CP Output", cp_output)
-        if registered not in cp_output:
-            print("[!] CP Registration with RA failed.", file=sys.stderr)
+        if not self.invoke_cp(2):
             return
-        # CP Registered with RA at this point.
-        print("[*] CP Registered with RA.")
-        # todo: send a forged advertisement.
 
     def invoke_scenario_3(self):
         """ Attack Scenario #3 """
-        registered = "SD registered with RA successfully"
+        # Initialize SD, and msearch for it
+        _ = self.invoke_sd(3, msearch_msg="Sending Fake Discovery Request..")
         failed = "Secure Service Discovery failed"
-
-        # Check SD Registration with RA
-        self.devices["SD"] = self.invoke_device("SD")
-        sd_output = self.read_log_file("SD", registered)
-        if registered not in sd_output:
-            print("[!] SD Registration with RA failed.", file=sys.stderr)
-            return
-        print("[*] SD registered with RA.")
-
-        # Send a fake discovery request (msearch)
-        print("[*] Sending Fake Discovery Request..")
-        _ = self.msearch("SD")
-        sd_output = self.read_log_file("SD", failed)
-        self.print_logbox("SD Output", sd_output)
-        if failed in sd_output:
-            print("[*] Scenario Succeeded. Received '%s' as expected." % failed)
-        else:
-            print("[!] Scenario Failed. SD was found in the network.", file=sys.stderr)
+        output = self.read_log_file("SD", failed)
+        self.print_logbox("SD Output", output)
+        self.print_scenario_results(output, failed)
 
     def invoke_scenario_4(self):
         """ Attack Scenario #4 """
-        raise NotImplementedError("Scenario 4 is not Implemented")
+        # Initialize SD, and msearch for it
+        sd_index = self.invoke_sd(4, "Searching for SD..")
+        if sd_index < 0:
+            print("[!] Scenario Failed. Unable to get SD info.", file=sys.stderr)
+            return
+        # Send a forged service action request
+        sendActionArgs = [self.script_name, 'send', str(sd_index), 'tv', 'tvcontrol', 'IncreaseVolume']
+        output = self.invoke_send("SD", sendActionArgs)
+        self.print_scenario_results(output, "Secure Control Failure")
 
     def invoke_scenario_5(self):
         """ Attack Scenario #5 """
-        raise NotImplementedError("Scenario  is not Implemented")
+        sd_index = self.invoke_sd(4, "Searching for SD..")
+        if sd_index < 0:
+            print("[!] Scenario Failed. Unable to get SD info.", file=sys.stderr)
+            return
+        # Send a forged event subscription request
+        sendActionArgs = [self.script_name, 'subscribe', str(sd_index), 'tv', 'tvcontrol']
+        output = self.invoke_send("SD", sendActionArgs)
+        self.print_scenario_results(output, "Secure Eventing Failure")
 
     def invoke(self, scenario_string: str) -> None:
         """ Invoke an attack scenario """
@@ -1300,12 +1408,12 @@ class SUPnP:
         # Invoke Attack Scenario
         print("[*] Invoking Attack Scenario %d: %s" % (scenario, descriptions[scenario - 1]))
         try:
-            if self.initialize_ra(scenario):
+            if self.invoke_ra(scenario):
                 scenarios[scenario - 1]()
-            self.terminate()
+            self.terminate_all()
         except Exception as e:
             print("[!] %s" % str(e))
-            self.terminate()
+            self.terminate_all()
             raise
 
 
@@ -1517,9 +1625,8 @@ def host(argc, argv, hp) -> dict | bool | None:
     if argc >= 2:
         action = argv[1]
         if action == 'clear':
-            if hp.ENUM_HOSTS:
-                hp.ENUM_HOSTS = {}
-                print('Host list cleared!')
+            hp.ENUM_HOSTS = {}
+            print('Host list cleared!')
             return True
         elif action == 'list':
             if len(hp.ENUM_HOSTS) == 0:
@@ -1634,55 +1741,70 @@ def host(argc, argv, hp) -> dict | bool | None:
                         print("")
                         return False
 
-        elif action == 'send':
-            # Send SOAP requests, return response if applicable.
+        elif action == 'send' or action == 'subscribe':
+            # Send SOAP or event requests, return response if applicable.
             index = False
             inArgCounter = 0
 
-            if argc < 6:
-                showHelp(argv[0])
+            actionName = None
+            if action == 'send':
+                if argc < 6:
+                    showHelp(argv[0])
+                    return None
+                else:
+                    actionName = argv[5]
+
+            if action == 'subscribe':
+                if argc < 5:
+                    showHelp(argv[0])
+                    return None
+
+            try:
+                index = int(argv[2])
+                hostInfo = hp.ENUM_HOSTS[index]
+            except:
+                print(indexError)
                 return None
-            else:
-                try:
-                    index = int(argv[2])
-                    hostInfo = hp.ENUM_HOSTS[index]
-                except:
-                    print(indexError)
-                    return None
-                deviceName = argv[3]
-                serviceName = argv[4]
-                actionName = argv[5]
-                actionArgs = False
-                sendArgs = {}
-                retTags = []
-                controlURL = False
-                fullServiceName = False
+            deviceName = argv[3]
+            serviceName = argv[4]
+            actionArgs = None
+            sendArgs = {}
+            retTags = []
+            controlURL = None
+            eventURL = None
+            fullServiceName = None
 
-                # Get the service control URL and full service name
-                try:
-                    controlURL = hostInfo['proto'] + hostInfo['name']
-                    controlURL2 = hostInfo['deviceList'][deviceName]['services'][serviceName]['controlURL']
-                    if not controlURL.endswith('/') and not controlURL2.startswith('/'):
-                        controlURL += '/'
-                    controlURL += controlURL2
-                except Exception as e:
-                    print('Caught exception:', e)
-                    print("Are you sure you've run 'host get %d' and specified the correct service name?" % index)
-                    return None
+            # Get the service control URL and full service name
+            try:
+                controlURL = hostInfo['proto'] + hostInfo['name']
+                controlURL2 = hostInfo['deviceList'][deviceName]['services'][serviceName]['controlURL']
+                eventURL = hostInfo['deviceList'][deviceName]['services'][serviceName]['eventSubURL']
+                if not controlURL.endswith('/') and not controlURL2.startswith('/'):
+                    controlURL2 = '/' + controlURL2
+                if not controlURL.endswith('/') and not eventURL.startswith('/'):
+                    eventURL = '/' + eventURL
+                eventURL = controlURL + eventURL
+                controlURL += controlURL2
+            except Exception as e:
+                print('Caught exception:', e)
+                print("Are you sure you've run 'host get %d' and specified the correct service name?" % index)
+                return None
 
-                # Get action info
-                try:
+            # Get action info
+            try:
+                if action == 'send':
                     actionArgs = hostInfo['deviceList'][deviceName]['services'][serviceName]['actions'][actionName][
                         'arguments']
-                    fullServiceName = hostInfo['deviceList'][deviceName]['services'][serviceName]['fullName']
-                except Exception as e:
-                    print('Caught exception:', e)
-                    print("Are you sure you've specified the correct action?")
-                    return None
+                fullServiceName = hostInfo['deviceList'][deviceName]['services'][serviceName]['fullName']
+            except Exception as e:
+                print('Caught exception:', e)
+                print("Are you sure you've specified the correct action?")
+                return None
 
-                actionArgsFromArgv = argv[6:]
-                actionArgcFromArgv = len(actionArgsFromArgv)
-                actionArgvIndex = 0
+            actionArgsFromArgv = argv[6:]
+            actionArgcFromArgv = len(actionArgsFromArgv)
+            actionArgvIndex = 0
+            if action == 'send':
                 for argName, argVals in actionArgs.items():
                     actionStateVar = argVals['relatedStateVariable']
                     try:
@@ -1735,26 +1857,29 @@ def host(argc, argv, hp) -> dict | bool | None:
                     else:
                         retTags.append((argName, stateVar['dataType']))
 
-                # Remove the above inputs from the command history
-                while inArgCounter:
-                    try:
-                        readline.remove_history_item(readline.get_current_history_length() - 1)
-                    except:
-                        pass
+            # Remove the above inputs from the command history
+            while inArgCounter:
+                try:
+                    readline.remove_history_item(readline.get_current_history_length() - 1)
+                except:
+                    pass
 
-                    inArgCounter -= 1
+                inArgCounter -= 1
 
-                # print('Requesting',controlURL)
-                soapResponse = hp.sendSOAP(hostInfo['name'], fullServiceName, controlURL, actionName, sendArgs)
-                # actionArgcFromArgv == 0 means we're not using automation, hence print.
-                if soapResponse and actionArgcFromArgv == 0:
-                    # It's easier to just parse this ourselves...
-                    for (tag, dataType) in retTags:
-                        tagValue = hp.extractSingleTag(soapResponse, tag)
-                        if dataType == 'bin.base64' and tagValue:
-                            tagValue = base64.b64decode(tagValue)
-                        print(tag, ':', tagValue)
-            return soapResponse
+            # print('Requesting',controlURL)
+            if action == 'subscribe':
+                response = hp.sendEventSubscription(hostInfo['name'], eventURL)
+            else:
+                response = hp.sendSOAP(hostInfo['name'], fullServiceName, controlURL, actionName, sendArgs)
+            # actionArgcFromArgv == 0 means we're not using automation, hence print.
+            if response and actionArgcFromArgv == 0:
+                # It's easier to just parse this ourselves...
+                for (tag, dataType) in retTags:
+                    tagValue = hp.extractSingleTag(response, tag)
+                    if dataType == 'bin.base64' and tagValue:
+                        tagValue = base64.b64decode(tagValue)
+                    print(tag, ':', tagValue)
+            return response
 
     showHelp(argv[0])
     return False
@@ -2026,7 +2151,9 @@ def showHelp(command):
                 "\t'details' gets and displays detailed information about the specified host\n"
                 "\t'summary' displays a short summary describing the specified host\n"
                 "\t'info' allows you to enumerate all elements of the hosts object\n"
-                "\t'send' allows you to send SOAP requests to devices and services *\n\n"
+                "\t'send' allows you to send SOAP requests to devices and services *\n"
+                "\t'subscribe' allows you to send event requests to devices and services *\n"
+                "\t'clear' Clears discovered hosts via msearch\n\n"
                 'Example:\n'
                 '\t> host list\n'
                 '\t> host get 0\n'
@@ -2284,7 +2411,9 @@ def main(argc, argv):
             'details': None,
             'send': None,
             'summary': None,
-            'help': None
+            'clear': None,
+            'subscribe': None,
+            'help': None,
         },
         'pcap': {
             'help': None

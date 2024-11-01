@@ -815,25 +815,25 @@ void soap_device_callback(
         memptr actionSig;
         if (httpmsg_find_hdr(request, HDR_CAPTOKEN_LOCATION,
             &capTokenLocation) == NULL) {
-            supnp_error("Secure Eventing: Expected 'CAPTOKEN-LOCATION' not found\n");
+            supnp_error("Secure Control Failure: Expected 'CAPTOKEN-LOCATION' not found\n");
             err_code = HTTP_UNAUTHORIZED;
             goto error_handler;
         }
         if (httpmsg_find_hdr(request, HDR_CAPTOKEN_LOCATION_SIGNATURE,
             &capTokenSignature) == NULL) {
-            supnp_error("Secure Eventing: Expected 'CAPTOKEN-LOCATION-SIG' not found\n");
+            supnp_error("Secure Control Failure: Expected 'CAPTOKEN-LOCATION-SIG' not found\n");
             err_code = HTTP_UNAUTHORIZED;
             goto error_handler;
         }
         if (httpmsg_find_hdr(request, HDR_NONCE,
             &hexNonce) == NULL) {
-            supnp_error("Secure Control: Expected 'NONCE' not found\n");
+            supnp_error("Secure Control Failure: Expected 'NONCE' not found\n");
             err_code = HTTP_UNAUTHORIZED;
             goto error_handler;
         }
         if (httpmsg_find_hdr(request, HDR_ACTION_SIGNATURE,
             &actionSig) == NULL) {
-            supnp_error("Secure Control: Expected 'ACTION-SIG' not found\n");
+            supnp_error("Secure Control Failure: Expected 'ACTION-SIG' not found\n");
             err_code = HTTP_UNAUTHORIZED;
             goto error_handler;
         }
