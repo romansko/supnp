@@ -40,6 +40,9 @@ from socket import *
 # SUPnP only
 from pathlib import Path
 import device_enrollment as de
+import http.server
+import socketserver
+import threading
 
 
 def interface_exists(iface):
@@ -1012,7 +1015,9 @@ class upnp:
 
 class SUPnP:
     DEFAULT_BINARIES_PATH = "../upnp/sample/"  # Relative to script location
-    DEFAULT_DESC_DOC_PATH = "web/tvdevicedesc.xml"  # Relative to binaries
+    DEFAULT_WEB_DIRECTORY = "web/"
+    DEFAULT_DESC_DOC_NAME = "tvdevicedesc.xml"
+    DEFAULT_DESC_DOC_PATH = DEFAULT_WEB_DIRECTORY + DEFAULT_DESC_DOC_NAME  # Relative to binaries
 
     ENTITIES = {
         "RA": "registration_authority",
@@ -1070,6 +1075,48 @@ class SUPnP:
         self.deps = [self.desc_doc_path, "CA/public_key.pem", "UCA/certificate.pem"]
         self.deps += [f"{entity}/{artifact}" for entity in SUPnP.ENTITIES.keys() for
                       artifact in ["private_key.pem", "certificate.pem"]]
+
+    @staticmethod
+    def start_server(handler: type(socketserver.BaseRequestHandler), port: int, timeout: int):
+        """ Start a simple HTTP Server """
+        try:
+            print("[*] Serving at port %d for %d seconds.." % (port, timeout))
+            with socketserver.TCPServer(("", port), handler) as httpd:
+                httpd.timeout = timeout
+                httpd.handle_request()
+        except:
+            pass
+        finally:
+            print("[*] Server shutting down..")
+
+    @staticmethod
+    def fake_advertise(nt: str, location: str, captoken_location: str, advsig: str):
+        """ Send a Fake advertisement, on the supnp protocol """
+        multicast_address = '239.255.255.250'
+        multicast_port = 1900
+
+        # Constructing the NOTIFY message
+        msg = "NOTIFY * HTTP/1.1\r\n" + \
+              "HOST: %s:%d\r\n" % (multicast_address, multicast_port) + \
+              "CACHE-CONTROL: max-age=100\r\n" + \
+              "LOCATION: %s\r\n" % location + \
+              "CAPTOKEN-LOCATION: %s\r\n" % captoken_location + \
+              "ADVERTISEMENT-SIG: %s\r\n" % advsig + \
+              "OPT: \"http://schemas.upnp.org/upnp/1/0/\"; ns=01\r\n" + \
+              "NT: %s\r\n" % nt + \
+              "NTS: ssdp:alive\r\n" + \
+              "SERVER: Linux/6.8.0-48-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1\r\n" + \
+              "X-User-Agent: redsonic\r\n" + \
+              "USN: uuid:Upnp-TVEmulator-1_0-1234567890001::%s\r\n\r\n" % nt
+
+        # Send the packet
+        with socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP) as sock:
+            sock.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, 2)  # TTL = up to 2 routers
+            try:
+                print("[*] Sending NOTIFY message (NT = %s).." % nt)
+                sock.sendto(msg.encode('utf-8'), (multicast_address, multicast_port))
+            except Exception as e:
+                print("[!] Error sending NOTIFY message: %s" % str(e))
 
     def verify(self) -> bool:
         """ Verify required Entities & Artifacts """
@@ -1263,7 +1310,7 @@ class SUPnP:
         self.set_timeout(self.default_timeout)  # restore default
         return sd_index
 
-    def invoke_cp(self, scenario: int) -> bool:
+    def invoke_cp(self) -> bool:
         registered = "Control Point Registered with RA"
         args = ["-cp_pkey", "CP/private_key.pem",
                 "-sad", "CP/sad.json",
@@ -1288,8 +1335,8 @@ class SUPnP:
         print("[*] Sending Service Action Request.. '%s'" % cmd_line)
         ret = host(len(args), args, self.hp)
         output = self.read_log_file(entity)
-        self.print_logbox("%s Output" % entity, output)
         self.print_logbox("%s Response" % entity, str(ret))
+        self.print_logbox("%s Output" % entity, output)
         return output
 
     @staticmethod
@@ -1332,8 +1379,36 @@ class SUPnP:
 
     def invoke_scenario_2(self):
         """ Attack Scenario #2 """
-        if not self.invoke_cp(2):
+        forged = "Advertisement signature is forged"
+        if not self.invoke_cp():  # Invoke CP which should detect the fake advertisement
             return
+        web_dir = Path(Path(__file__).parent, SUPnP.DEFAULT_BINARIES_PATH + SUPnP.DEFAULT_WEB_DIRECTORY)
+        web_dir = str(web_dir.resolve())
+        myport = self.hp.port + 1
+        server_time = 5  # Run server for 5 seconds
+
+        pid = os.fork()
+        if pid == 0:
+            os.chdir(web_dir)
+            self.start_server(http.server.SimpleHTTPRequestHandler, myport, server_time)
+            sys.exit(0)
+        else:
+            # Prepare Advertisement
+            nt = "upnp:rootdevice"
+            myip = get_ip_address(self.hp.IFACE)
+            location = "http://%s:%d/%s" % (myip, myport, SUPnP.DEFAULT_DESC_DOC_NAME)
+            captoken_location = "http://%s:%d/fake.json" % (myip, myport)
+            fake_ra = de.RA("FakeRA")
+            advsig = de.CryptoHelper.sign_data((location + captoken_location).encode('utf-8'), fake_ra.private_key)
+            print("[*] Signed '%s%s' with FakeRA's private key." % (location, captoken_location))
+
+            # Send Advertisement & Check CP output
+            self.fake_advertise(nt, location, captoken_location, advsig)
+            time.sleep(server_time)
+            os.wait()
+            output = self.read_log_file("CP", forged)
+            self.print_logbox("CP Output", output)
+            self.print_scenario_results(output, forged)
 
     def invoke_scenario_3(self):
         """ Attack Scenario #3 """
