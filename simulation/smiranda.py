@@ -1014,6 +1014,7 @@ class upnp:
 ##########################################################
 
 class SUPnP:
+    DEFAULT_INTERFACE = "eth0"
     DEFAULT_BINARIES_PATH = "../upnp/sample/"  # Relative to script location
     DEFAULT_WEB_DIRECTORY = "web/"
     DEFAULT_DESC_DOC_NAME = "tvdevicedesc.xml"
@@ -1037,8 +1038,19 @@ class SUPnP:
         set(3, [self.script_name, 'timeout', timeout], self.hp)
         print("[*] Timeout set to %d seconds." % timeout)
 
-    def __init__(self, script_name: str, hp: upnp, iface: str):
+    def __init__(self, script_name: str, hp: upnp):
         """ Initialize SUPnP class """
+
+        # Args
+        self.script_name = script_name
+        self.hp = hp
+
+        # Interface
+        if not self.hp.IFACE:
+            print("[*] Setting default interface '%s'.. To change run 'set iface <interface>'" % SUPnP.DEFAULT_INTERFACE)
+            set(3, ['set', 'iface', SUPnP.DEFAULT_INTERFACE], self.hp)
+        if not interface_exists(self.hp.IFACE):
+            raise Exception("Interface '%s' not found. See 'supnp/scripts/set_interface.sh'" % self.hp.IFACE)
 
         # Scripts folder path, where the entities are expected.
         self.dirname = Path(__file__).parent
@@ -1049,10 +1061,7 @@ class SUPnP:
         # Description Document Path
         self.desc_doc_path = Path(self.bin_path, SUPnP.DEFAULT_DESC_DOC_PATH).resolve()
 
-        # Store args
-        self.hp = hp
-        self.script_name = script_name
-        self.iface = iface
+        # Logs file reading delays
         self.read_delays = {
             "RA": 3,
             "SD": 20,
@@ -1066,10 +1075,6 @@ class SUPnP:
 
         # log handles
         self.log_files = {}
-
-        # Verify Interface
-        if not interface_exists(iface):  # todo: Merge set_interface.sh logics to miranda set iface ?
-            raise Exception("Interface '%s' not found. See 'supnp/scripts/set_interface.sh'" % iface)
 
         # Dependencies
         self.deps = [self.desc_doc_path, "CA/public_key.pem", "UCA/certificate.pem"]
@@ -1265,7 +1270,7 @@ class SUPnP:
         if entity not in SUPnP.ENTITIES.keys():
             raise Exception("Invalid entity '%s'" % entity)
         binary = str(Path(self.bin_path, SUPnP.ENTITIES[entity]))
-        args = [binary, "-i", self.iface]
+        args = [binary, "-i", self.hp.IFACE]
         args += ["-ca_pkey", "CA/public_key.pem"]  # common
         args += entity_args  # Specific to entity
         args += ["-webdir", "../upnp/sample/web"]
@@ -1348,12 +1353,15 @@ class SUPnP:
 
     def invoke_scenario_1(self):
         """ Attack Scenario #1 """
-
+        print("[*] Attack Scenario #1: An adversary sends a forged capability document (DSD, or SAD) during the"
+              " registration process.")
+        # Invoke RA
+        if not self.invoke_ra(scenario=1):
+            return
         # msearch for RA & get its info
         ra_index = self.msearch("RA", "Searching for RA..")
         if ra_index < 0:
             return
-
         # Generate Fake SAD
         print()  # New line
         print("[*] Generating Fake SAD..")
@@ -1379,8 +1387,14 @@ class SUPnP:
 
     def invoke_scenario_2(self):
         """ Attack Scenario #2 """
+        print("[*] Attack Scenario #2: A malicious SD sends a forged advertisement with an altered service"
+              " description document.")
+        # Invoke RA
+        if not self.invoke_ra(scenario=2):
+            return
         forged = "Advertisement signature is forged"
-        if not self.invoke_cp():  # Invoke CP which should detect the fake advertisement
+        # Invoke CP which should detect the fake advertisement
+        if not self.invoke_cp():
             return
         web_dir = Path(Path(__file__).parent, SUPnP.DEFAULT_BINARIES_PATH + SUPnP.DEFAULT_WEB_DIRECTORY)
         web_dir = str(web_dir.resolve())
@@ -1412,6 +1426,11 @@ class SUPnP:
 
     def invoke_scenario_3(self):
         """ Attack Scenario #3 """
+        # Invoke RA
+        if not self.invoke_ra(scenario=3):
+            return
+        print("[*] Attack Scenario #3: A malicious CP sends a fake discovery request to find a service without having "
+              "the capability to process the service data.")
         # Initialize SD, and msearch for it
         _ = self.invoke_sd(3, msearch_msg="Sending Fake Discovery Request..")
         failed = "Secure Service Discovery failed"
@@ -1421,6 +1440,11 @@ class SUPnP:
 
     def invoke_scenario_4(self):
         """ Attack Scenario #4 """
+        # Invoke RA
+        if not self.invoke_ra(scenario=4):
+            return
+        print("[*] Attack Scenario #4: An adversary gains unauthorized access to an SD's service description"
+              " document, learns the control URL from the document, and sends a forged service action request.")
         # Initialize SD, and msearch for it
         sd_index = self.invoke_sd(4, "Searching for SD..")
         if sd_index < 0:
@@ -1433,6 +1457,12 @@ class SUPnP:
 
     def invoke_scenario_5(self):
         """ Attack Scenario #5 """
+        # Invoke RA
+        if not self.invoke_ra(scenario=5):
+            return
+        print("[*] Attack Scenario #5: An adversary gains unauthorized access to an SD's device description document,"
+              " learns the event URL from the document, and sends an event subscription request.")
+        # Initialize SD, and msearch for it
         sd_index = self.invoke_sd(4, "Searching for SD..")
         if sd_index < 0:
             print("[!] Scenario Failed. Unable to get SD info.", file=sys.stderr)
@@ -1449,22 +1479,6 @@ class SUPnP:
                      self.invoke_scenario_3,
                      self.invoke_scenario_4,
                      self.invoke_scenario_5]
-        descriptions = [
-            # 1
-            "An adversary sends a forged capability document (DSD, or SAD) during the  registration process.",
-            # 2
-            "A malicious SD sends a forged advertisement with an altered service description document.",
-            # 3
-            "A malicious CP sends a fake discovery request to find a service without having the capability to process"
-            " the service data.",
-            # 4
-            "An adversary gains unauthorized access to an SD's service description document, learns the control URL"
-            " from the document, and sends a forged service action request.",
-            # 5
-            "An adversary gains unauthorized access to an SD's device description document, learns the event URL from"
-            " the document, and sends an event subscription request."
-        ]
-
         # Verify Scenario argument
         try:
             scenario = int(scenario_string)
@@ -1480,11 +1494,8 @@ class SUPnP:
             showHelp(self.script_name)
             return
 
-        # Invoke Attack Scenario
-        print("[*] Invoking Attack Scenario %d: %s" % (scenario, descriptions[scenario - 1]))
         try:
-            if self.invoke_ra(scenario):
-                scenarios[scenario - 1]()
+            scenarios[scenario - 1]()
             self.terminate_all()
         except Exception as e:
             print("[!] %s" % str(e))
@@ -2107,20 +2118,14 @@ def quit(argc, argv, hp):
 
 def supnp(argc, argv, hp):
     """ SUPnP Attack Scenarios simulation """
-
-    if argc == 2 and argv[1] == 'make':
-        SUPnP.device_enrollment()
-        return
-
-    if argc != 3:
+    if argc != 2:
         showHelp(argv[0])
-        return
-
-    iface = argv[1]
-    scenario = argv[2]
-
-    # Invoke Scenario
-    SUPnP(argv[0], hp, iface).invoke(scenario)
+    elif argv[1] == 'make':
+        # Device Enrollment
+        SUPnP.device_enrollment()
+    else:
+        # Invoke Scenario
+        SUPnP(argv[0], hp).invoke(argv[1])
 
 
 ################ End Action Functions ######################
@@ -2304,10 +2309,10 @@ def showHelp(command):
                 '\t    document, and sends an event subscription request.\n\n'
                 '\tIf only supnp make is specified, the script invoke device enrollment simulation.\n'
                 'Usage:\n'
-                '\t%s <interface> <scenario #> | make\n\n'
+                '\t%s make or <scenario_id>\n\n'
                 'Example:\n'
                 '\tsupnp make\n'
-                '\tsupnp eth0 1',
+                '\tsupnp 1',
             'quickView':
                 'Invoke SUPnP Attack Scenarios'
         }
