@@ -219,9 +219,11 @@ The miranda-upnp script itself is MIT licensed. (See [Project Information](https
 
 ### Usage
 
-To start `smiranda`, simply run
+To start `smiranda`:
 
 ```bash
+make
+source venv/bin/activate
 ./smiranda.py
 ```
 
@@ -254,7 +256,7 @@ smiranda> supnp help
 
 Description:
         Invoke SUPnP Attack Scenarios:
-        [1] An adversary sends a forge capability document (DSD, or SAD)
+        [1] An adversary sends a forged capability document (DSD, or SAD)
             during the registration process.
         [2] A malicious SD sends a forged advertisement with an altered
             service description document.
@@ -266,10 +268,453 @@ Description:
         [5] An adversary gains unauthorized access to an SD's device
             description document, learns the event URL from the
             document, and sends an event subscription request.
+        If only supnp make is specified, the script invoke device enrollment simulation.
 
 Usage:
-        supnp [scenario #]
+        supnp make or <scenario_id>
 
 Example:
+        supnp make
         supnp 1
 ```
+
+<br/>
+
+### Scenario 1 Run log
+
+```
+smiranda> supnp 1
+
+[*] Setting default interface 'eth0'.. To change run 'set iface <interface>'
+Interface set to eth0, re-binding sockets...
+Binding to eth0 interface IP: 192.168.1.100
+WARNING: Failed to join multicast group: [Errno 98] Address already in use
+Interface change successful!
+[*] Timeout set to 3 seconds.
+[*] Attack Scenario #1: An adversary sends a forged capability document (DSD, or SAD) during the registration process.
+[*] Invoking RA: 'supnp/upnp/sample/registration_authority -i eth0 -ca_pkey CA/public_key.pem -ra_pkey RA/private_key.pem -cert_ra RA/certificate.pem -webdir ../upnp/sample/web'
+
+########################################################################################################################
+#                                                      RA Output                                                       #
+########################################################################################################################
+# Initializing [S]UPnP Sdk with                                                                                        #
+# interface = eth0 port = 0                                                                                            #
+# [SUPnP] [tid 132838372640064] SUpnpInit(262): Initializing SUPnP secure layer..                                      #
+# [SSL_W] [tid 132838372640064] OpenSslInitializeWrapper(50): Initializing OpenSSL Wrapper..                           #
+# UPnP Initialized                                                                                                     #
+# ipaddress = 192.168.1.100 port = 49152                                                                               #
+# Specifying the webserver root directory -- ../upnp/sample/web                                                        #
+# Registering the RootDevice                                                                                           #
+# with desc_doc_url: http://192.168.1.100:49152/radesc.xml                                                             #
+# RootDevice Registered                                                                                                #
+# Initializing State Table                                                                                             #
+# Found service: urn:schemas-upnp-org:service:registration:1                                                           #
+# serviceId: urn:upnp-org:serviceId:registration1                                                                      #
+# State Table Initialized                                                                                              #
+# State Table Initialized                                                                                              #
+# Advertisements Sent                                                                                                  #
+########################################################################################################################
+
+[*] Searching for RA..
+Entering discovery mode for 'upnp:rootdevice', Ctl+C to stop...
+
+****************************************************************
+SSDP reply message from 192.168.1.100:49152
+XML file is located at http://192.168.1.100:49152/radesc.xml
+Device is running Linux/6.8.0-48-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+****************************************************************
+
+
+Discover mode halted..
+        [0] 192.168.1.100:49152
+
+Requesting device and service info for 192.168.1.100:49152 (this could take a few seconds)...
+
+Host data enumeration complete!
+
+[*] Generating Fake SAD..
+[*] Initializing FakeCA..
+        Generated 'supnp/simulation/FakeCA/private_key.pem'
+        Generated 'supnp/simulation/FakeCA/public_key.pem'
+[*] Initializing FakeUCA..
+        Generated 'supnp/simulation/FakeUCA/private_key.pem'
+        Generated 'supnp/simulation/FakeUCA/public_key.pem'
+[*] Initializing Adversary..
+        Generated 'supnp/simulation/Adversary/private_key.pem'
+        Generated 'supnp/simulation/Adversary/public_key.pem'
+[*] FakeCA signs FakeUCA's certificate..
+        Generated 'supnp/simulation/FakeUCA/certificate.pem'
+[*] FakeUCA signs Adversary's certificate..
+        Generated 'supnp/simulation/Adversary/certificate.pem'
+[*] Initialized Device('supnp/upnp/sample/web/tvdevicedesc.xml')
+[*] Service Action Document (SAD)
+        Generated 'supnp/simulation/Adversary/sad.json'
+
+########################################################################################################################
+#                                                       Fake SAD                                                       #
+########################################################################################################################
+# {                                                                                                                    #
+# "TYPE": "CP",                                                                                                        #
+# "NAME": "CP user-friendly name",                                                                                     #
+#     "PK": "<truncated>",                                                                                             #
+# "SERVICES": {                                                                                                        #
+# "urn:upnp-org:serviceId:tvcontrol1": "urn:schemas-upnp-org:service:tvcontrol:1",                                     #
+# "urn:upnp-org:serviceId:tvpicture1": "urn:schemas-upnp-org:service:tvpicture:1"                                      #
+# },                                                                                                                   #
+# "SIG-VER-CON": "2-of-2",                                                                                             #
+# "SIGS": [                                                                                                            #
+# "SIG-OWNER",                                                                                                         #
+# "SIG-UCA"                                                                                                            #
+# ],                                                                                                                   #
+#     "SIG-OWNER": "<truncated>",                                                                                      #
+#     "SIG-UCA": "<truncated>"                                                                                         #
+# }                                                                                                                    #
+########################################################################################################################
+
+[*] Trying to Register fake CP..
+[*] Sending Service Action Request.. 'supnp send 0 ra registration Register <truncated>
+
+########################################################################################################################
+#                                                     RA Response                                                      #
+########################################################################################################################
+# <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/enc #
+# oding/">                                                                                                             #
+# <s:Body>                                                                                                             #
+# <s:Fault>                                                                                                            #
+# <faultcode>s:Client</faultcode>                                                                                      #
+# <faultstring>UPnPError</faultstring>                                                                                 #
+# <detail>                                                                                                             #
+# <UPnPError xmlns="urn:schemas-upnp-org:control-1-0">                                                                 #
+# <errorCode>501</errorCode>                                                                                           #
+# <errorDescription>Unable to verify device                                                                            #
+# </errorDescription>                                                                                                  #
+# </UPnPError>                                                                                                         #
+# </detail>                                                                                                            #
+# </s:Fault>                                                                                                           #
+# </s:Body>                                                                                                            #
+# </s:Envelope>                                                                                                        #
+########################################################################################################################
+
+
+########################################################################################################################
+#                                                      RA Output                                                       #
+########################################################################################################################
+# Initializing [S]UPnP Sdk with                                                                                        #
+# interface = eth0 port = 0                                                                                            #
+# [SUPnP] [tid 132838372640064] SUpnpInit(262): Initializing SUPnP secure layer..                                      #
+# [SSL_W] [tid 132838372640064] OpenSslInitializeWrapper(50): Initializing OpenSSL Wrapper..                           #
+# UPnP Initialized                                                                                                     #
+# ipaddress = 192.168.1.100 port = 49152                                                                               #
+# Specifying the webserver root directory -- ../upnp/sample/web                                                        #
+# Registering the RootDevice                                                                                           #
+# with desc_doc_url: http://192.168.1.100:49152/radesc.xml                                                             #
+# RootDevice Registered                                                                                                #
+# Initializing State Table                                                                                             #
+# Found service: urn:schemas-upnp-org:service:registration:1                                                           #
+# serviceId: urn:upnp-org:serviceId:registration1                                                                      #
+# State Table Initialized                                                                                              #
+# State Table Initialized                                                                                              #
+# Advertisements Sent                                                                                                  #
+# Sleeping for 10 seconds before main command loop..                                                                   #
+# [SSL_W Error] [tid 132838309496512] .upnp/src/openssl/openssl_wrapper.c::OpenSslVerifyCertificate(312): 'UCA' certif #
+# icate verification error                                                                                             #
+# error:0200008A:rsa routines::invalid padding                                                                         #
+# [SUPnP Error] [tid 132838309496512] .upnp/src/supnp/supnp.c::SUpnpVerifyDocument(416): Invalid UCA cert.             #
+# [SUPnP] [tid 132838309496512] SUpnpVerifyDocument(411): Verifying CP user-friendly name document. Type: 'CP'.        #
+# [SSL_W] [tid 132838309496512] OpenSslVerifyCertificate(307): Verifying 'UCA''s certificate..                         #
+# Unable to verify device                                                                                              #
+# ======================================================================                                               #
+# ----------------------------------------------------------------------                                               #
+# UPNP_CONTROL_ACTION_REQUEST                                                                                          #
+# ErrCode     =  501                                                                                                   #
+# ErrStr      =  Unable to verify device                                                                               #
+# ActionName  =  Register                                                                                              #
+# UDN         =  uuid:SUpnp-RA-1_0-1234567890001                                                                       #
+# ServiceID   =  urn:upnp-org:serviceId:registration1                                                                  #
+# ActRequest  =  <m:Register xmlns:m="urn:schemas-upnp-org:service:registration:1">                                    #
+# <SpecificationDocument><truncated></SpecificationDocument>                                                           #
+# <CertificateDevice><truncated></CertificateDevice>                                                                   #
+# <CertificateUCA><truncated></CertificateUCA>                                                                         #
+# <ErrorCode>-603</ErrorCode>                                                                                          #
+# </u:RegisterResponse>                                                                                                #
+# ----------------------------------------------------------------------                                               #
+# ======================================================================                                               #
+########################################################################################################################
+
+[*] Scenario Succeeded. Received 'Unable to verify device' as expected.
+[*] RA: 'RA_log.txt' closed. 'registration_authority' terminated.
+Host list cleared!
+```
+
+<br/>
+
+### Scenario 2 Run log
+
+```
+smiranda> supnp 2
+
+[*] Timeout set to 3 seconds.
+[*] Attack Scenario #2: A malicious SD sends a forged advertisement with an altered service description document.
+[*] Invoking RA: 'supnp/upnp/sample/registration_authority -i eth0 -ca_pkey CA/public_key.pem -ra_pkey RA/private_key.pem -cert_ra RA/certificate.pem -webdir ../upnp/sample/web'
+[*] Invoking CP: 'supnp/upnp/sample/tv_ctrlpt -i eth0 -ca_pkey CA/public_key.pem -cp_pkey CP/private_key.pem -sad CP/sad.json -cert_cp CP/certificate.pem -cert_uca UCA/certificate.pem -webdir ../upnp/sample/web'
+[*] CP registered with RA. Terminating RA - Not required anymore..
+[*] RA: 'RA_log.txt' closed. 'registration_authority' terminated.
+[*] Initializing FakeRA..
+[*] Serving at port 1901 for 5 seconds..
+        Generated 'supnp/simulation/FakeRA/private_key.pem'
+        Generated 'supnp/simulation/FakeRA/public_key.pem'
+[*] Signed 'http://192.168.1.100:1901/tvdevicedesc.xmlhttp://192.168.1.100:1901/fake.json' with FakeRA's private key.
+[*] Sending NOTIFY message (NT = upnp:rootdevice)..
+192.168.1.100 - - [02/Nov/2024 15:11:45] "GET /tvdevicedesc.xml HTTP/1.1" 200 -
+[*] Server shutting down..
+
+########################################################################################################################
+#                                                      CP Output                                                       #
+########################################################################################################################
+# Initializing UPnP Sdk with                                                                                           #
+# interface = eth0 port = 0                                                                                            #
+# [SUPnP] [tid 126232359011648] SUpnpInit(262): Initializing SUPnP secure layer..                                      #
+# [SSL_W] [tid 126232359011648] OpenSslInitializeWrapper(50): Initializing OpenSSL Wrapper..                           #
+# UPnP Initialized                                                                                                     #
+# ipv4 address = 192.168.1.100 port = 49153                                                                            #
+# ipv6 address =  port = 0                                                                                             #
+# ipv6ulagua address =  port = 0                                                                                       #
+# Registering Control Point..                                                                                          #
+# [SUPnP] [tid 126232359011648] SUpnpSetCapTokenLocation(147): Setting captoken location to 'http://192.168.1.100:4915 #
+# 3/captoken_cp.json'.                                                                                                 #
+# Sleeping for 10 seconds before main command loop..                                                                   #
+# [SSL_W] [tid 126232326833856] OpenSslVerifyCertificate(307): Verifying 'ra_cert''s certificate..                     #
+# [SUPnP] [tid 126232326833856] RegistrationCallbackEventHandler(862): SUPnP Device Registered                         #
+# Control Point Registered with RA                                                                                     #
+# [SSL_W Error] [tid 126232316348096] .upnp/src/openssl/openssl_wrapper.c::OpenSslVerifySignature(364): 'Advertisement #
+# Signature':     error:0200008A:rsa routines::invalid padding                                                         #
+# [SUPnP Error] [tid 126232316348096] .upnp/src/supnp/supnp.c::SUpnpSecureAdvertisementVerify(1172): Advertisement sig #
+# nature is forged !!!                                                                                                 #
+########################################################################################################################
+
+[*] Scenario Succeeded. Received 'Advertisement signature is forged' as expected.
+[*] CP: 'CP_log.txt' closed. 'tv_ctrlpt' terminated.
+Host list cleared!
+```
+
+<br/>
+
+### Scenario 3 Run log
+
+```
+smiranda> supnp 3
+
+[*] Timeout set to 3 seconds.
+[*] Invoking RA: 'supnp/upnp/sample/registration_authority -i eth0 -ca_pkey CA/public_key.pem -ra_pkey RA/private_key.pem -cert_ra RA/certificate.pem -webdir ../upnp/sample/web'
+[*] Attack Scenario #3: A malicious CP sends a fake discovery request to find a service without having the capability to process the service data.
+[*] Invoking SD: 'supnp/upnp/sample/tv_device -i eth0 -ca_pkey CA/public_key.pem -sd_pkey SD/private_key.pem -dsd SD/dsd.json -cert_sd SD/certificate.pem -cert_uca UCA/certificate.pem -disable_ad -webdir ../upnp/sample/web'
+[*] SD registered with RA. Terminating RA - Not required anymore..
+[*] RA: 'RA_log.txt' closed. 'registration_authority' terminated.
+[*] Timeout set to 20 seconds.
+[*] Sending Fake Discovery Request..
+Entering discovery mode for 'upnp:rootdevice', Ctl+C to stop...
+
+
+Discover mode halted..
+No known hosts - try running the 'msearch' or 'pcap' commands
+
+[*] Timeout set to 3 seconds.
+
+########################################################################################################################
+#                                                      SD Output                                                       #
+########################################################################################################################
+# Initializing UPnP Sdk with                                                                                           #
+# interface = eth0 port = 0                                                                                            #
+# [SUPnP] [tid 130474404418880] SUpnpInit(262): Initializing SUPnP secure layer..                                      #
+# [SSL_W] [tid 130474404418880] OpenSslInitializeWrapper(50): Initializing OpenSSL Wrapper..                           #
+# UPnP Initialized                                                                                                     #
+# ipaddress = 192.168.1.100 port = 49153                                                                               #
+# Specifying the webserver root directory -- ../upnp/sample/web                                                        #
+# Registering the RootDevice                                                                                           #
+# with desc_doc_url: http://192.168.1.100:49153/tvdevicedesc.xml                                                       #
+# with cap_token_url: http://192.168.1.100:49153/captoken_sd.json                                                      #
+# RootDevice Registered                                                                                                #
+# Initializing State Table                                                                                             #
+# Found service: urn:schemas-upnp-org:service:tvcontrol:1                                                              #
+# serviceId: urn:upnp-org:serviceId:tvcontrol1                                                                         #
+# Found service: urn:schemas-upnp-org:service:tvpicture:1                                                              #
+# serviceId: urn:upnp-org:serviceId:tvpicture1                                                                         #
+# State Table Initialized                                                                                              #
+# Registering SD with RA..                                                                                             #
+# [SUPnP] [tid 130474404418880] SUpnpSetCapTokenLocation(147): Setting captoken location to 'http://192.168.1.100:4915 #
+# 3/captoken_sd.json'.                                                                                                 #
+# Sleeping for 10 seconds before main command loop..                                                                   #
+# [SSL_W] [tid 130474372499136] OpenSslVerifyCertificate(307): Verifying 'ra_cert''s certificate..                     #
+# [SUPnP] [tid 130474372499136] RegistrationCallbackEventHandler(862): SUPnP Device Registered                         #
+# [SUPnP] [tid 130474372499136] RegistrationCallbackSD(1427): SD registered with RA successfully.                      #
+#  [SUPnP Error] [tid 130474362013376] .upnp/src/ssdp/ssdp_device.c::ssdp_handle_device_request(168): Secure Service D #
+# iscovery failed - missing CapTokenLocation                                                                           #
+########################################################################################################################
+
+[*] Scenario Succeeded. Received 'Secure Service Discovery failed' as expected.
+[*] SD: 'SD_log.txt' closed. 'tv_device' terminated.
+Host list cleared!
+```
+
+<br/>
+
+### Scenario 4 Run log
+
+```
+smiranda> supnp 4
+
+[*] Timeout set to 3 seconds.
+[*] Invoking RA: 'supnp/upnp/sample/registration_authority -i eth0 -ca_pkey CA/public_key.pem -ra_pkey RA/private_key.pem -cert_ra RA/certificate.pem -webdir ../upnp/sample/web'
+[*] Attack Scenario #4: An adversary gains unauthorized access to an SD's service description document, learns the control URL from the document, and sends a forged service action request.
+[*] Invoking SD: 'supnp/upnp/sample/tv_device -i eth0 -ca_pkey CA/public_key.pem -sd_pkey SD/private_key.pem -dsd SD/dsd.json -cert_sd SD/certificate.pem -cert_uca UCA/certificate.pem -webdir ../upnp/sample/web'
+[*] SD registered with RA. Terminating RA - Not required anymore..
+[*] RA: 'RA_log.txt' closed. 'registration_authority' terminated.
+[*] Timeout set to 20 seconds.
+[*] Searching for SD..
+Entering discovery mode for 'upnp:rootdevice', Ctl+C to stop...
+
+****************************************************************
+SSDP notification message from 192.168.1.100:49153
+XML file is located at http://192.168.1.100:49153/tvdevicedesc.xml
+Device is running Linux/6.8.0-48-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+****************************************************************
+
+
+Discover mode halted..
+        [0] 192.168.1.100:49153
+
+Requesting device and service info for 192.168.1.100:49153 (this could take a few seconds)...
+
+Failed to find tag relatedStateVariable for argument Power!
+Host data enumeration complete!
+[*] Timeout set to 3 seconds.
+[*] Sending Service Action Request.. 'supnp send 0 tv tvcontrol IncreaseVolume'
+Volume : None
+
+########################################################################################################################
+#                                                     SD Response                                                      #
+########################################################################################################################
+# <html><body><h1>401 Unauthorized</h1></body></html>                                                                  #
+########################################################################################################################
+
+
+########################################################################################################################
+#                                                      SD Output                                                       #
+########################################################################################################################
+# Initializing UPnP Sdk with                                                                                           #
+# interface = eth0 port = 0                                                                                            #
+# [SUPnP] [tid 129196096861504] SUpnpInit(262): Initializing SUPnP secure layer..                                      #
+# [SSL_W] [tid 129196096861504] OpenSslInitializeWrapper(50): Initializing OpenSSL Wrapper..                           #
+# UPnP Initialized                                                                                                     #
+# ipaddress = 192.168.1.100 port = 49153                                                                               #
+# Specifying the webserver root directory -- ../upnp/sample/web                                                        #
+# Registering the RootDevice                                                                                           #
+# with desc_doc_url: http://192.168.1.100:49153/tvdevicedesc.xml                                                       #
+# with cap_token_url: http://192.168.1.100:49153/captoken_sd.json                                                      #
+# RootDevice Registered                                                                                                #
+# Initializing State Table                                                                                             #
+# Found service: urn:schemas-upnp-org:service:tvcontrol:1                                                              #
+# serviceId: urn:upnp-org:serviceId:tvcontrol1                                                                         #
+# Found service: urn:schemas-upnp-org:service:tvpicture:1                                                              #
+# serviceId: urn:upnp-org:serviceId:tvpicture1                                                                         #
+# State Table Initialized                                                                                              #
+# Registering SD with RA..                                                                                             #
+# [SUPnP] [tid 129196096861504] SUpnpSetCapTokenLocation(147): Setting captoken location to 'http://192.168.1.100:4915 #
+# 3/captoken_sd.json'.                                                                                                 #
+# Sleeping for 10 seconds before main command loop..                                                                   #
+# [SSL_W] [tid 129196053497536] OpenSslVerifyCertificate(307): Verifying 'ra_cert''s certificate..                     #
+# [SUPnP] [tid 129196053497536] RegistrationCallbackEventHandler(862): SUPnP Device Registered                         #
+# [SUPnP] [tid 129196053497536] RegistrationCallbackSD(1427): SD registered with RA successfully.                      #
+# [SUPnP] [tid 129196053497536] SUpnpSendAdvertisement(1133): Secure Service Advertisement: sending..                  #
+#  [SUPnP Error] [tid 129195990582976] .upnp/src/ssdp/ssdp_device.c::ssdp_handle_device_request(168): Secure Service D #
+# iscovery failed - missing CapTokenLocation                                                                           #
+# [SUPnP Error] [tid 129196011554496] .upnp/src/soap/soap_device.c::soap_device_callback(818): Secure Control Failure: #
+# Expected 'CAPTOKEN-LOCATION' not found                                                                               #
+########################################################################################################################
+
+[*] Scenario Succeeded. Received 'Secure Control Failure' as expected.
+[*] SD: 'SD_log.txt' closed. 'tv_device' terminated.
+Host list cleared!
+```
+
+<br/>
+
+### Scenario 5 Run log
+
+```
+miranda> supnp 5
+
+[*] Timeout set to 3 seconds.
+[*] Invoking RA: 'supnp/upnp/sample/registration_authority -i eth0 -ca_pkey CA/public_key.pem -ra_pkey RA/private_key.pem -cert_ra RA/certificate.pem -webdir ../upnp/sample/web'
+[*] Attack Scenario #5: An adversary gains unauthorized access to an SD's device description document, learns the event URL from the document, and sends an event subscription request.
+[*] Invoking SD: 'supnp/upnp/sample/tv_device -i eth0 -ca_pkey CA/public_key.pem -sd_pkey SD/private_key.pem -dsd SD/dsd.json -cert_sd SD/certificate.pem -cert_uca UCA/certificate.pem -webdir ../upnp/sample/web'
+[*] SD registered with RA. Terminating RA - Not required anymore..
+[*] RA: 'RA_log.txt' closed. 'registration_authority' terminated.
+[*] Timeout set to 20 seconds.
+[*] Searching for SD..
+Entering discovery mode for 'upnp:rootdevice', Ctl+C to stop...
+
+****************************************************************
+SSDP notification message from 192.168.1.100:49153
+XML file is located at http://192.168.1.100:49153/tvdevicedesc.xml
+Device is running Linux/6.8.0-48-generic, UPnP/1.0, Portable SDK for UPnP devices/17.2.1
+****************************************************************
+
+
+Discover mode halted..
+        [0] 192.168.1.100:49153
+
+Requesting device and service info for 192.168.1.100:49153 (this could take a few seconds)...
+
+Failed to find tag relatedStateVariable for argument Power!
+Host data enumeration complete!
+[*] Timeout set to 3 seconds.
+[*] Sending Service Action Request.. 'supnp subscribe 0 tv tvcontrol'
+
+########################################################################################################################
+#                                                     SD Response                                                      #
+########################################################################################################################
+# <html><body><h1>400 Bad Request</h1></body></html>                                                                   #
+########################################################################################################################
+
+
+########################################################################################################################
+#                                                      SD Output                                                       #
+########################################################################################################################
+# Initializing UPnP Sdk with                                                                                           #
+# interface = eth0 port = 0                                                                                            #
+# [SUPnP] [tid 137224463484224] SUpnpInit(262): Initializing SUPnP secure layer..                                      #
+# [SSL_W] [tid 137224463484224] OpenSslInitializeWrapper(50): Initializing OpenSSL Wrapper..                           #
+# UPnP Initialized                                                                                                     #
+# ipaddress = 192.168.1.100 port = 49153                                                                               #
+# Specifying the webserver root directory -- ../upnp/sample/web                                                        #
+# Registering the RootDevice                                                                                           #
+# with desc_doc_url: http://192.168.1.100:49153/tvdevicedesc.xml                                                       #
+# with cap_token_url: http://192.168.1.100:49153/captoken_sd.json                                                      #
+# RootDevice Registered                                                                                                #
+# Initializing State Table                                                                                             #
+# Found service: urn:schemas-upnp-org:service:tvcontrol:1                                                              #
+# serviceId: urn:upnp-org:serviceId:tvcontrol1                                                                         #
+# Found service: urn:schemas-upnp-org:service:tvpicture:1                                                              #
+# serviceId: urn:upnp-org:serviceId:tvpicture1                                                                         #
+# State Table Initialized                                                                                              #
+# Registering SD with RA..                                                                                             #
+# [SUPnP] [tid 137224463484224] SUpnpSetCapTokenLocation(147): Setting captoken location to 'http://192.168.1.100:4915 #
+# 3/captoken_sd.json'.                                                                                                 #
+# [SSL_W] [tid 137224431601344] OpenSslVerifyCertificate(307): Verifying 'ra_cert''s certificate..                     #
+# [SUPnP] [tid 137224431601344] RegistrationCallbackEventHandler(862): SUPnP Device Registered                         #
+# [SUPnP] [tid 137224431601344] RegistrationCallbackSD(1427): SD registered with RA successfully.                      #
+# [SUPnP] [tid 137224431601344] SUpnpSendAdvertisement(1133): Secure Service Advertisement: sending..                  #
+# Sleeping for 10 seconds before main command loop..                                                                   #
+# [SUPnP Error] [tid 137224431601344] .upnp/src/ssdp/ssdp_device.c::ssdp_handle_device_request(168): Secure Service Di #
+# scovery failed - missing CapTokenLocation                                                                            #
+#  [SUPnP Error] [tid 137224379172544] .upnp/src/gena/gena_device.c::gena_process_subscription_request(1411): Secure E #
+# venting Failure: Expected 'CAPTOKEN-LOCATION' not found                                                              #
+########################################################################################################################
+
+[*] Scenario Succeeded. Received 'Secure Eventing Failure' as expected.
+[*] SD: 'SD_log.txt' closed. 'tv_device' terminated.
+Host list cleared!
+```
+
+<br/>
