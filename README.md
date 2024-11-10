@@ -1,29 +1,135 @@
 # SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things
 
-This repository is a fork of the portable SDK for UPnP Devices ([libupnp](https://github.com/pupnp/pupnp)) with a secure layer extension as described in 
-the paper [SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things](https://ieeexplore.ieee.org/document/9352973) 
-by Kayas, G., Hossain, M., Payton, J., & Islam, S. R. (2021), IEEE Internet of Things Journal, 8(14), 11561-11580.
+This repository is a fork of the portable SDK for UPnP Devices ([libupnp](https://github.com/pupnp/pupnp)) with a 
+secure layer extension as presented in the paper 
+[SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things](https://ieeexplore.ieee.org/document/9352973) by Kayas, G., Hossain, M., 
+Payton, J., & Islam, S. R. (2021), IEEE Internet of Things Journal, 8(14), 11561-11580.
 
 <br/> 
 
-## Important Notice
+## Table of Contents <!-- omit in toc -->
 
-It's strongly recommended to read the original `libupnp`'s [README](https://github.com/pupnp/pupnp/blob/branch-1.14.x/README.md) file before continuing with this one.
-The current README file was edited to include specific `SUPnP` secure layer build instructions and usage, and some information was <ins>removed</ins> for simplicity.
-To read more about `libupnp`, its usage, and licencing, please refer to the original [libupnp](https://github.com/pupnp/pupnp) repository.
-For Licensing related to `SUPnP`, please consult the authors of the paper [SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things](https://ieeexplore.ieee.org/document/9352973).
+- [1. Important Notice](#1-important-notice)
+- [2. Brief](#2-brief)
+- [3. Sequence Diagrams](#3-sequence-diagrams)
+- [4. SUPnP Package Contents](#4-supnp-package-contents)
+- [5. SUPnP Demonstration](#5-supnp-demonstration)
+    - [Device Enrollment Simulation](#device-enrollment-simulation)
+    - [SUPnP protocol messages - captured by wireshark](#supnp-protocol-messages---captured-by-wireshark)
+        - [RA Discovery](#ra-discovery)
+        - [RA discovery responses](#ra-discovery-responses)
+        - [Registration message](#registration-message)
+        - [Secure Service Advertisements](#secure-service-advertisements)
+        - [Secure Service Discovery](#secure-service-discovery)
+        - [Secure Control](#secure-control)
+        - [Secure Event Subscription](#secure-event-subscription)
+    - [Run Logs](#run-logs)
+- [6. System Requirements](#6-system-requirements)
+- [7. Build Instructions](#7-build-instructions)
+    - [Pre-requisites](#pre-requisites)
+    - [Core Libraries](#core-libraries)
+- [8. Install/Uninstall Instructions](#8-installuninstall-instructions)
+- [9. Thanks](#9-thanks)
+
+<br/> 
+
+
+## 1. Important Notice
+
+It's strongly recommended to read the original `libupnp`'s 
+[README](https://github.com/pupnp/pupnp/blob/branch-1.14.x/README.md) file before continuing with this one. The current 
+README file was edited to include specific `SUPnP` secure layer build instructions and usage, and some information was 
+<ins>removed</ins> for simplicity. To read more about `libupnp`, its usage, and licencing, please refer to the original
+[libupnp](https://github.com/pupnp/pupnp) repository. For Licensing related to `SUPnP`, please consult the authors of the paper
+[SUPnP: Secure Access and Service Registration for UPnP-Enabled Internet of Things](https://ieeexplore.ieee.org/document/9352973).
 
 The `SUPnP` secure layer implementation for `libupnp` was made as part of my MSc studies in computer science.
-One should not use this implementation in a production environment as it is not fully tested and might have security flaws.
-The implementation of `SUPnP` is intended for educational purposes only.
+One should not use this implementation in a production environment as it is not fully tested and might have security 
+flaws. The implementation of `SUPnP` is intended for educational purposes only.
 
 <br/>
 
-## SUPnP Package Contents
+
+## 2. Brief
+
+The UPnP protocol was designed to make our lives easier. It consists of Service Devices (SD) and Control Points (CP).
+For example, a printer is a Service Device, while your smartphone is a Control Point. When both are connected to the
+same local network, the printer magically appears on your smartphone, allowing you to easily print documents. UPnP does 
+not consider security as part of its design; hence, an adversary can impersonate either an SD or a CP. Consider an 
+adversary impersonating a printer that advertises its printing services on a company network. One could be fooled by 
+this adversary and inadvertently send confidential documents to the fake printer. I’ll let your imagination take it 
+from here.
+
+![UPnP](img/upnp.png)
+
+The SUPnP protocol is essentially an extension of the UPnP protocol family that aims to enhance UPnP security. It adds 
+another SD called the Registration Authority (RA), which validates each SD and CP in the network. Only after a 
+successful validation with the RA, the devices continue to validate each other and perform secure communication. 
+Upon registration with the RA, the devices receive a “Capability Token”, signed by the RA, which proves that the device 
+is legitimate. The RA itself has a certificate signed by a UPnP Certification Authority (UCA) that can be verified by 
+other Certification Authorities (CA). When developing an SUPnP secure application, one should enroll the device on the 
+UCA’s website and receive a capability document to store on the device filesystem. This document will be used by the RA 
+to verify the device and issue the “Capability Token”. Each service advertisement by an SD or an action request by a CP 
+is signed by the respective device. The Capability Token also includes the device certificate, which is signed by the 
+RA; thus, one can validate the signed requests or advertisements for each device. I’ve only presented SUPnP basic 
+concepts. If you’re still with me, I recommend reading the SUPnP paper, which walks through the UPnP threats and 
+presents the secure algorithms of SUPnP.
+
+![SUPnP](img/supnp.png)
+
+It's possible to break the project into the following packages:
+
+![Package](img/package.png)
+
+The SUPnP package can be divided into the following components:
+
+![Package](img/components.png)
+
+* OpenSSLWrapper: A package to handle OpenSSL logic such as signing data, signature verification, loading and packing 
+certificates and keys, nonce handling, etc.
+
+* OpenSSL Nonce: A Package to generate Nonce which is used by RA to generate a challenge for the device, and by the 
+devices during the various actions in the protocol.
+
+* SUPnP CapToken: Capability Token logic, including generating a new Capability Token and verifying an existing 
+Capability Token.
+
+* SUPnP Device: A package primarily used by the RA to maintain a list of registered devices on the local network.
+
+* SUPnP API: Allows the use of various operations as described in the paper, which includes, but is not limited to: 
+Registration Process, Secure Advertisement, Secure Device Description, Secure Service Discovery, Secure Control, and 
+Secure Eventing.
+
+Also, The `libupnp` project contains examples of a TV Service Device and a Control Point. I’ve revised them 
+to use the secure layer (with the `ENABLE_SUPNP` preprocessor directive) and added an example RA application.
+
+<br/>
+
+## 3. Sequence Diagrams
+
+**RA Sequence Diagram**
+
+![RA Sequence Diagram](img/RASequence.png)
+
+**Registration (CP & SD) Sequence Diagram**
+
+![Registration Sequence Diagram](img/RegistrationSequence.png)
+
+**SD Sequence Diagram**
+
+![SD Sequence Diagram](img/SDSequence.png)
+
+**CP Sequence Diagram**
+
+![CP Sequence Diagram](img/CPSequence.png)
+
+<br/>
+
+## 4. SUPnP Package Contents
 
 For the original `libupnp` package contents, refer to [libupnp package contents](https://github.com/pupnp/pupnp/blob/branch-1.14.x/README.md#8-package-contents)
 
-The SUPnP additons and modifications are:
+The SUPnP additions and modifications are:
 
 | Path/File        | Description                                                                                                     |
 |------------------|-----------------------------------------------------------------------------------------------------------------|
@@ -42,7 +148,7 @@ However, some logics might be modified, so it's best to use the original `libupn
 
 <br/>
 
-## SUPnP Demonstration
+## 5. SUPnP Demonstration
 
 This section demonstrates the SUPnP secure layer usage for Registration Authority (RA), 
 Service Device (SD) and Control Point (CP).
@@ -399,16 +505,16 @@ For RA, SD, and CP run logs, refer to [upnp/sample/README.md](upnp/sample/README
 
 <br/>
 
-## System Requirements
+## 6. System Requirements
 
 The `SUPnP` fork, same as the original SDK for UPnP Devices, is designed to compile and run under several operating systems.  
 It does, however, have dependencies on some packages that may not be installed by default.
 All packages that it requires are listed below.
 
 | Dependency | Description                                                                              |
-| ---------- | ---------------------------------------------------------------------------------------- |
+|------------|------------------------------------------------------------------------------------------|
 | libpthread | The header and library are installed as part of the glibc-devel package (or equivalent). |
-| libssl-dev | Required by [OpenSSL](#configure-openssl) / [SUPnP](#configure-supnp) only.              | 
+| libssl-dev | Required by OpenSSL / SUPnP only.                                                        | 
 
 Additionally, the documentation for the original `libupnp` can be auto-generated from the upnp.h header file using Doxygen.
 Refer to `libupnp` [System Requirements](https://github.com/pupnp/pupnp/blob/branch-1.14.x/README.md#9-system-requirements) for more information.
@@ -430,7 +536,7 @@ and control point searches will not function.
 
 <br/>
 
-## Build Instructions
+## 7. Build Instructions
 
 ### Pre-requisites
 
@@ -673,7 +779,7 @@ For information on general usage of the cmake build system see: <https://cmake.o
 
 <br/>
 
-## Install/Uninstall Instructions
+## 8. Install/Uninstall Instructions
 
 ### Install
 
@@ -698,7 +804,7 @@ For original `libupnp` instructions (which are mostly the same as written above)
 <br/>
 
 
-## Thanks
+## 9. Thanks
 
 *Original thanks from `libupnp`*
 
