@@ -42,7 +42,7 @@
  */
 
 #include "tv_ctrlpt.h"
-#include "posix_overwrites.h"
+#include "posix_overwrites.h"  // IWYU pragma: keep
 #include <string.h>
 #include <upnp.h>
 

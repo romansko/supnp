@@ -40,7 +40,7 @@
 #include <stdlib.h> /* for free() */
 #include <string.h>
 
-#include "posix_overwrites.h"
+#include "posix_overwrites.h" // IWYU pragma: keep
 
 void ixmlElement_init(IXML_Element *element)
 {

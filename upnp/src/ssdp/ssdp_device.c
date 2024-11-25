@@ -63,7 +63,7 @@
 		#include <stdio.h>
 		#include <string.h>
 
-		#include "posix_overwrites.h"
+		#include "posix_overwrites.h" // IWYU pragma: keep
 
 		#define MSGTYPE_SHUTDOWN 0
 		#define MSGTYPE_ADVERTISEMENT 1

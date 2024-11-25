@@ -63,7 +63,7 @@
 
 		#include <stdio.h>
 
-		#include "posix_overwrites.h"
+		#include "posix_overwrites.h" // IWYU pragma: keep
 
 /*!
  * \brief Sends a callback to the control point application with a SEARCH

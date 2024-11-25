@@ -40,7 +40,7 @@
 #endif
 #include "upnpdebug.h"
 
-#include "posix_overwrites.h"
+#include "posix_overwrites.h" // IWYU pragma: keep
 
 int main(int argc, char *argv[])
 {

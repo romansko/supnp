@@ -47,7 +47,7 @@
 	#include <stdarg.h>
 	#include <stdio.h>
 
-	#include "posix_overwrites.h"
+	#include "posix_overwrites.h" // IWYU pragma: keep
 	/*! Maximum action header buffer length. */
 	#define HEADER_LENGTH 2000
 

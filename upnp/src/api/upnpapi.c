@@ -74,7 +74,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "posix_overwrites.h"
+#include "posix_overwrites.h" // IWYU pragma: keep
 
 #ifdef _WIN32
 	#include <iphlpapi.h>

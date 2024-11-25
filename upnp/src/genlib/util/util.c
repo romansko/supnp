@@ -43,7 +43,7 @@
 
 #include <string.h>
 
-#include "posix_overwrites.h"
+#include "posix_overwrites.h" // IWYU pragma: keep
 
 void linecopy(char dest[LINE_SIZE], const char *src)
 {

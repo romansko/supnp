@@ -41,12 +41,13 @@
 #include "ixmldebug.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stddef.h> /* for ptrdiff_t */
 #include <stdio.h>
 #include <stdlib.h> /* for free(), malloc() */
 #include <string.h>
 
-#include "posix_overwrites.h"
+#include "posix_overwrites.h" // IWYU pragma: keep
 
 static char g_error_char = '\0';
 #ifdef IXML_HAVE_SCRIPTSUPPORT
@@ -612,10 +613,11 @@ static void Parser_skipWhiteSpaces(
 	/*! [in] The XML parser. */
 	Parser *xmlParser)
 {
-	while ((*(xmlParser->curPtr) != 0) &&
-		(strchr(WHITESPACE, (int)*(xmlParser->curPtr)) != NULL)) {
-		xmlParser->curPtr++;
+	char *p = xmlParser->curPtr;
+	while (*p && strchr(WHITESPACE, *p)) {
+		++p;
 	}
+	xmlParser->curPtr = p;
 }
 
 /*!
@@ -675,21 +677,21 @@ static int Parser_skipMisc(
 
 	while ((done == 0) && (rc == IXML_SUCCESS)) {
 		if (strncasecmp(xmlParser->curPtr,
-			    (char *)BEGIN_COMMENT,
+			    BEGIN_COMMENT,
 			    strlen(BEGIN_COMMENT)) == 0) {
 			/* <!-- */
 			rc = Parser_skipComment(&(xmlParser->curPtr));
 
 		} else if (strncasecmp(xmlParser->curPtr,
-				   (char *)XMLDECL,
+				   XMLDECL,
 				   strlen(XMLDECL)) == 0 ||
 			   strncasecmp(xmlParser->curPtr,
-				   (char *)XMLDECL2,
+				   XMLDECL2,
 				   strlen(XMLDECL2)) == 0) {
 			/* <?xml or <?xml? */
 			rc = IXML_SYNTAX_ERR;
 		} else if (strncasecmp(xmlParser->curPtr,
-				   (char *)BEGIN_PI,
+				   BEGIN_PI,
 				   strlen(BEGIN_PI)) == 0) {
 			/* <? */
 			rc = Parser_skipString(&xmlParser->curPtr, END_PI);
@@ -719,7 +721,7 @@ static int Parser_skipProlog(
 	Parser_skipBom(xmlParser);
 	Parser_skipWhiteSpaces(xmlParser);
 
-	if (strncmp(xmlParser->curPtr, (char *)XMLDECL, strlen(XMLDECL)) == 0) {
+	if (strncmp(xmlParser->curPtr, XMLDECL, strlen(XMLDECL)) == 0) {
 		/* <?xml */
 		rc = Parser_skipXMLDecl(xmlParser);
 		if (rc != IXML_SUCCESS) {
@@ -729,7 +731,7 @@ static int Parser_skipProlog(
 
 	rc = Parser_skipMisc(xmlParser);
 	if ((rc == IXML_SUCCESS) && strncmp(xmlParser->curPtr,
-					    (char *)BEGIN_DOCTYPE,
+					    BEGIN_DOCTYPE,
 					    strlen(BEGIN_DOCTYPE)) == 0) {
 		/* <! DOCTYPE */
 		xmlParser->curPtr++;
@@ -971,8 +973,19 @@ static int Parser_getChar(
 		/* Read in escape characters of type &#xnn where nn is a
 		 * hexadecimal value */
 		pnum = src + strlen(ESC_HEX);
+		if (!*pnum) {
+			line = __LINE__;
+			goto fail_entity;
+		}
 		sum = 0;
-		while (strchr(HEX_NUMBERS, (int)*pnum) != 0) {
+		while (*pnum && strchr(HEX_NUMBERS, *pnum) != 0) {
+			/* Keep away from INT_MAX to avoid overflow. Using 16 in
+			 * this test not enough to avoid overflow, so we use
+			 * 256. */
+			if (sum > INT_MAX / 256) {
+				line = __LINE__;
+				goto fail_entity;
+			}
 			c = *pnum;
 			if (c <= '9') {
 				sum = sum * 16 + (c - '0');
@@ -994,8 +1007,19 @@ static int Parser_getChar(
 		/* Read in escape characters of type &#nn where nn is a decimal
 		 * value */
 		pnum = src + strlen(ESC_DEC);
+		if (!*pnum) {
+			line = __LINE__;
+			goto fail_entity;
+		}
 		sum = 0;
-		while (strchr(DEC_NUMBERS, (int)*pnum) != 0) {
+		while (*pnum && strchr(DEC_NUMBERS, *pnum) != 0) {
+			/* Keep away from INT_MAX to avoid overflow. Using 10 in
+			 * this test not enough to avoid overflow, so we use
+			 * 100. */
+			if (sum > INT_MAX / 100) {
+				line = __LINE__;
+				goto fail_entity;
+			}
 			sum = sum * 10 + (*pnum - '0');
 			pnum++;
 		}
@@ -1365,13 +1389,13 @@ static int Parser_skipPI(
 		return IXML_FAILED;
 	}
 
-	if ((strncasecmp(*pSrc, (char *)XMLDECL, strlen(XMLDECL)) == 0) ||
-		(strncasecmp(*pSrc, (char *)XMLDECL2, strlen(XMLDECL2)) == 0)) {
+	if ((strncasecmp(*pSrc, XMLDECL, strlen(XMLDECL)) == 0) ||
+		(strncasecmp(*pSrc, XMLDECL2, strlen(XMLDECL2)) == 0)) {
 		/* not allowed */
 		return IXML_SYNTAX_ERR;
 	}
 
-	if (strncasecmp(*pSrc, (char *)BEGIN_PI, strlen(BEGIN_PI)) == 0) {
+	if (strncasecmp(*pSrc, BEGIN_PI, strlen(BEGIN_PI)) == 0) {
 		pEnd = strstr(*pSrc, END_PI);
 		if ((pEnd != NULL) && (pEnd != *pSrc)) {
 			*pSrc = pEnd + strlen(BEGIN_PI);
@@ -1397,22 +1421,26 @@ static int Parser_processCDSect(
 	char *pEnd;
 	size_t tokenLength = (size_t)0;
 	char *pCDataStart;
+	int found_cdend = 0;
+	int isXMLchar = 0;
 
 	if (*pSrc == NULL) {
 		return IXML_FAILED;
 	}
-
 	pCDataStart = *pSrc + strlen(CDSTART);
 	pEnd = pCDataStart;
-	while ((Parser_isXmlChar((int)*pEnd)) && (*pEnd != '\0')) {
+	while ((isXMLchar = Parser_isXmlChar((int)*pEnd)) && (*pEnd != '\0')) {
 		if (strncmp(pEnd, CDEND, strlen(CDEND)) == 0) {
+			found_cdend = 1;
 			break;
 		} else {
 			pEnd++;
 		}
 	}
-
-	if ((pEnd - pCDataStart > 0) && (*pEnd != '\0')) {
+	if (!isXMLchar) {
+		return IXML_SYNTAX_ERR;
+	}
+	if ((pEnd - pCDataStart > 0) && (*pEnd != '\0') && found_cdend) {
 		tokenLength = (size_t)pEnd - (size_t)pCDataStart;
 		node->nodeValue = (char *)malloc(tokenLength + (size_t)1);
 		if (node->nodeValue == NULL) {
@@ -1464,8 +1492,7 @@ static int Parser_processContent(
 
 	pEndContent = xmlParser->curPtr;
 	if (*pEndContent == LESSTHAN) {
-		if (strncmp(pEndContent, (char *)CDSTART, strlen(CDSTART)) ==
-			0) {
+		if (strncmp(pEndContent, CDSTART, strlen(CDSTART)) == 0) {
 			if (Parser_processCDSect(&pEndContent, node) !=
 				IXML_SUCCESS) {
 				line = __LINE__;
@@ -1475,7 +1502,7 @@ static int Parser_processContent(
 				xmlParser->curPtr = pEndContent;
 			}
 		} else if (strncmp(pEndContent,
-				   (char *)BEGIN_COMMENT,
+				   BEGIN_COMMENT,
 				   strlen(BEGIN_COMMENT)) == 0) {
 			if (Parser_skipComment(&pEndContent) != IXML_SUCCESS) {
 				line = __LINE__;
@@ -2185,6 +2212,10 @@ static int Parser_setElementNamespace(
 	/*! [in] The name space string. */
 	const char *nsURI)
 {
+	if (!nsURI) {
+		/* Nothing to do */
+		goto end_function;
+	}
 	if (newElement != NULL) {
 		if (newElement->n.namespaceURI != NULL) {
 			return IXML_SYNTAX_ERR;
@@ -2196,6 +2227,7 @@ static int Parser_setElementNamespace(
 		}
 	}
 
+end_function:
 	return IXML_SUCCESS;
 }
 
@@ -2594,6 +2626,7 @@ static int Parser_parseDocument(
 						xmlParser->currentNodePtr,
 						tempNode);
 					if (rc != IXML_SUCCESS) {
+						ixmlNode_free(tempNode);
 						goto ErrorHandler;
 					}
 
@@ -2607,11 +2640,12 @@ static int Parser_parseDocument(
 					if (rc != IXML_SUCCESS) {
 						goto ErrorHandler;
 					}
-
 					rc = ixmlNode_appendChild(
 						xmlParser->currentNodePtr,
-						&(cdataSecNode->n));
+						(IXML_Node *)cdataSecNode);
 					if (rc != IXML_SUCCESS) {
+						ixmlNode_free((IXML_Node *)
+								cdataSecNode);
 						goto ErrorHandler;
 					}
 					break;

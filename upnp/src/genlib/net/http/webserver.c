@@ -64,7 +64,7 @@
 	#include <fcntl.h>
 	#include <sys/stat.h>
 
-	#include "posix_overwrites.h"
+	#include "posix_overwrites.h" // IWYU pragma: keep
 
 /*!
  * Response Types.

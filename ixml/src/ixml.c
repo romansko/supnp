@@ -40,7 +40,7 @@
 #include <stdlib.h> /* for free() */
 #include <string.h>
 
-#include "posix_overwrites.h"
+#include "posix_overwrites.h" // IWYU pragma: keep
 
 /*!
  * \brief Appends a string to a buffer, substituting some characters by escape

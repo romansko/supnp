@@ -40,7 +40,7 @@
 #include <stdlib.h> /* for free(), malloc() */
 #include <string.h>
 
-#include "posix_overwrites.h"
+#include "posix_overwrites.h" // IWYU pragma: keep
 
 void ixmlNode_init(IXML_Node *nodeptr)
 {
@@ -152,7 +152,6 @@ void ixmlNode_free(IXML_Node *nodeptr)
 				curr_child = prev_child;
 				next_child = curr_child->firstChild;
 			} while (next_child);
-			curr_child = prev_child;
 			/* current is now the last sibling of the last child. */
 			/* Delete the attribute nodes of this child */
 			/* Attribute nodes only have siblings. */
@@ -342,7 +341,7 @@ int ixmlNode_setNodeValue(IXML_Node *nodeptr, const char *newNodeValue)
 unsigned short ixmlNode_getNodeType(IXML_Node *nodeptr)
 {
 	if (nodeptr != NULL) {
-		return nodeptr->nodeType;
+		return (unsigned short)nodeptr->nodeType;
 	} else {
 		return (unsigned short)eINVALID_NODE;
 	}
@@ -499,6 +498,7 @@ static int ixmlNode_allowChildren(
 		default:
 			return 0;
 		}
+		break;
 
 	default:
 		break;
@@ -1128,24 +1128,24 @@ static IXML_Node *ixmlNode_cloneNodeTree(
 
 IXML_Node *ixmlNode_cloneNode(IXML_Node *nodeptr, int deep)
 {
-	IXML_Node *newNode;
-	IXML_Attr *newAttrNode;
+	IXML_Node *node = 0;
 
-	if (nodeptr == NULL) {
-		return NULL;
+	if (!nodeptr) {
+		goto end_function;
 	}
 
 	switch (nodeptr->nodeType) {
 	case eATTRIBUTE_NODE:
-		newAttrNode = ixmlNode_cloneAttrDirect((IXML_Attr *)nodeptr);
-		return (IXML_Node *)newAttrNode;
+		node = (IXML_Node *)ixmlNode_cloneAttrDirect(
+			(IXML_Attr *)nodeptr);
 		break;
-
 	default:
-		newNode = ixmlNode_cloneNodeTree(nodeptr, deep);
-		return newNode;
+		node = ixmlNode_cloneNodeTree(nodeptr, deep);
 		break;
 	}
+
+end_function:
+	return node;
 }
 
 IXML_NodeList *ixmlNode_getChildNodes(IXML_Node *nodeptr)

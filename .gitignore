@@ -153,11 +153,10 @@ upnp/test_log
 upnp/test_log.log
 upnp/test_log.trs
 
-
 upnp/generator/generator
 
-/build
-/build.win32
+build
+build.win32
 
 compile_commands.json
 pupnp-cppcheck-build-dir
@@ -178,3 +177,6 @@ UPNPConfigVersion.cmake
 # Logs / Traces
 **/*.log
 **/*.trs
+
+# Fuzzer
+fuzzer_testcases

@@ -22,7 +22,7 @@
 #include <stdlib.h> /* for calloc(), free() */
 #include <string.h> /* for strlen(), strdup() */
 
-#include "posix_overwrites.h"
+#include "posix_overwrites.h" // IWYU pragma: keep
 
 #ifndef UPNP_USE_MSVCPP
 	#ifdef UPNP_USE_BCBPP

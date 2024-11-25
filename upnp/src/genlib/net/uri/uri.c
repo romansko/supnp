@@ -53,7 +53,7 @@
 #include "upnpapi.h"
 #include "uri.h"
 
-#include "posix_overwrites.h"
+#include "posix_overwrites.h" // IWYU pragma: keep
 
 /*!
  * \brief Returns a 1 if a char is a RESERVED char as defined in

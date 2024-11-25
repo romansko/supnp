@@ -40,10 +40,12 @@
 #define SAMPLE_UTIL_C
 
 #include "sample_util.h"
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-#include "posix_overwrites.h"
+
+#include "posix_overwrites.h" // IWYU pragma: keep
 
 #if !UPNP_HAVE_TOOLS
 	#error "Need upnptools.h to compile samples ; try ./configure --enable-tools"

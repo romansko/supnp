@@ -46,7 +46,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "posix_overwrites.h"
+#include "posix_overwrites.h" // IWYU pragma: keep
 
 char *str_alloc(const char *str, size_t str_len)
 {
